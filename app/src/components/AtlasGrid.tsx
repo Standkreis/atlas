@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'next/navigation'
 import { useFormatter, useLocale, useTranslations } from 'next-intl'
@@ -9,7 +9,7 @@ import { Link, usePathname, useRouter } from '@/i18n/navigation'
 import { useTRPC } from '@/trpc/client'
 import { allTiles, countersOf, CountersBar, useAtlasSet } from './AtlasCounters'
 import { search } from './AtlasSearch'
-import { FilterDrawer, SHOWS, SORTS, type Show, type Sort } from './FilterDrawer'
+import { FilterDrawer, GROUPS, SHOWS, SORTS, type Group, type Show, type Sort } from './FilterDrawer'
 import { FillSheet, Toast } from './Fill'
 import { photoSrc } from './LogPhoto'
 import { Icon } from './Marks'
@@ -24,8 +24,9 @@ type Species = NonNullable<ReturnType<typeof useAtlasSet>['set']>['species'][num
 type Row = Pick<Species, 'taxonId' | 'gbifKey' | 'sciName' | 'names' | 'tile'> & { lead: { url: string } | null; leadSmall?: string | null; outside: boolean }
 
 // The Atlas grid of spec §🎨 2 on the real set (handoff 0007 Track A). Header: title, one bar amber-then-green with the
-// three counters; one search bar with the filter button and its badge; the 3-column grid; one sources line. Region and
-// tiles live in the identity's Filter, state · sort · "nur jetzt" · query in the URL so back restores them.
+// three counters; one search bar with the filter button and its badge; the 3-column grid in sections (handoff 0023); one
+// sources line. Region and tiles live in the identity's Filter, state · sort · group · "nur jetzt" · query in the URL so
+// back restores them.
 export function AtlasGrid({ title }: { title: string }) {
   const t = useTranslations('dex')
   const tc = useTranslations('common')
@@ -49,7 +50,7 @@ export function AtlasGrid({ title }: { title: string }) {
   const photos = useQuery(trpc.sighting.photos.queryOptions(undefined, { enabled: ready }))
   const outside = useQuery(trpc.sighting.outside.queryOptions({ regionId: region?.id ?? '' }, { enabled: ready, refetchInterval: (q) => (q.state.data?.some((x) => !x.hasContent) ? 10_000 : false) }))
 
-  // ── URL state: ?show ?sort ?now ?q, plus ?fill / ?again from the save screen ──
+  // ── URL state: ?show ?sort ?group ?now ?q, plus ?fill / ?again from the save screen ──
   const params = useSearchParams()
   const fillId = params.get('fill')
   const againId = params.get('again')
@@ -69,6 +70,7 @@ export function AtlasGrid({ title }: { title: string }) {
   const counters = countersOf(set, progress, tiles)
   const show = (SHOWS as string[]).includes(params.get('show') ?? '') ? (params.get('show') as Show) : 'all'
   const sort = (SORTS as string[]).includes(params.get('sort') ?? '') ? (params.get('sort') as Sort) : 'now'
+  const group = (GROUPS as string[]).includes(params.get('group') ?? '') ? (params.get('group') as Group) : 'exploration'
   const nowOnly = params.get('now') === '1'
   const query = params.get('q') ?? ''
   const setParams = useCallback((patch: Record<string, string | null>) => {
@@ -146,7 +148,24 @@ export function AtlasGrid({ title }: { title: string }) {
     return [...search(list, query, name).map((s) => ({ ...s, outside: false })), ...search(extras, query, name)]
   }, [set, progress, outside.data, tilesOn, nowOnly, show, sort, query, studied, seen, name, locale])
 
-  // The badge counts what narrows the grid: any tile off, a state other than Alle, the chip. Sort orders, it does not filter.
+  // ── Sections (handoff 0023): the visible set rows cut by the third axis, the chosen order kept inside each section.
+  // Exploration: seen wins over studied, a species sits in exactly one. Tile: the enum's fixed order. Empty sections are
+  // skipped, never shown with 0; `none` is one section without a header. Out-of-set finds trail after every section (G6).
+  const tt = useTranslations('dex.tile')
+  const { sections, extras } = useMemo(() => {
+    const inSet = visible.filter((s) => !s.outside)
+    const extras = visible.filter((s) => s.outside)
+    const cut = (keys: string[], keyOf: (s: Row) => string, title: (k: string) => string) => {
+      const by = new Map<string, Row[]>(keys.map((k) => [k, []]))
+      for (const s of inSet) by.get(keyOf(s))?.push(s)
+      return keys.flatMap((k) => { const rows = by.get(k) ?? []; return rows.length ? [{ key: k, title: title(k), rows }] : [] })
+    }
+    if (group === 'tile') return { sections: cut(allTiles, (s) => s.tile, (k) => tt(k as Tile)), extras }
+    if (group === 'exploration') return { sections: cut(['seen', 'studied', 'new'], (s) => (seen.has(s.taxonId) ? 'seen' : studied.has(s.taxonId) ? 'studied' : 'new'), (k) => t(sectionKey[k as keyof typeof sectionKey])), extras }
+    return { sections: inSet.length ? [{ key: 'none', title: null, rows: inSet }] : [], extras }
+  }, [visible, group, seen, studied, t, tt])
+
+  // The badge counts what narrows the grid: any tile off, a state other than Alle, the chip. Sort and grouping order, they do not filter.
   const active = (tilesShown.length > tilesOn.size ? 1 : 0) + (show !== 'all' ? 1 : 0) + (nowOnly ? 1 : 0)
 
   // ── Drawer, and the floating button once the search bar has scrolled away ──
@@ -164,7 +183,7 @@ export function AtlasGrid({ title }: { title: string }) {
   // P4: back from a species chain lands here by push; the scroll offset saved with the origin is put back once the grid is up.
   const gridUp = visible.length > 0
   useEffect(() => { if (gridUp) restoreSpeciesOrigin(pathname) }, [gridUp, pathname])
-  const reset = () => { setParams({ show: null, sort: null, now: null, q: null }); if (tilesShown.length > tilesOn.size) writeTiles(allTiles) }
+  const reset = () => { setParams({ show: null, sort: null, group: null, now: null, q: null }); if (tilesShown.length > tilesOn.size) writeTiles(allTiles) }
 
   return (
     <main className="mx-auto min-h-full max-w-[520px] px-4 pt-3 pb-24">
@@ -210,8 +229,19 @@ export function AtlasGrid({ title }: { title: string }) {
           {visible.length === 0 ? (
             <p className="mt-6 text-center text-[15px] text-ink-soft" data-testid="empty">{query.trim() ? t('noMatch', { q: query.trim() }) : t('empty')}</p>
           ) : (
-            <ul className="mt-4 grid grid-cols-3 gap-2" data-testid="grid">
-              {visible.map((s) => <Cell key={s.taxonId} s={s} name={name(s)} own={photos.data?.[s.taxonId] ?? null} isSeen={seen.has(s.taxonId)} isStudied={studied.has(s.taxonId)} badge={t('studiedBadge')} fill={fill.data?.taxon.id === s.taxonId && fillId ? fillPhase : null} onOpen={() => rememberSpeciesOrigin(pathname)} />)}
+            <ul className="mt-4 grid grid-cols-3 gap-2" data-testid="grid" data-group={group}>
+              {sections.map((sec) => (
+                <Fragment key={sec.key}>
+                  {sec.title !== null && (
+                    // G5: one full-width row, sticky at the top while its section scrolls; no animation on a regroup (G9).
+                    <li className="atlas-group col-span-full" data-testid={`group-${sec.key}`} data-count={sec.rows.length}>
+                      <h2 className="text-[13px] font-bold tracking-wide text-ink-soft uppercase">{sec.title}<span className="font-normal"> · {format.number(sec.rows.length)}</span></h2>
+                    </li>
+                  )}
+                  {sec.rows.map((s) => <Cell key={s.taxonId} s={s} name={name(s)} own={photos.data?.[s.taxonId] ?? null} isSeen={seen.has(s.taxonId)} isStudied={studied.has(s.taxonId)} badge={t('studiedBadge')} fill={fill.data?.taxon.id === s.taxonId && fillId ? fillPhase : null} onOpen={() => rememberSpeciesOrigin(pathname)} />)}
+                </Fragment>
+              ))}
+              {extras.map((s) => <Cell key={s.taxonId} s={s} name={name(s)} own={photos.data?.[s.taxonId] ?? null} isSeen={seen.has(s.taxonId)} isStudied={studied.has(s.taxonId)} badge={t('studiedBadge')} fill={fill.data?.taxon.id === s.taxonId && fillId ? fillPhase : null} onOpen={() => rememberSpeciesOrigin(pathname)} />)}
             </ul>
           )}
           <p className="mt-4 text-[12px] text-ink-faint">{t('sources')}</p>
@@ -222,9 +252,9 @@ export function AtlasGrid({ title }: { title: string }) {
           )}
           {drawer && region && (
             <FilterDrawer
-              focusSearch={drawer === 'fab'} query={query} regionName={region.name} tiles={tilesShown} tilesOn={tilesOn} show={show} sort={sort} nowOnly={nowOnly} month={month} results={visible.length}
+              focusSearch={drawer === 'fab'} query={query} regionName={region.name} tiles={tilesShown} tilesOn={tilesOn} show={show} sort={sort} group={group} nowOnly={nowOnly} month={month} results={visible.length}
               onClose={() => setDrawer(null)} onQuery={(q) => setParams({ q })} onChangeRegion={() => setRegionSheet(true)}
-              onToggleTile={toggleTile} onShow={(s) => setParams({ show: s === 'all' ? null : s })} onSort={(s) => setParams({ sort: s === 'now' ? null : s })}
+              onToggleTile={toggleTile} onShow={(s) => setParams({ show: s === 'all' ? null : s })} onSort={(s) => setParams({ sort: s === 'now' ? null : s })} onGroup={(g) => setParams({ group: g === 'exploration' ? null : g })}
               onNowOnly={(on) => setParams({ now: on ? '1' : null })} onReset={reset} />
           )}
           {fillId && fillPhase === 'done' && fill.data && (
@@ -239,6 +269,8 @@ export function AtlasGrid({ title }: { title: string }) {
     </main>
   )
 }
+
+const sectionKey = { seen: 'sectionSeen', studied: 'sectionStudied', new: 'sectionNew' } as const
 
 function FilterButton({ count, label, onClick, className, style, testId }: { count: number; label: string; onClick: () => void; className: string; style?: React.CSSProperties; testId?: string }) {
   return (

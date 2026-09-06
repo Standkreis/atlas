@@ -8,6 +8,10 @@ body { background: var(--color-paper); color: var(--color-ink); -webkit-font-smo
 @keyframes fill-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes fill-tick { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
 
+/* The grid's section header (handoff 0023 G5): one full-width grid row that sticks at the top of the viewport while its
+   section scrolls. No ancestor of the grid clips (`main` has no overflow), which is what iOS Safari needs for sticky. */
+.atlas-group { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; grid-column: 1 / -1; padding: 0.5rem 0 0.25rem; background: var(--color-paper); }
+
 /* ── Motion (handoff 0014b), CSS only. Durations and curves are the tokens in styles/tokens.css. ────────────────── */
 
 /* A1 · the bottom sheet (components/Sheet.tsx): the scrim fades, the panel rises; `data-state="closing"` reverses both
