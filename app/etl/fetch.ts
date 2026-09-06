@@ -21,7 +21,7 @@ function store(dir: string, file: string, body: string) {
 }
 const BUDGET = Number(process.env.ETL_BUDGET ?? 50_000)
 /** Minimum gap between two requests to one host, ms. iNaturalist allows ~1/s; Wikidata and GloBI ~3/s. */
-const MIN_GAP: Record<string, number> = { 'api.inaturalist.org': 1100, 'query.wikidata.org': 300, 'api.globalbioticinteractions.org': 300, 'api.gbif.org': 0 }
+const MIN_GAP: Record<string, number> = { 'api.inaturalist.org': 1100, 'query.wikidata.org': 300, 'api.globalbioticinteractions.org': 300, 'api.gbif.org': 0, 'xeno-canto.org': 1100, 'gift.uni-goettingen.de': 500 }
 /** GBIF has no per-second rule; it is bounded by requests in flight instead (the probe ran 4–6). */
 const MAX_INFLIGHT: Record<string, number> = { 'api.gbif.org': 6 }
 const ATTEMPTS = 5
@@ -48,16 +48,19 @@ const release = (host: string) => {
 const stats = { hits: 0, misses: 0, retries: 0, tooMany: 0 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-type Opts = { headers?: Record<string, string>; text?: boolean }
+type Opts = { headers?: Record<string, string>; text?: boolean; bytes?: boolean }
+/** An API key travels in the query string (xeno-canto v3); it never reaches a log line or an error message. */
+const redact = (url: string) => url.replace(/([?&]key=)[^&]+/, '$1…')
 
-/** GET with cache. A 404 is cached as null (or '' for text). Throws after five attempts on 429/5xx/network errors. */
-export async function get<T = unknown>(url: string, opts?: Opts & { text?: false }): Promise<T | null>
+/** GET with cache. A 404 is cached as null (or '' for text). Throws after five attempts on 429/5xx/network errors. `bytes` skips the disk cache (a sound clip) and returns the body as is. */
+export async function get<T = unknown>(url: string, opts?: Opts & { text?: false; bytes?: false }): Promise<T | null>
 export async function get(url: string, opts: Opts & { text: true }): Promise<string>
-export async function get(url: string, { headers = {}, text = false }: Opts = {}): Promise<unknown> {
+export async function get(url: string, opts: Opts & { bytes: true }): Promise<Uint8Array | null>
+export async function get(url: string, { headers = {}, text = false, bytes = false }: Opts = {}): Promise<unknown> {
   const host = new URL(url).hostname
   const dir = join(CACHE, host)
   const file = join(dir, createHash('sha1').update(url).digest('hex') + (text ? '.txt' : '.json'))
-  if (DISK && existsSync(file)) {
+  if (DISK && !bytes && existsSync(file)) {
     stats.hits++
     const raw = readFileSync(file, 'utf8')
     return text ? raw : JSON.parse(raw)
@@ -84,19 +87,20 @@ export async function get(url: string, { headers = {}, text = false }: Opts = {}
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
       await slot()
       try {
-        const r = await fetch(url, { headers: { 'User-Agent': UA, Accept: text ? '*/*' : 'application/json', ...headers } })
+        const r = await fetch(url, { headers: { 'User-Agent': UA, Accept: text || bytes ? '*/*' : 'application/json', ...headers } })
         if (r.status === 404) {
-          store(dir, file, text ? '' : 'null')
+          if (!bytes) store(dir, file, text ? '' : 'null')
           return text ? '' : null
         }
         if (r.status === 429 || r.status >= 500) {
           if (r.status === 429) stats.tooMany++
           stats.retries++
-          lastErr = new Error(`${r.status} ${url}`)
+          lastErr = new Error(`${r.status} ${redact(url)}`)
           await sleep(1500 * 2 ** attempt)
           continue
         }
-        if (!r.ok) throw new Error(`${r.status} ${url}`)
+        if (!r.ok) throw new Error(`${r.status} ${redact(url)}`)
+        if (bytes) return new Uint8Array(await r.arrayBuffer())
         const body = await r.text()
         if (!text) JSON.parse(body)
         store(dir, file, body)

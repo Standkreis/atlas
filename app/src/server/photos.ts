@@ -1,6 +1,6 @@
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { del, get, put } from '@vercel/blob'
+import { del, get, head, put } from '@vercel/blob'
 import { db } from './db'
 import { env } from './env'
 
@@ -9,6 +9,8 @@ import { env } from './env'
 //   otherwise                → disk under PHOTO_DIR, `<assetId>.jpg` (dev, tests, the VM)
 // The object's name IS the Asset id, so a row and its file always find each other and nothing new is stored in the DB.
 // The URL a photo carries never changes (`/api/photo/<id>`): the outbox uploads to it, the worker caches it.
+// Sounds (handoff 0021 D5) go through the same seam under `sounds/<gbifKey>.mp3`: keyed by the GBIF key, not the
+// Asset id, so the set tables can be dumped from the dev DB to Neon while the clips stay in the one shared Blob store.
 const BLOB_TOKEN = env.BLOB_READ_WRITE_TOKEN
 export const photoStore: 'blob' | 'disk' = BLOB_TOKEN ? 'blob' : 'disk'
 export const PHOTO_DIR = env.PHOTO_DIR ?? join(process.cwd(), 'data', 'photos')
@@ -16,6 +18,11 @@ export const photoPath = (assetId: string) => join(PHOTO_DIR, `${assetId}.jpg`)
 export const blobPath = (assetId: string) => `photos/${assetId}.jpg`
 /** The URL a photo Asset carries: same-origin, served by GET /api/photo/<id>. The static export prefixes NEXT_PUBLIC_API_URL on the client. */
 export const photoUrl = (assetId: string) => `/api/photo/${assetId}`
+
+export const soundBlobPath = (gbifKey: number) => `sounds/${gbifKey}.mp3`
+export const soundPath = (gbifKey: number) => join(PHOTO_DIR, 'sounds', `${gbifKey}.mp3`)
+/** The URL a sound Asset carries: the photo route with `.mp3`, so the worker can tell it from an image and leave it out of its cache (0021 D8). */
+export const soundUrl = (assetId: string) => `/api/photo/${assetId}.mp3`
 
 export async function writePhoto(assetId: string, bytes: Uint8Array) {
   if (BLOB_TOKEN) {
@@ -36,6 +43,33 @@ export async function readPhoto(assetId: string): Promise<{ body: ReadableStream
   try {
     const bytes = new Uint8Array(await readFile(photoPath(assetId))) // a copy into its own ArrayBuffer: what Response accepts
     return { body: bytes, size: bytes.length }
+  } catch {
+    return null
+  }
+}
+
+/** A clip, once per GBIF key. `exists` lets the ETL skip the upload when the object is already there. */
+export async function writeSound(gbifKey: number, bytes: Uint8Array) {
+  if (BLOB_TOKEN) {
+    await put(soundBlobPath(gbifKey), Buffer.from(bytes), { access: 'private', addRandomSuffix: false, contentType: 'audio/mpeg', token: BLOB_TOKEN })
+    return
+  }
+  await mkdir(join(PHOTO_DIR, 'sounds'), { recursive: true })
+  await writeFile(soundPath(gbifKey), bytes)
+}
+export async function soundExists(gbifKey: number): Promise<boolean> {
+  if (BLOB_TOKEN) return !!(await head(soundBlobPath(gbifKey), { token: BLOB_TOKEN }).catch(() => null))
+  return stat(soundPath(gbifKey)).then(() => true, () => false)
+}
+/** The whole clip as bytes (≤ 1 MB): the route answers Range requests itself, which iOS Safari needs before it plays. */
+export async function readSound(gbifKey: number): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (BLOB_TOKEN) {
+    const r = await get(soundBlobPath(gbifKey), { access: 'private', token: BLOB_TOKEN }).catch(() => null)
+    if (!r || r.statusCode !== 200) return null
+    return new Uint8Array(await new Response(r.stream).arrayBuffer())
+  }
+  try {
+    return new Uint8Array(await readFile(soundPath(gbifKey)))
   } catch {
     return null
   }

@@ -365,8 +365,123 @@
       "reproduction": "Offspring",
       "migration": "Migration",
       "status": "Status",
-      "sound": "Voice",
-      "missing": "{list}: no data yet"
+      "missing": "{list}: no data yet",
+      "mass": "Mass",
+      "wingspan": "Wingspan",
+      "length": "Length",
+      "habitat": "Habitat",
+      "diet": "Diet",
+      "activity": "Active",
+      "flowering": "Flowering",
+      "height": "Height",
+      "pollination": "Pollination",
+      "lifeform": "Life form",
+      "edibility": "Edibility",
+      "sporePrint": "Spore print",
+      "voice": "Voice",
+      "play": "Play",
+      "pause": "Pause",
+      "voiceWaits": "Voice is waiting for a signal",
+      "voiceQuality": "quality {q}",
+      "voiceType": {
+        "song": "Song",
+        "call": "Call",
+        "other": "Sound"
+      },
+      "values": {
+        "migration": {
+          "resident": "resident",
+          "partial": "partial migrant",
+          "full": "migratory"
+        },
+        "habitat": {
+          "forest": "forest",
+          "woodland": "woodland",
+          "grassland": "grassland",
+          "wetland": "wetland",
+          "marine": "sea",
+          "coastal": "coast",
+          "shrubland": "shrubland",
+          "desert": "desert",
+          "rock": "rock",
+          "human": "settlements and farmland",
+          "riverine": "riversides",
+          "terrestrial": "on land",
+          "aquatic": "in water",
+          "arboreal": "in trees",
+          "fossorial": "underground"
+        },
+        "diet": {
+          "invertivore": "invertebrates",
+          "omnivore": "omnivore",
+          "granivore": "seeds",
+          "frugivore": "fruit",
+          "herbivore": "plants",
+          "herbivoreAquatic": "water plants",
+          "aquaticPredator": "aquatic animals",
+          "vertivore": "vertebrates",
+          "scavenger": "carrion",
+          "nectarivore": "nectar",
+          "invertebrates": "invertebrates",
+          "vertebrates": "vertebrates",
+          "carrion": "carrion",
+          "fruit": "fruit",
+          "nectar": "nectar",
+          "seeds": "seeds",
+          "plants": "plants",
+          "arthropods": "arthropods",
+          "leaves": "leaves",
+          "flowers": "flowers"
+        },
+        "activity": {
+          "diurnal": "by day",
+          "nocturnal": "at night",
+          "crepuscular": "at dusk and dawn"
+        },
+        "pollination": {
+          "insect": "insects",
+          "wind": "wind",
+          "water": "water",
+          "bird": "birds",
+          "bat": "bats",
+          "other": "other"
+        },
+        "lifeform": {
+          "phanerophyte": "tree or shrub",
+          "chamaephyte": "dwarf shrub",
+          "hemicryptophyte": "perennial herb",
+          "cryptophyte": "bulb or tuber plant",
+          "therophyte": "annual"
+        },
+        "edibility": {
+          "deadly": "deadly poisonous",
+          "poisonous": "poisonous",
+          "psychoactive": "psychoactive",
+          "inedible": "inedible",
+          "choice": "choice edible",
+          "edible": "edible",
+          "medicinal": "medicinal",
+          "unknown": "unknown"
+        },
+        "sporePrint": {
+          "white": "white",
+          "cream": "cream",
+          "yellow": "yellow",
+          "ochre": "ochre",
+          "olive": "olive",
+          "brown": "brown",
+          "pink": "pink",
+          "purple": "purple",
+          "black": "black",
+          "green": "green",
+          "red": "red",
+          "grey": "grey",
+          "orange": "orange",
+          "buff": "buff",
+          "salmon": "salmon",
+          "lilac": "lilac"
+        }
+      }
     },
     "tile": {
       "bird": "Bird",
@@ -426,7 +541,8 @@
       "data": "Data: {list}",
       "occurrence": "Occurrence: GBIF",
       "ecology": "Ecology: GloBI",
-      "images": "Images: {list}"
+      "images": "Images: {list}",
+      "voice": "Voice: xeno-canto"
     },
     "study": {
       "mark": "Studied",

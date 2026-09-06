@@ -12,7 +12,7 @@
 | --- | --- | --- | --- |
 | App | **Vercel** (team "Standkreis", Pro), project `standkreis-dex` | functions in `fra1`, Node.js 24 | root directory `app`; build command from `app/vercel.json`: `node scripts/deploy/migrate.mjs && npm run build` (overrides the dashboard) |
 | Database | **Neon Postgres** (Free), store `standkreis-atlas` | Frankfurt `eu-central-1` | via the Vercel marketplace; connected to Production and Preview only, so local dev keeps the Docker Postgres on `:5433` |
-| Photos | **Vercel Blob**, private store `standkreis-dex-blob` | `iad1` | connected to all three environments; user photos live at `photos/<assetId>.jpg`, streamed by `/api/photo/<id>` (0011 Track A) |
+| Photos | **Vercel Blob**, private store `standkreis-dex-blob` | `iad1` | connected to all three environments; user photos live at `photos/<assetId>.jpg`, streamed by `/api/photo/<id>` (0011 Track A); xeno-canto clips at `sounds/<gbifKey>.mp3`, streamed by `/api/photo/<id>.mp3` (0021 D5) |
 | Mail | **Resend** (EU region) | — | the email code (0020): one transactional mail from `atlas@standkreis.de`, no tracking. The domain `standkreis.de` must be verified at Resend (DKIM, return path) before the first real mail |
 | DNS | united-domains | — | `atlas` CNAME → Vercel; the apex `standkreis.de` is reserved for a later landing page |
 
@@ -36,6 +36,7 @@ No values here. Set in Vercel → Settings → Environment Variables unless the 
 | `ANTHROPIC_API_KEY` | project, Prod + Preview; also `app/.env.local` on the Mac | The scan (0016 Track A): `sighting.identify` proxies the photo to Claude Sonnet 5, the key never leaves the server. **Required**: the server refuses to start without it, like the others | yes |
 | `ANTHROPIC_BASE_URL` | never on Vercel | Checks only: points `identify` at a stub (`app/scripts/m12/identify.mjs errors`) | no |
 | `RESEND_API_KEY` | project, Prod + Preview; also `app/.env.local` on the Mac | The email attach (0020 E4): `identity.emailStart` sends the code through Resend. **Required**: the server refuses to start without it; unset in dev the code goes to the server log | yes |
+| `XENO_CANTO_API_KEY` | never on Vercel; `app/.env.local` on the Mac | The sounds ETL (0021 D5): `npm run etl -- sounds` fetches one xeno-canto clip per bird, frog, grasshopper and bat into the Blob store (`sounds/<gbifKey>.mp3`); the app only streams them through `/api/photo/<id>.mp3` | yes |
 | `RESEND_BASE_URL` | never on Vercel | Checks only: points the Resend SDK at a stub (`app/scripts/m7b/email.mjs`) | no |
 
 `next.config.ts` picks `output` by environment: `'export'` for the static export, `undefined` otherwise (Vercel's tracer fails on `standalone`: `ENOENT next-server.js.nft.json`).

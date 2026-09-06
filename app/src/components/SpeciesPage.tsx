@@ -1,12 +1,13 @@
 'use client'
 
-import { Suspense, useCallback, useState, type ReactNode } from 'react'
+import { Suspense, useCallback, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams, useSearchParams } from 'next/navigation'
 import { useFormatter, useLocale, useTranslations } from 'next-intl'
 import { Link, useRouter } from '@/i18n/navigation'
 import { useTRPC } from '@/trpc/client'
 import { Toast } from './Fill'
+import { useOffline } from './OfflineBanner'
 import { Icon, SeenMark, StudiedMark } from './Marks'
 import { ChipGrid, EcologyChip, LookalikeCard, useName, type Card, type DexState } from './SpeciesCard'
 import { SourceInfo, useImageSource, type Source } from './SourceInfo'
@@ -14,7 +15,19 @@ import { SpeciesMap } from './SpeciesMap'
 import { SpeciesSlider } from './SpeciesSlider'
 import { enqueue, flush, type Lead } from './Queue'
 
-const FACT_KEYS = ['size', 'lifespan', 'reproduction', 'migration', 'status', 'sound'] as const
+// The Steckbrief keys a tile can carry (handoff 0021 D6), in cell order after Status. A tile without a row (insect, reptile,
+// fish) shows only what the ETL happened to find; the grey "noch keine Angaben" line names only this tile's keys.
+const TILE_KEYS: Record<string, string[]> = {
+  bird: ['mass', 'wingspan', 'migration', 'habitat', 'diet', 'activity', 'lifespan', 'reproduction'],
+  mammal: ['mass', 'length', 'diet', 'activity', 'lifespan', 'reproduction'],
+  amphibian: ['length', 'habitat', 'diet', 'activity', 'lifespan', 'reproduction'],
+  plant: ['flowering', 'height', 'pollination', 'lifeform'],
+  fungus: ['edibility', 'sporePrint'],
+}
+/** Enum-like keys: the ETL stores codes, the page translates them (`species.facts.values.<key>.<code>`), lists stay comma-joined. */
+const CODED = new Set(['migration', 'habitat', 'diet', 'activity', 'pollination', 'lifeform', 'edibility', 'sporePrint'])
+const METRIC = new Set(['mass', 'wingspan', 'length', 'height'])
+type Fact = { value: string; source: string; url?: string; licence?: string }
 const KINDS = ['eats', 'eatenBy', 'pollinates', 'visitsFlowersOf', 'hostOf', 'parasiteOf'] as const
 /** The deed behind a licence string, for the ⓘ sheets (handoff 0014 D3): "CC BY-SA 4.0" → creativecommons.org; anything else has no link. */
 export const licenceUrl = (l: string | null | undefined) => {
@@ -22,7 +35,10 @@ export const licenceUrl = (l: string | null | undefined) => {
   if (!m) return null
   return m[1] === '0' ? 'https://creativecommons.org/publicdomain/zero/1.0/' : `https://creativecommons.org/licenses/${m[1]!.toLowerCase()}/${m[2] ?? '4.0'}/`
 }
-const HOME: Record<string, string> = { GBIF: 'https://www.gbif.org', Wikidata: 'https://www.wikidata.org', AnAge: 'https://genomics.senescence.info/species/', GloBI: 'https://www.globalbioticinteractions.org', iNaturalist: 'https://www.inaturalist.org', 'Wikimedia Commons': 'https://commons.wikimedia.org' }
+const HOME: Record<string, string> = {
+  GBIF: 'https://www.gbif.org', Wikidata: 'https://www.wikidata.org', AnAge: 'https://genomics.senescence.info/species/', GloBI: 'https://www.globalbioticinteractions.org', iNaturalist: 'https://www.inaturalist.org', 'Wikimedia Commons': 'https://commons.wikimedia.org',
+  AVONET: 'https://doi.org/10.6084/m9.figshare.16586228', EltonTraits: 'https://doi.org/10.6084/m9.figshare.3559887', PanTHERIA: 'https://doi.org/10.1890/08-1494.1', AmphiBIO: 'https://doi.org/10.6084/m9.figshare.4644424', 'GIFT (Weigelt et al.)': 'https://gift.uni-goettingen.de', 'xeno-canto': 'https://xeno-canto.org',
+}
 // The ETL writes the year strip's words in German (record 0002 E3, schema comment); en swaps the four abbreviations that differ.
 const MONTHS_EN: Record<string, string> = { Mär: 'Mar', Mai: 'May', Okt: 'Oct', Dez: 'Dec' }
 
@@ -85,16 +101,27 @@ export function SpeciesPage() {
   const other = s.names[locale === 'de' ? 'en' : 'de']
   const sub = [title !== s.sciName ? <i key="sci">{s.sciName}</i> : null, other && other !== title ? <span key="other">{other}</span> : null].filter(Boolean)
 
-  // Steckbrief: six cells, Status always (tile and IUCN), the rest from `facts`; the missing ones in one grey line. Each cell's source sits behind its ⓘ (D3).
-  const facts = (s.facts ?? {}) as Record<string, { value: string; source: string } | undefined>
+  // Steckbrief (0021 D6, layout A): Status always (tile and IUCN), then one cell per fact the ETL found, in the tile's
+  // order; the tile's missing keys in one grey line. Each cell's source and licence sit behind its ⓘ (0014 D3).
+  const facts = (s.facts ?? {}) as Record<string, Fact | undefined>
   const gbifPage = `https://www.gbif.org/species/${s.gbifKey}`
   const dataSource = (o: string, url?: string): Source => ({ origin: o, sourceUrl: url ?? HOME[o] ?? null })
-  const cells = FACT_KEYS.map((k) => {
-    if (k === 'status') return { k, value: `${t(`tile.${s.tile}`)}`, sub: s.iucn ? `${s.iucn} · ${t.has(`iucn.${s.iucn}`) ? t(`iucn.${s.iucn}`) : ''}`.trim() : null, sources: [dataSource('GBIF', gbifPage), ...(s.iucn ? [dataSource('IUCN Red List', `https://www.iucnredlist.org/search?query=${encodeURIComponent(s.sciName)}`)] : [])] }
-    const f = facts[k]
-    return f ? { k, value: f.value, sub: null, sources: [dataSource(f.source)] } : null
-  }).filter((c): c is NonNullable<typeof c> => !!c)
-  const missing = FACT_KEYS.filter((k) => !cells.some((c) => c.k === k)).map((k) => t(`facts.${k}`))
+  const factSource = (f: Fact): Source => ({ origin: f.source, sourceUrl: f.url ?? HOME[f.source] ?? null, licence: f.licence ?? null, licenceUrl: licenceUrl(f.licence) })
+  const factWords = (k: string, v: string) => {
+    if (CODED.has(k)) return v.split(', ').map((c) => (t.has(`facts.values.${k}.${c}`) ? t(`facts.values.${k}.${c}`) : c)).join(', ')
+    if (k === 'flowering') return locale === 'en' ? v.replace(/Mär|Mai|Okt|Dez/g, (m) => MONTHS_EN[m] ?? m) : v
+    if (METRIC.has(k) && locale === 'de') return v.replace(/(\d)\.(\d)/g, '$1,$2')
+    return v
+  }
+  const tileKeys = TILE_KEYS[s.tile] ?? []
+  const keys = [...tileKeys, ...Object.keys(facts).filter((k) => !tileKeys.includes(k))]
+  const status = { k: 'status', value: `${t(`tile.${s.tile}`)}`, sub: s.iucn ? `${s.iucn} · ${t.has(`iucn.${s.iucn}`) ? t(`iucn.${s.iucn}`) : ''}`.trim() : null, sources: [dataSource('GBIF', gbifPage), ...(s.iucn ? [dataSource('IUCN Red List', `https://www.iucnredlist.org/search?query=${encodeURIComponent(s.sciName)}`)] : [])] }
+  const cells = [status, ...keys.flatMap((k) => { const f = facts[k]; return f && t.has(`facts.${k}`) ? [{ k, value: factWords(k, f.value), sub: null, sources: [factSource(f)] }] : [] })]
+  const missing = tileKeys.filter((k) => !facts[k]).map((k) => t(`facts.${k}`))
+  const voice = s.assets.find((a) => a.kind === 'sound') ?? null
+  // No Steckbrief at all for a tile that can carry no fact and has none (an insect without a clip; D6).
+  const showFacts = tileKeys.length > 0 || cells.length > 1 || !!s.iucn || !!voice
+  const images = s.assets.filter((a) => a.kind === 'image')
 
   // Vorkommen: the words say what the bars cannot; the current month is dark; "jetzt gute Chancen" at ≥ 25 % of the peak (E3).
   const p = s.plausibility
@@ -103,11 +130,14 @@ export function SpeciesPage() {
   const letters = t('occurrence.monthLetters').split(' ')
 
   const kinds = KINDS.filter((k) => s.interactions[k]?.length)
-  const imageOrigins = [...new Set(s.assets.map((a) => a.origin))].map((o) => (o === 'inat' || o === 'commons' || o === 'user' ? t(`origin.${o}`) : o))
-  const dataSources = ['GBIF', s.wikidataId ? 'Wikidata' : null, Object.values(facts).some((f) => f?.source === 'AnAge') ? 'AnAge' : null].filter((x): x is string => !!x)
+  const imageOrigins = [...new Set(images.map((a) => a.origin))].map((o) => (o === 'inat' || o === 'commons' || o === 'user' ? t(`origin.${o}`) : o))
+  // The data line names every dataset behind a cell (AnAge, AVONET, GIFT …) after GBIF and Wikidata (0021 D6).
+  const dataSources = [...new Set(['GBIF', ...(s.wikidataId ? ['Wikidata'] : []), ...keys.flatMap((k) => (facts[k] ? [facts[k]!.source] : []))])]
+  const voiceSource: Source[] = voice ? [{ origin: 'xeno-canto', author: voice.author, licence: voice.licence, licenceUrl: voice.licenceUrl, sourceUrl: voice.sourceUrl, note: voice.meta ? `XC${voice.meta.xcId} · ${t(`facts.voiceType.${voiceType(voice.meta.type)}`)} · ${clock(voice.meta.length)} · ${t('facts.voiceQuality', { q: voice.meta.quality })}` : null }] : []
   const sources = [
     s.intro ? t('sources.text', { licence: s.intro.licence }) : null,
     t('sources.data', { list: dataSources.join(', ') }),
+    voice ? t('sources.voice') : null,
     p ? t('sources.occurrence') : null,
     kinds.length ? t('sources.ecology') : null,
     imageOrigins.length ? t('sources.images', { list: imageOrigins.join(', ') }) : null,
@@ -122,14 +152,15 @@ export function SpeciesPage() {
   const allSources: Source[] = [
     ...introSource.map((x) => ({ ...x, label: t('sourceInfo.text') })),
     ...dataSources.map((o) => ({ label: t('sourceInfo.data'), ...dataSource(o, o === 'GBIF' ? gbifPage : o === 'Wikidata' && s.wikidataId ? `https://www.wikidata.org/wiki/${s.wikidataId}` : undefined) })),
+    ...voiceSource.map((x) => ({ ...x, label: t('facts.voice'), note: null })),
     ...(p ? occurrenceSources.map((x) => ({ ...x, label: t('occurrence.title'), note: null })) : []),
     ...(kinds.length ? [{ ...ecologySources[0]!, label: t('ecology.title'), note: null }] : []),
-    ...credits(s.assets.map((a) => ({ id: a.id, gbifKey: s.gbifKey, sciName: s.sciName, names: s.names, tile: s.tile, lead: a.url, leadInfo: a }))).map((x, i) => ({ ...x, label: `${t('sourceInfo.image')} ${i + 1}` })),
+    ...credits(images.map((a) => ({ id: a.id, gbifKey: s.gbifKey, sciName: s.sciName, names: s.names, tile: s.tile, lead: a.url, leadInfo: a }))).map((x, i) => ({ ...x, label: `${t('sourceInfo.image')} ${i + 1}` })),
   ]
 
   return (
     <main className="mx-auto min-h-full max-w-[520px] pb-28 [&~nav]:hidden" data-testid="species">
-      <SpeciesSlider assets={s.assets.filter((a) => a.kind === 'image')} tile={s.tile} />
+      <SpeciesSlider assets={images} tile={s.tile} />
 
       <div className="px-4">
         <h1 className={`mt-3 text-[28px] leading-tight font-bold tracking-tight ${title === s.sciName ? 'italic' : ''}`}>{title}</h1>
@@ -164,7 +195,7 @@ export function SpeciesPage() {
           <p className="mt-4 text-[15px] text-ink-faint">{t('noIntro')}</p>
         )}
 
-        <Section title={t('facts.title')} testId="facts">
+        {showFacts && <Section title={t('facts.title')} testId="facts">
           <div className="grid grid-cols-2 gap-3">
             {cells.map((c, i) => (
               <div key={c.k} className={`rounded-2xl bg-card px-4 py-3 shadow-[0_2px_12px_rgba(30,42,35,0.06)] ${i === cells.length - 1 && cells.length % 2 ? 'col-span-2' : ''}`} data-testid={`fact-${c.k}`}>
@@ -174,8 +205,9 @@ export function SpeciesPage() {
               </div>
             ))}
           </div>
+          {voice && <VoiceRow asset={voice} sources={voiceSource} />}
           {missing.length > 0 && <p className="mt-3 text-[13px] text-ink-faint">{t('facts.missing', { list: missing.join(' · ') })}</p>}
-        </Section>
+        </Section>}
 
         <Section title={t('occurrence.title')} aside={region?.name ?? null} testId="occurrence" info={p ? <SourceInfo title={t('occurrence.title')} sources={occurrenceSources} testId="occurrence-info" /> : null}>
           {!region ? (
@@ -245,7 +277,7 @@ export function SpeciesPage() {
             <Icon name="check" size={20} /> {isSeen ? tl('logAgain') : tl('logFirst')}
           </button>
           <button type="button" disabled={busy || !progress.data} aria-pressed={isStudied} data-testid="study"
-            onClick={() => (isStudied ? unmark.mutate({ taxonId: s.id }) : void mark({ id: s.id, gbifKey: s.gbifKey, sciName: s.sciName, names: s.names, tile: s.tile, lead: s.assets[0] ? { url: s.assets[0].url, author: s.assets[0].author, licence: s.assets[0].licence, licenceUrl: s.assets[0].licenceUrl, sourceUrl: s.assets[0].sourceUrl, origin: s.assets[0].origin } : null }))}
+            onClick={() => (isStudied ? unmark.mutate({ taxonId: s.id }) : void mark({ id: s.id, gbifKey: s.gbifKey, sciName: s.sciName, names: s.names, tile: s.tile, lead: images[0] ? { url: images[0].url, author: images[0].author, licence: images[0].licence, licenceUrl: images[0].licenceUrl, sourceUrl: images[0].sourceUrl, origin: images[0].origin } : null }))}
             className={`flex h-13 flex-1 items-center justify-center gap-2 rounded-full text-[17px] font-bold shadow-md transition-colors disabled:opacity-60 ${isStudied ? 'bg-amber-soft text-amber' : 'bg-amber text-white'}`}>
             <Icon name="book" size={20} /> {isStudied ? t('study.marked') : t('study.mark')}
           </button>
@@ -265,6 +297,44 @@ function AgainToast({ name }: { name: string }) {
   const done = useCallback(() => window.history.replaceState(null, '', window.location.pathname), [])
   if (!again) return null
   return <Toast key={again} text={tf(kept ? 'kept' : 'again', { name })} onDone={done} />
+}
+
+/** "0:14" from seconds. */
+const clock = (n: number) => `${Math.floor(n / 60)}:${String(Math.round(n % 60)).padStart(2, '0')}`
+/** xeno-canto's free-text type ("song", "call, flight call", "male, song") → the three words the row has. */
+const voiceType = (type: string) => (/song/i.test(type) ? 'song' : /call/i.test(type) ? 'call' : 'other')
+type VoiceAsset = { id: string; url: string; author: string | null; licence: string | null; licenceUrl: string | null; sourceUrl: string | null; meta: { xcId: number; type: string; length: number; quality: string } | null }
+
+/**
+ * The voice row (0021 D6, D8): "♪ Gesang · 0:14 · CC BY-NC-SA 4.0 · Recordist" with play/pause and its ⓘ. A native
+ * <audio> streamed from /api/photo/<id>.mp3, loaded on the first tap only; the clip is not in the offline pack, so
+ * without network the row says so instead of a button that fails.
+ */
+function VoiceRow({ asset, sources }: { asset: VoiceAsset; sources: Source[] }) {
+  const t = useTranslations('species')
+  const off = useOffline()
+  const ref = useRef<HTMLAudioElement>(null)
+  const [playing, setPlaying] = useState(false)
+  const toggle = () => { const a = ref.current; if (!a) return; if (a.paused) void a.play().catch(() => setPlaying(false)); else a.pause() }
+  const kind = t(`facts.voiceType.${voiceType(asset.meta?.type ?? '')}`)
+  const line = [kind, asset.meta ? clock(asset.meta.length) : null, asset.licence, asset.author].filter(Boolean).join(' · ')
+  return (
+    <div className="mt-3 flex items-center gap-3 rounded-2xl bg-card px-4 py-3 shadow-[0_2px_12px_rgba(30,42,35,0.06)]" data-testid="fact-voice" data-playing={playing || undefined}>
+      <audio ref={ref} src={asset.url} preload="none" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} data-testid="voice-audio" />
+      {off ? (
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-tile text-ink-faint" aria-hidden="true">♪</span>
+      ) : (
+        <button type="button" onClick={toggle} aria-label={playing ? t('facts.pause') : t('facts.play')} aria-pressed={playing} data-testid="voice-play"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-moss-deep text-white active:scale-95">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true">{playing ? <><rect x="3" y="2" width="4.5" height="14" rx="1" /><rect x="10.5" y="2" width="4.5" height="14" rx="1" /></> : <path d="M5 2.5v13l10-6.5z" />}</svg>
+        </button>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2 text-[13px] text-ink-soft">{t('facts.voice')} <SourceInfo title={t('facts.voice')} sources={sources} size={22} className="-my-1 -mr-2" testId="fact-info" /></div>
+        <div className="mt-0.5 text-[15px] leading-snug font-semibold">{off ? t('facts.voiceWaits') : `♪ ${line}`}</div>
+      </div>
+    </div>
+  )
 }
 
 const Grey = ({ children }: { children: ReactNode }) => <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-tile text-ink-faint">{children}</span>

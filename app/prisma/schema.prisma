@@ -149,8 +149,13 @@ model Taxon {
   tags        String[]  @default([])
   /// Wikipedia intro: { text, lang, source, licence }. de → en → null. CC BY-SA until rewritten from facts (E8).
   intro       Json?
-  /// Steckbrief: size, lifespan, reproduction, migration, sound. Each with its source. No habitat (E8).
+  /// Steckbrief (E8, handoff 0021 D2): `{ key: { value, source, url?, licence? } }`. AnAge keys from the content job;
+  /// mass, wingspan, length, migration, habitat, diet, activity, flowering, height, pollination, lifeform, edibility,
+  /// sporePrint from the `facts` step (AVONET, EltonTraits, PanTHERIA, AmphiBIO, GIFT, Wikidata). Enum-like values are
+  /// codes the client translates; numbers are metric strings with an ASCII decimal point.
   facts       Json?
+  /// Set when the `facts` step has run for this taxon (0021 D1); the later prose step rewrites when facts are newer.
+  factsAt     DateTime?
   /// How the Wikidata item was found: P846 | name | none.
   namePath    String?
   /// Set when the content job has run for this taxon; never expires, purge only.
@@ -242,6 +247,8 @@ model Asset {
   /// commons | inat | xeno-canto | user
   origin     String
   caption    String?
+  /// Per-kind extras (0021 D5): a sound carries `{ xcId, type, length, quality }` from xeno-canto. Null on images.
+  meta       Json?
   createdAt  DateTime  @default(now())
 
   taxon      Taxon?    @relation(fields: [taxonId], references: [id], onDelete: Cascade)

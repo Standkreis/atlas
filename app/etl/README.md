@@ -7,6 +7,8 @@ TypeScript on `tsx`, the app's Prisma client, no other dependency. Every respons
 | `npm run etl -- region "Mainz-Bingen"` (or a gid `DEU.11.19_1`) `[--month 9]` | GADM search → `Region` · 13 GBIF facets (year + 12 months, 2016–2026, observation records) → cut per tile (90 %, floor 10) → `Taxon`, `Plausibility` (shares, peak, words), `Lookalike` (same genus in the set). One transaction; a failed facet leaves the region `failed` | ≈ 1,600 GBIF, 30 s cold, 1 s warm |
 | `npm run etl -- refresh [--days 30]` | The region job again for every region older than `days` | as above per region |
 | `npm run etl -- content [--region <name>] [--purge <gbifKey>] [--limit n]` | For every taxon in a set (or with a sighting) and `contentAt` null: GBIF `species/{key}` → Wikidata batch (P846, then exact name; rank check) → image ladder (iNat default photo if licensed → Commons P18 unless specimen/plate/larva/egg/map → next licensed iNat photo → none) → Wikipedia `page/summary` de → en → AnAge (P4024) → GloBI edges folded to six kinds, in-set targets first, ≤ 200 per species; out-of-set targets become `Taxon` rows without plausibility. One transaction per taxon, `contentAt` set; a failing taxon logs and the run continues. `--purge` re-fetches one taxon | ≈ 8 per species + 1 GBIF match per new target; one region ≈ 20 min, bounded by iNaturalist at 1/s |
+| `npm run etl -- facts [--region <name>] [--purge] [--force] [--limit n]` | The Steckbrief keys (handoff 0021 D3, D4) for every set taxon with `factsAt` null: birds, mammals, amphibians from the bulk files in `data/` (AVONET, EltonTraits, PanTHERIA, AmphiBIO; GBIF synonyms for a binomial miss) · plants from GIFT (species list and five trait tables, cached once) · fungi edibility and spore print, bird wingspan with unit from Wikidata · GBIF's most-agreed English vernacular into `names.en` where empty. Keeps AnAge and the intro; `--purge` drops only the 13 new keys; `--force` recomputes taxa with `factsAt` set. Also runs at the end of `content` for the taxa it filled | ≈ 0.7 GBIF per taxon + 1 Wikidata per 100 + 6 GIFT per process; Mainz-Bingen 889 taxa in 25 s |
+| `npm run etl -- sounds [--region <name>] [--limit n]` | One xeno-canto clip (API v3, `XENO_CANTO_API_KEY` from the shell; unset → says so and skips) per bird, frog, grasshopper and bat in the set without a sound Asset: `sp:"…" grp:… q:A len:5-30`, then without `len`; song over call, ≤ 30 s preferred, shortest, ≥ 5 s, MP3 only, never ND. The file goes through `src/server/photos.ts` to `sounds/<gbifKey>.mp3` (Blob when the token is set, else `PHOTO_DIR/sounds/`), one `Asset` row `kind: 'sound'` with recordist, licence, recording page and `meta { xcId, type, length, quality }`; served by `/api/photo/<id>.mp3` | 1–2 xeno-canto + 1 download per taxon at 1.1 s gap; Mainz-Bingen 89 taxa in 3 min |
 | `npm run db:seed` | The dev identity and the two fixtures (`fixtures/`, plausibility only, no content), idempotent | 0 |
 
 | File | Holds |
@@ -20,6 +22,11 @@ TypeScript on `tsx`, the app's Prisma client, no other dependency. Every respons
 | `sources.ts` | iNaturalist, Commons `imageinfo`, Wikipedia REST, AnAge |
 | `globi.ts` | GloBI paging and the cap |
 | `content.ts` | The content job |
+| `traits.ts` | The bulk files: CSV/TSV reader, binomial index, `bulkFacts(tile, names)`, the value formats (`grams`, `millimetres`, `metres`) and the code maps. Tested in `src/server/steckbrief.test.ts` |
+| `gift.ts` | GIFT: species list, five trait tables, `floweringWords`, `giftFacts` |
+| `facts.ts` | The facts job: Wikidata mycomorphbox and P2050 with unit, GBIF synonyms and vernaculars, `runFacts` |
+| `clip.ts` · `sounds.ts` | The xeno-canto pick (pure) and the sounds job |
+| `data/` | The four vertebrate trait datasets, 8.5 MB, with their licences ([README](data/README.md)) |
 | `cli.ts` | Argument parsing |
 | `fixtures/` | `fixture-mainz-bingen.json` (929), `fixture-kyoto.json` (303): the grill's sets, the seed's input |
 
@@ -47,6 +54,15 @@ npm run etl -- region "Mainz-Bingen"                # Region, Taxon, Plausibilit
 npm run etl -- content --region "Mainz-Bingen"      # images, intros, facts, edges for the set
 rm /tmp/dex-prod.env
 ```
+
+**Facts and sounds on Neon** (handoff 0021 D9; both idempotent, both read only the shell): after the set tables are there, from `app/` with the unpooled URL in `DATABASE_URL` as above and `XENO_CANTO_API_KEY` plus `BLOB_READ_WRITE_TOKEN` loaded from `app/.env.local` (`set -a; . ./.env.local; set +a`, nothing echoed):
+
+```sh
+npm run etl -- facts --region "Mainz-Bingen"        # 2026-09-07 dev: 889 taxa, 25 s, 655 GBIF + 1 Wikidata + 6 GIFT requests
+npm run etl -- sounds --region "Mainz-Bingen"       # 2026-09-07 dev: 89 taxa, 79 clips (23 MB) in 3 min into the shared Blob store under sounds/<gbifKey>.mp3
+```
+
+The clips are keyed by GBIF key, not Asset id, so Option 2 below (dump the tables) carries the sound rows to Neon and the one Blob store already holds their files: run `sounds` on Neon only when the dev DB never had the region.
 
 The region job is one transaction; a dropped connection leaves the region `failed` and the next run replaces it. `content` is one transaction per taxon and resumes where it stopped. `ETL_BUDGET` and `ETL_YEARS` are read from the laptop's environment as always.
 

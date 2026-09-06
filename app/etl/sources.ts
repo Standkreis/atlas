@@ -91,7 +91,8 @@ export async function wikipediaIntro(sitelink: string | undefined, lang: 'de' | 
 }
 
 // ── AnAge ────────────────────────────────────────────────────────────────────
-export type Fact = { value: string; source: string; url?: string }
+/** One Steckbrief cell (E8, 0021 D2): `licence` on every fact of the `facts` step; AnAge has none to name. */
+export type Fact = { value: string; source: string; url?: string; licence?: string }
 
 /** The AnAge entry behind Wikidata P4024, scraped for longevity and clutch or litter size (E8). */
 export async function anageFacts(id: string | undefined): Promise<Record<string, Fact>> {

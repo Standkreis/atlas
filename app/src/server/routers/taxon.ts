@@ -146,7 +146,7 @@ export const taxonRouter = router({
         intro: t.intro as { text: string; lang: string; source: string; licence: string } | null,
         facts: t.facts as Record<string, { value: string; source: string }> | null,
         contentAt: t.contentAt,
-        assets: t.assets.map((a) => ({ id: a.id, kind: a.kind, url: a.url, author: a.author, licence: a.licence, licenceUrl: a.licenceUrl, sourceUrl: a.sourceUrl, origin: a.origin, caption: a.caption })),
+        assets: t.assets.map((a) => ({ id: a.id, kind: a.kind, url: a.url, author: a.author, licence: a.licence, licenceUrl: a.licenceUrl, sourceUrl: a.sourceUrl, origin: a.origin, caption: a.caption, meta: a.meta as { xcId: number; type: string; length: number; quality: string } | null })),
         plausibility: p
           ? { obs: p.obs, monthShare: p.monthShare.map(perMille), peak: perMille(p.peak), words: p.words, month, nowRatio: +nowRatio(p.monthShare, p.peak, month).toFixed(3), now: isNow(p.monthShare, p.peak, month) }
           : null,

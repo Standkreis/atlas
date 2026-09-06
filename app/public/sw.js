@@ -51,7 +51,7 @@ self.addEventListener('fetch', (event) => {
   else if (own && req.headers.get('RSC') === '1' && !req.headers.get('Next-Router-Prefetch') && isPagePath(url.pathname)) event.waitUntil(rememberPage(url))
 })
 
-const isImage = (url, own) => IMAGE_HOSTS.includes(url.hostname) || (own && (url.pathname.startsWith('/api/photo/') || url.pathname.startsWith('/api/tiles/')))
+const isImage = (url, own) => IMAGE_HOSTS.includes(url.hostname) || (own && ((url.pathname.startsWith('/api/photo/') && !url.pathname.endsWith('.mp3')) || url.pathname.startsWith('/api/tiles/')))
 const isPagePath = (p) => !p.startsWith('/_next/') && !p.startsWith('/api/') && !p.includes('.')
 const pageKey = (url) => `${url.origin}${url.pathname}`
 

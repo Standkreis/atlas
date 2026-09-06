@@ -365,8 +365,123 @@
       "reproduction": "Nachwuchs",
       "migration": "Zug",
       "status": "Status",
-      "sound": "Stimme",
-      "missing": "{list}: noch keine Angaben"
+      "missing": "{list}: noch keine Angaben",
+      "mass": "Gewicht",
+      "wingspan": "Spannweite",
+      "length": "Länge",
+      "habitat": "Lebensraum",
+      "diet": "Nahrung",
+      "activity": "Aktiv",
+      "flowering": "Blütezeit",
+      "height": "Höhe",
+      "pollination": "Bestäubung",
+      "lifeform": "Lebensform",
+      "edibility": "Speisewert",
+      "sporePrint": "Sporenpulver",
+      "voice": "Stimme",
+      "play": "Abspielen",
+      "pause": "Pause",
+      "voiceWaits": "Stimme wartet aufs Netz",
+      "voiceQuality": "Qualität {q}",
+      "voiceType": {
+        "song": "Gesang",
+        "call": "Ruf",
+        "other": "Laut"
+      },
+      "values": {
+        "migration": {
+          "resident": "Standvogel",
+          "partial": "Teilzieher",
+          "full": "Zugvogel"
+        },
+        "habitat": {
+          "forest": "Wald",
+          "woodland": "lichter Wald",
+          "grassland": "Grasland",
+          "wetland": "Feuchtgebiet",
+          "marine": "Meer",
+          "coastal": "Küste",
+          "shrubland": "Gebüsch",
+          "desert": "Wüste",
+          "rock": "Fels",
+          "human": "Siedlung und Kulturland",
+          "riverine": "Flussufer",
+          "terrestrial": "an Land",
+          "aquatic": "im Wasser",
+          "arboreal": "auf Bäumen",
+          "fossorial": "im Boden"
+        },
+        "diet": {
+          "invertivore": "Wirbellose",
+          "omnivore": "Allesfresser",
+          "granivore": "Samen",
+          "frugivore": "Früchte",
+          "herbivore": "Pflanzen",
+          "herbivoreAquatic": "Wasserpflanzen",
+          "aquaticPredator": "Wassertiere",
+          "vertivore": "Wirbeltiere",
+          "scavenger": "Aas",
+          "nectarivore": "Nektar",
+          "invertebrates": "Wirbellose",
+          "vertebrates": "Wirbeltiere",
+          "carrion": "Aas",
+          "fruit": "Früchte",
+          "nectar": "Nektar",
+          "seeds": "Samen",
+          "plants": "Pflanzen",
+          "arthropods": "Gliederfüßer",
+          "leaves": "Blätter",
+          "flowers": "Blüten"
+        },
+        "activity": {
+          "diurnal": "tagsüber",
+          "nocturnal": "nachts",
+          "crepuscular": "in der Dämmerung"
+        },
+        "pollination": {
+          "insect": "Insekten",
+          "wind": "Wind",
+          "water": "Wasser",
+          "bird": "Vögel",
+          "bat": "Fledermäuse",
+          "other": "andere"
+        },
+        "lifeform": {
+          "phanerophyte": "Baum oder Strauch",
+          "chamaephyte": "Zwergstrauch",
+          "hemicryptophyte": "Staude",
+          "cryptophyte": "Zwiebel- oder Knollenpflanze",
+          "therophyte": "einjährig"
+        },
+        "edibility": {
+          "deadly": "tödlich giftig",
+          "poisonous": "giftig",
+          "psychoactive": "psychoaktiv",
+          "inedible": "ungenießbar",
+          "choice": "sehr guter Speisepilz",
+          "edible": "essbar",
+          "medicinal": "Heilpilz",
+          "unknown": "unbekannt"
+        },
+        "sporePrint": {
+          "white": "weiß",
+          "cream": "cremefarben",
+          "yellow": "gelb",
+          "ochre": "ocker",
+          "olive": "oliv",
+          "brown": "braun",
+          "pink": "rosa",
+          "purple": "violett",
+          "black": "schwarz",
+          "green": "grün",
+          "red": "rot",
+          "grey": "grau",
+          "orange": "orange",
+          "buff": "beige",
+          "salmon": "lachsfarben",
+          "lilac": "lila"
+        }
+      }
     },
     "tile": {
       "bird": "Vogel",
@@ -426,7 +541,8 @@
       "data": "Daten: {list}",
       "occurrence": "Vorkommen: GBIF",
       "ecology": "Ökologie: GloBI",
-      "images": "Bilder: {list}"
+      "images": "Bilder: {list}",
+      "voice": "Stimme: xeno-canto"
     },
     "study": {
       "mark": "Studiert",

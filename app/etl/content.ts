@@ -38,7 +38,7 @@ async function selectTaxa({ purge, limit, region, keys }: ContentOpts): Promise<
     await db.$transaction([
       db.asset.deleteMany({ where: { taxonId: t.id, sightingId: null } }),
       db.interaction.deleteMany({ where: { sourceId: t.id } }),
-      db.taxon.update({ where: { id: t.id }, data: { contentAt: null, intro: Prisma.DbNull, facts: Prisma.DbNull, wikidataId: null, iucn: null, namePath: null, commonNames: {} } }),
+      db.taxon.update({ where: { id: t.id }, data: { contentAt: null, factsAt: null, intro: Prisma.DbNull, facts: Prisma.DbNull, wikidataId: null, iucn: null, namePath: null, commonNames: {} } }),
     ])
     return [t]
   }
@@ -124,6 +124,10 @@ export async function runContent(opts: ContentOpts): Promise<ContentResult> {
     }
     if (++n % 25 === 0 || n === taxa.length) log(`  ${n}/${taxa.length} · ${((Date.now() - t0) / 60_000).toFixed(1)} min · ${JSON.stringify(requests().perHost)}`)
   })
+  // The Steckbrief keys (handoff 0021 D3) for the taxa this run filled: bulk files, GIFT, the mycomorphbox, GBIF names.
+  const { runFacts } = await import('./facts')
+  const f = await runFacts({ keys: taxa.map((t) => t.gbifKey), force: true, log })
+  log(`  facts: ${f.written} written, ${f.namesFilled} English names filled, ${f.failed} failed`)
   r.seconds = (Date.now() - t0) / 1000
   r.requests = requests()
   return r

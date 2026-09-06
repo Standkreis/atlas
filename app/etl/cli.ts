@@ -3,6 +3,10 @@
 //   refresh [--days 30]       re-run the region job for regions older than 30 days
 //   content [--region <name>] [--purge <key>] [--limit n]
 //                             fill Taxon content (names, intro, facts, assets, interactions) once per taxon
+//   facts [--region <name>] [--purge] [--force] [--limit n]
+//                             the Steckbrief keys (0021 D3): bulk files, GIFT, Wikidata mycomorphbox, GBIF English names
+//   sounds [--region <name>] [--limit n]
+//                             one xeno-canto clip per bird, frog, grasshopper, bat (0021 D5); needs XENO_CANTO_API_KEY
 //   sweep                     what a server restart does (handoff 0009): restart queued regions, fill missing content, drop abandoned photos
 import { db } from './db'
 import { requests } from './fetch'
@@ -41,6 +45,20 @@ async function main() {
       console.log(`requests ${JSON.stringify(r.requests)}`)
       break
     }
+    case 'facts': {
+      const { runFacts } = await import('./facts')
+      const r = await runFacts({ region: flag('region'), purge: rest.includes('--purge'), force: rest.includes('--force'), limit: flag('limit') ? Number(flag('limit')) : undefined })
+      console.log(`\nfacts: ${r.written} written (${r.changed} changed), ${r.failed} failed of ${r.taxa} · ${r.namesFilled} English names filled · ${(r.seconds / 60).toFixed(1)} min`)
+      for (const [tile, keys] of Object.entries(r.perKey)) console.log(`${TILE_ICON[tile] ?? tile} ${tile}: ${Object.entries(keys).map(([k, n]) => `${k} ${n}`).join(' · ')}`)
+      console.log(`requests ${JSON.stringify(r.requests)}`)
+      break
+    }
+    case 'sounds': {
+      const { runSounds } = await import('./sounds')
+      const r = await runSounds({ region: flag('region'), limit: flag('limit') ? Number(flag('limit')) : undefined })
+      if (r.keyPresent) console.log(`\nsounds: ${r.stored} clips stored (${(r.bytes / 1024 / 1024).toFixed(1)} MB), ${r.skipped} had one, ${r.none} without a usable clip (${r.nd} with ND only, ${r.wav} with WAV only), ${r.failed} failed of ${r.taxa} · ${(r.seconds / 60).toFixed(1)} min · requests ${JSON.stringify(r.requests)}`)
+      break
+    }
     case 'sweep': {
       const { sweep } = await import('../src/server/sweep')
       const r = await sweep()
@@ -48,7 +66,7 @@ async function main() {
       break
     }
     default:
-      console.log('usage: npm run etl -- region <name | gadmGid> [--month m] | refresh [--days 30] | content [--region <name>] [--purge <gbifKey>] [--limit n] | sweep')
+      console.log('usage: npm run etl -- region <name | gadmGid> [--month m] | refresh [--days 30] | content [--region <name>] [--purge <gbifKey>] [--limit n] | facts [--region <name>] [--purge] [--force] [--limit n] | sounds [--region <name>] [--limit n] | sweep')
       process.exitCode = 1
   }
 }
