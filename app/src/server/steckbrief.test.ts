@@ -43,6 +43,8 @@ describe('the clip (D5)', () => {
   it('song over call, at most 30 s when possible, the shortest, never under 5 s, never ND, never a WAV', () => {
     expect(pickClip([rec({ id: 'call', type: 'call', length: '0:08' }), rec({ id: 'song', length: '0:25' })])?.id).toBe('song')
     expect(pickClip([rec({ id: 'long', length: '1:10' }), rec({ id: 'short', length: '0:14' })])?.id).toBe('short')
+    expect(pickClip([rec({ id: 'snippet', length: '0:06' }), rec({ id: 'phrase', length: '0:18' })])?.id).toBe('phrase')
+    expect(pickClip([rec({ id: 'snippet', length: '0:06' }), rec({ id: 'long', length: '0:50' })])?.id).toBe('snippet')
     expect(pickClip([rec({ id: 'tiny', length: '0:04' }), rec({ id: 'ok', length: '0:40' })])?.id).toBe('ok')
     expect(pickClip([rec({ id: 'nd', lic: '//creativecommons.org/licenses/by-nd/4.0/' }), rec({ id: 'b', q: 'B' }), rec({ id: 'wav', name: 'XC1.wav' })])).toBeNull()
   })

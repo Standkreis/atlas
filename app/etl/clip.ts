@@ -7,10 +7,11 @@ export const licenceName = (url: string) => { const m = url.match(/licenses\/([a
 export const isND = (lic: string) => /-nd\b/.test(lic)
 export const isMp3 = (x: Recording) => /\.mp3$/i.test(x['file-name'] ?? '')
 
-/** The clip the row gets: quality A only, an MP3, song over call, at most 30 s when possible, the shortest of those, at least 5 s, no ND. */
+/** The clip the row gets: quality A only, an MP3, song over call, 10–30 s when possible (a full phrase, not a snippet), else ≤ 30 s, else the shortest, at least 5 s, no ND. */
 export function pickClip(recs: Recording[]): Recording | null {
   const ok = recs.filter((x) => x.q === 'A' && isMp3(x) && !isND(x.lic ?? '') && seconds(x.length ?? '0') >= 5)
-  const rank = (x: Recording) => (/song/i.test(x.type) ? 0 : /call/i.test(x.type) ? 1 : 2) * 10_000 + (seconds(x.length) <= 30 ? 0 : 5_000) + seconds(x.length)
+  const band = (n: number) => (n >= 10 && n <= 30 ? 0 : n < 10 ? 2_000 : 5_000)
+  const rank = (x: Recording) => (/song/i.test(x.type) ? 0 : /call/i.test(x.type) ? 1 : 2) * 10_000 + band(seconds(x.length)) + seconds(x.length)
   return [...ok].sort((a, b) => rank(a) - rank(b))[0] ?? null
 }
 
