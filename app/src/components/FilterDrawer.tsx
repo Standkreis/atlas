@@ -12,6 +12,9 @@ export type Show = 'all' | 'studied' | 'seen' | 'new'
 export type Sort = 'now' | 'name' | 'seen'
 export const SHOWS: Show[] = ['all', 'studied', 'seen', 'new']
 export const SORTS: Sort[] = ['now', 'name', 'seen']
+// The third axis (handoff 0023): sections on the grid. `exploration` is the default and absent from the URL.
+export type Group = 'exploration' | 'tile' | 'none'
+export const GROUPS: Group[] = ['exploration', 'tile', 'none']
 
 export type DrawerState = {
   query: string
@@ -20,6 +23,7 @@ export type DrawerState = {
   tilesOn: Set<Tile>
   show: Show
   sort: Sort
+  group: Group
   nowOnly: boolean
   month: string
   results: number
@@ -33,13 +37,14 @@ type Props = DrawerState & {
   onToggleTile: (t: Tile) => void
   onShow: (s: Show) => void
   onSort: (s: Sort) => void
+  onGroup: (g: Group) => void
   onNowOnly: (on: boolean) => void
   onReset: () => void
 }
 
 // The bottom sheet of spec §🎨 2 (reference shot 0002-grid-a-filter-drawer): search on top, Region, Gruppen, Zeigen,
-// Sortierung, the "nur jetzt" chip. No Zeitraum (record 0002 E2). Region and tiles persist through identity.setFilter,
-// state, sort and the chip through the URL; the grid owns that, the drawer only reports taps.
+// Gruppieren (handoff 0023), Sortierung, the "nur jetzt" chip. No Zeitraum (record 0002 E2). Region and tiles persist through identity.setFilter,
+// state, sort, grouping and the chip through the URL; the grid owns that, the drawer only reports taps.
 export function FilterDrawer(p: Props) {
   const t = useTranslations('dex')
   // G1: the handle and the title row pull the sheet down; the scrolling body keeps its scroll. 0014b: Sheet does the drag, Escape and the motion.
@@ -94,6 +99,12 @@ function DrawerBody(p: Props) {
           ))}
         </Section>
 
+        <Section title={t('group')}>
+          {GROUPS.map((g) => (
+            <Chip key={g} on={p.group === g} onClick={() => p.onGroup(g)} role="radio" checked={p.group === g} testId={`group-${g}`}>{t(groupKey[g])}</Chip>
+          ))}
+        </Section>
+
         <Section title={t('sort')}>
           {SORTS.map((s) => (
             <Chip key={s} on={p.sort === s} onClick={() => p.onSort(s)} role="radio" checked={p.sort === s} testId={`sort-${s}`}>{t(sortKey[s])}</Chip>
@@ -110,6 +121,7 @@ function DrawerBody(p: Props) {
 
 const showKey = { all: 'showAll', studied: 'showStudied', seen: 'showSeen', new: 'showNew' } as const
 const sortKey = { now: 'sortNow', name: 'sortName', seen: 'sortSeen' } as const
+const groupKey = { exploration: 'groupExploration', tile: 'groupTile', none: 'groupNone' } as const
 
 function Section({ title, aside, children }: { title: string; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
