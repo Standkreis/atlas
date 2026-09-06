@@ -22,3 +22,6 @@ app/scripts/m12/.cache/
 
 # 0019 Steckbrief grill: bulk trait datasets, Wikidata, xeno-canto and Claude responses
 app/scripts/steckbrief-probe/.cache/
+
+# Local drafts (mails, notes not meant for the repo), owner decision 2026-09-07
+docs/drafts/
