@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { capEdges, commonsRejected, foldKind, iucnCode, parseAnAge, pickNames, sciLike, usableTargetName } from '../../../etl/prune'
+import { capEdges, commonsRejected, foldKind, iucnCode, parseAnAge, pickNames, recodeAnAge, sciLike, usableTargetName } from '../../../etl/prune'
 
 // Record 0002 E6 E7 E8 E9 on the cases the probe found (findings 0005).
 describe('names (E6)', () => {
@@ -56,7 +56,16 @@ describe('GloBI (E9)', () => {
 describe('AnAge (E8)', () => {
   it('reads longevity and clutch size from the entry page', () => {
     const html = '<td>Maximum longevity</td><td>21.8 years (wild)</td> ... Clutch size (oviparous) 4.5 ... Clutches per year 2 ... Female sexual maturity 365 days'
-    expect(parseAnAge(html)).toEqual({ lifespan: '21.8 years (wild)', reproduction: 'clutch size 4.5 · 2 clutches per year · mature at 365 days' })
+    expect(parseAnAge(html)).toEqual({ lifespan: '21.8 wild', reproduction: 'clutch 4.5 · perYear 2 · maturity 365' })
+    expect(parseAnAge('<td>Maximum longevity</td><td>4 years</td> Litter size (viviparous) 3')).toEqual({ lifespan: '4', reproduction: 'litter 3' })
     expect(parseAnAge('<p>nothing</p>')).toEqual({})
+  })
+  it('recodes the English written before 0024 and leaves codes alone', () => {
+    expect(recodeAnAge('lifespan', '21.8 years (wild)')).toBe('21.8 wild')
+    expect(recodeAnAge('lifespan', '4 years')).toBe('4')
+    expect(recodeAnAge('lifespan', '21.8 wild')).toBe('21.8 wild')
+    expect(recodeAnAge('reproduction', 'clutch size 4.5 · 2 clutches per year · mature at 365 days')).toBe('clutch 4.5 · perYear 2 · maturity 365')
+    expect(recodeAnAge('reproduction', 'litter size 3')).toBe('litter 3')
+    expect(recodeAnAge('reproduction', 'litter 3 · maturity 200')).toBe('litter 3 · maturity 200')
   })
 })

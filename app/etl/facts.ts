@@ -143,3 +143,23 @@ export async function runFacts(opts: FactsOpts): Promise<FactsResult> {
   r.requests = requests()
   return r
 }
+
+/**
+ * The `recode` step (handoff 0024): the AnAge cells written as English before 0024 ("21.8 years (wild)") become the codes
+ * `parseAnAge` writes now, in place, for every taxon that carries one. Idempotent, no network, seconds against Neon.
+ */
+export async function runRecode(log: (s: string) => void = console.log): Promise<{ taxa: number; changed: number }> {
+  const { recodeAnAge } = await import('./prune')
+  const taxa = await db.taxon.findMany({ where: { facts: { not: Prisma.DbNull } }, select: { id: true, facts: true } })
+  let changed = 0
+  for (const t of taxa) {
+    const facts = t.facts as Record<string, Fact>
+    const next = { ...facts }
+    for (const k of ['lifespan', 'reproduction'] as const) if (facts[k]) next[k] = { ...facts[k], value: recodeAnAge(k, facts[k].value) }
+    if (canon(next) === canon(facts)) continue
+    await db.taxon.update({ where: { id: t.id }, data: { facts: next } })
+    changed++
+  }
+  log(`recode: ${changed} of ${taxa.length} taxa with facts rewritten`)
+  return { taxa: taxa.length, changed }
+}

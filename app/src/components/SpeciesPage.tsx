@@ -111,8 +111,22 @@ export function SpeciesPage() {
     if (CODED.has(k)) return v.split(', ').map((c) => (t.has(`facts.values.${k}.${c}`) ? t(`facts.values.${k}.${c}`) : c)).join(', ')
     if (k === 'flowering') return locale === 'en' ? v.replace(/Mär|Mai|Okt|Dez/g, (m) => MONTHS_EN[m] ?? m) : v
     if (METRIC.has(k) && locale === 'de') return v.replace(/(\d)\.(\d)/g, '$1,$2')
+    if (k === 'lifespan') return lifespanWords(v)
+    if (k === 'reproduction') return reproductionWords(v)
     return v
   }
+  // AnAge codes (handoff 0024): "21.8 wild" and "clutch 4.5 · perYear 2 · maturity 365"; anything else is printed as is.
+  const lifespanWords = (v: string) => {
+    const m = v.match(/^([\d.]+)(?: (wild|captivity))?$/)
+    if (!m) return v
+    const years = t('facts.values.lifespan.years', { n: format.number(Number(m[1]), { maximumFractionDigits: 1 }) })
+    return m[2] ? `${years} (${t(`facts.values.lifespan.${m[2]}`)})` : years
+  }
+  const reproductionWords = (v: string) =>
+    v.split(' · ').map((p) => {
+      const m = p.match(/^(clutch|litter|perYear|maturity) ([\d.]+)$/)
+      return m ? t(`facts.values.reproduction.${m[1]}`, { n: format.number(Number(m[2]), { maximumFractionDigits: 1 }) }) : p
+    }).join(' · ')
   const tileKeys = TILE_KEYS[s.tile] ?? []
   const keys = [...tileKeys, ...Object.keys(facts).filter((k) => !tileKeys.includes(k))]
   const status = { k: 'status', value: `${t(`tile.${s.tile}`)}`, sub: s.iucn ? `${s.iucn} · ${t.has(`iucn.${s.iucn}`) ? t(`iucn.${s.iucn}`) : ''}`.trim() : null, sources: [dataSource('GBIF', gbifPage), ...(s.iucn ? [dataSource('IUCN Red List', `https://www.iucnredlist.org/search?query=${encodeURIComponent(s.sciName)}`)] : [])] }

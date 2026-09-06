@@ -53,6 +53,11 @@ async function main() {
       console.log(`requests ${JSON.stringify(r.requests)}`)
       break
     }
+    case 'recode': {
+      const { runRecode } = await import('./facts')
+      await runRecode()
+      break
+    }
     case 'sounds': {
       const { runSounds } = await import('./sounds')
       const r = await runSounds({ region: flag('region'), limit: flag('limit') ? Number(flag('limit')) : undefined })

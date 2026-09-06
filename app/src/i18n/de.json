@@ -401,6 +401,17 @@
         "other": "Laut"
       },
       "values": {
+        "lifespan": {
+          "years": "{n} Jahre",
+          "wild": "frei lebend",
+          "captivity": "in Obhut"
+        },
+        "reproduction": {
+          "clutch": "Gelege {n} Eier",
+          "litter": "Wurf {n} Junge",
+          "perYear": "{n}× im Jahr",
+          "maturity": "reif mit {n} Tagen"
+        },
         "migration": {
           "resident": "Standvogel",
           "partial": "Teilzieher",

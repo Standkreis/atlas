@@ -401,6 +401,17 @@
         "other": "Sound"
       },
       "values": {
+        "lifespan": {
+          "years": "{n} years",
+          "wild": "wild",
+          "captivity": "in captivity"
+        },
+        "reproduction": {
+          "clutch": "clutch of {n} eggs",
+          "litter": "litter of {n} young",
+          "perYear": "{n}× a year",
+          "maturity": "mature at {n} days"
+        },
         "migration": {
           "resident": "resident",
           "partial": "partial migrant",

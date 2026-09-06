@@ -85,22 +85,45 @@ export function capEdges<T extends { kind: Kind; target: string }>(edges: T[], i
   return [...unique.filter((e) => inSet(e.target)), ...unique.filter((e) => !inSet(e.target))].slice(0, cap)
 }
 
-/** AnAge species page (HTML) → the two Steckbrief rows; "Maximum longevity 21.8 years (wild)", clutch or litter size. */
+/**
+ * AnAge species page (HTML) → the two Steckbrief rows as codes the page translates (handoff 0024): `lifespan` is
+ * "<years> wild|captivity" ("21.8 wild") or the bare number; `reproduction` is "clutch|litter <n> · perYear <n> ·
+ * maturity <days>" with the parts AnAge has, in that order. `recodeAnAge` folds the English of 0007–0021 into the same form.
+ */
 export function parseAnAge(html: string): { lifespan?: string; reproduction?: string } {
   const text = html
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/\s+/g, ' ')
   const out: { lifespan?: string; reproduction?: string } = {}
-  const life = text.match(/Maximum longevity ([\d.]+ years(?: \((?:wild|captivity)\))?)/)
-  if (life) out.lifespan = life[1]
+  const life = text.match(/Maximum longevity ([\d.]+) years(?: \((wild|captivity)\))?/)
+  if (life) out.lifespan = life[2] ? `${life[1]} ${life[2]}` : life[1]!
   const parts: string[] = []
   const size = text.match(/(Clutch|Litter) size(?: \((?:oviparous|viviparous)\))? ([\d.]+)/)
-  if (size) parts.push(`${size[1].toLowerCase()} size ${size[2]}`)
-  const perYear = text.match(/(Clutches|Litters) per year ([\d.]+)/)
-  if (perYear) parts.push(`${perYear[2]} ${perYear[1].toLowerCase()} per year`)
-  const maturity = text.match(/Female sexual maturity ([\d.]+ days)/)
-  if (maturity) parts.push(`mature at ${maturity[1]}`)
+  if (size) parts.push(`${size[1]!.toLowerCase()} ${size[2]}`)
+  const perYear = text.match(/(?:Clutches|Litters) per year ([\d.]+)/)
+  if (perYear) parts.push(`perYear ${perYear[1]}`)
+  const maturity = text.match(/Female sexual maturity ([\d.]+) days/)
+  if (maturity) parts.push(`maturity ${maturity[1]}`)
   if (parts.length) out.reproduction = parts.join(' · ')
   return out
+}
+
+/** The English AnAge strings written before handoff 0024 ("21.8 years (wild)", "clutch size 4.5 · 2 clutches per year · mature at 365 days") → the codes above; a code passes through unchanged. */
+export function recodeAnAge(key: 'lifespan' | 'reproduction', value: string): string {
+  if (key === 'lifespan') {
+    const m = value.match(/^([\d.]+) years(?: \((wild|captivity)\))?$/)
+    return m ? (m[2] ? `${m[1]} ${m[2]}` : m[1]!) : value
+  }
+  return value
+    .split(' · ')
+    .map((p) => {
+      const size = p.match(/^(clutch|litter) size ([\d.]+)$/)
+      if (size) return `${size[1]} ${size[2]}`
+      const perYear = p.match(/^([\d.]+) (?:clutches|litters) per year$/)
+      if (perYear) return `perYear ${perYear[1]}`
+      const maturity = p.match(/^mature at ([\d.]+) days$/)
+      return maturity ? `maturity ${maturity[1]}` : p
+    })
+    .join(' · ')
 }
