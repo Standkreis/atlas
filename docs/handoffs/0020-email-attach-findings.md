@@ -4,7 +4,7 @@
 
 | 🗓️ Done | 👤 Agent | ⬆️ Handoff | 🧪 Checks |
 | --- | --- | --- | --- |
-| 2026-09-07 | Claude | [0020](0020-email-attach.md) | C1–C7 ✅ · C8 owner |
+| 2026-09-07 | Claude | [0020](0020-email-attach.md) | C1–C8 ✅ (C8 owner 2026-09-07: mail in the Gmail inbox, code accepted, live build mtqddljl) |
 
 ## 🛠️ What was built
 
