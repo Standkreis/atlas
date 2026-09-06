@@ -6,10 +6,9 @@ import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import { useTRPC } from '@/trpc/client'
 import { Icon } from './Marks'
-import { CountersCard, useSetCounters } from './IdentityCounters'
 import { AvatarButton } from './IdentityAvatar'
-import { GroupProgress } from './IdentityGroups'
 import { OfflineDownload } from './OfflineDownload'
+import { ProgressCard } from './ProgressCard'
 import { RegionSheet } from './RegionSheet'
 
 export const initialsOf = (name: string | null | undefined) =>
@@ -21,7 +20,8 @@ export const initialsOf = (name: string | null | undefined) =>
     .join('')
 
 // Du, the plain variant (handoff 0006: the profile card without XP; M11 owns XP). Avatar or initials, name, the active region
-// with "Region ändern" opening the "Meine Regionen" sheet (handoff 0018 R4, no onboarding link any more), the three counters, per group (P3), gear.
+// with "Region ändern" opening the "Meine Regionen" sheet (handoff 0018 R4, no onboarding link any more), the progress
+// section (handoff 0022: one card per region on one axis), gear.
 export function IdentityProfile() {
   const t = useTranslations('you')
   const trpc = useTRPC()
@@ -30,7 +30,6 @@ export function IdentityProfile() {
   const setName = useMutation(trpc.identity.setName.mutationOptions({ onSuccess: () => qc.invalidateQueries({ queryKey: trpc.identity.me.queryKey() }) }))
   const [editing, setEditing] = useState<string | null>(null)
   const [regionSheet, setRegionSheet] = useState(false)
-  const counters = useSetCounters(me.data?.region ?? null)
   const name = me.data?.displayName ?? null
   const initials = initialsOf(name)
 
@@ -73,10 +72,7 @@ export function IdentityProfile() {
         </div>
       </section>
 
-      <div className="mt-4">
-        <CountersCard regionName={me.data?.region?.name ?? null} counters={counters} />
-      </div>
-      <div className="mt-4"><GroupProgress region={me.data?.region ?? null} /></div>
+      <div className="mt-4"><ProgressCard /></div>
       <div className="mt-4"><OfflineDownload /></div>
       {regionSheet && <RegionSheet onClose={() => setRegionSheet(false)} />}
     </main>
