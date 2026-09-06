@@ -119,6 +119,25 @@ export const dexRouter = router({
     }),
 
   /**
+   * The set's membership without the species rows (handoff 0022 P3): the profile's progress card for a region that is
+   * not the active one. `ids` per tile (~40 KB for 929 members against ~900 KB for `dex.set`), so the client intersects
+   * them with `identity.progress` exactly as it does with `dex.set`; `total` and `byTile` are the "von n" denominators.
+   * A tile without members (fish, mostly) is absent, as `set.tiles` drops it. Pure read, no identity: shared and persisted.
+   */
+  setCounts: publicProcedure
+    .input(z.object({ regionId: z.string().uuid(), tiles: z.array(tile).min(1) }))
+    .query(async ({ ctx, input }) => {
+      const region = await ctx.db.region.findUnique({ where: { id: input.regionId }, select: { id: true, status: true } })
+      if (!region) return null
+      const rows = await ctx.db.plausibility.findMany({ where: { regionId: region.id, taxon: { tile: { in: input.tiles } } }, select: { taxonId: true, taxon: { select: { tile: true } } } })
+      // A tile with no member gets no key: fish vanishes on its own, the client lists the tiles present (as `set.tiles`).
+      const ids: Partial<Record<Tile, string[]>> = {}
+      for (const r of rows) (ids[r.taxon.tile] ??= []).push(r.taxonId)
+      const byTile = Object.fromEntries(Object.entries(ids).map(([t, list]) => [t, list.length])) as Partial<Record<Tile, number>>
+      return { region, total: rows.length, byTile, ids }
+    }),
+
+  /**
    * Regions the ETL knows, for the onboarding picker and the filter drawer, with the honesty line of record 0002 E12:
    * `content` = set members the content job has run for, `introEn` = intros only in English, `noGermanName` = set
    * members without a German name. Shares are of `setSize`; the UI shows "N % nur auf Englisch" when it matters.

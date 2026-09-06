@@ -11,7 +11,7 @@ export type SetCounters =
   | { state: 'ready'; studied: number; seen: number; both: number; possible: number }
 
 /**
- * The one read behind the grid and Profil (handoff 0007 §🔀): the whole-year set of the region for all tiles, plus the
+ * The one read behind the grid and the active region's progress card (handoff 0007 §🔀, 0022 P3): the whole-year set of the region for all tiles, plus the
  * identity's progress and its filter tiles. Tiles, "nur jetzt", state and search are applied on the client, so a chip
  * toggles without a refetch and both screens share one cache entry.
  */
@@ -32,11 +32,6 @@ export function countersOf(set: { species: { taxonId: string; tile: Tile }[] } |
   const count = (ids: string[]) => ids.filter((id) => inSet.has(id)).length
   const seen = new Set(progress.seen.filter((id) => inSet.has(id)))
   return { state: 'ready', studied: count(progress.studied), seen: seen.size, both: progress.studied.filter((id) => seen.has(id)).length, possible: inSet.size }
-}
-
-export function useSetCounters(region: { id: string; status: string } | null): SetCounters {
-  const { set, progress, tiles } = useAtlasSet(region)
-  return countersOf(set, progress, tiles)
 }
 
 /** One bar, two axes (findings 0002 revision 2, doubt 19): green = entdeckt, amber = studiert but not yet entdeckt. */

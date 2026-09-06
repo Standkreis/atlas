@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupsOf } from './GroupRows'
+import { barWidth, foldRows, groupsOf, membersOf, onTiles, regionOf } from './GroupRows'
 
 // Handoff 0014 P3: one row per tile of the set, counts over the group's size; an id seen twice counts once; an out-of-set
 // find (E13) counts nowhere; a tile the set does not list gets no row.
@@ -22,5 +22,48 @@ describe('groupsOf', () => {
       { tile: 'bird', studied: 1, seen: 1, possible: 2 },
       { tile: 'insect', studied: 1, seen: 0, possible: 1 },
     ])
+  })
+})
+
+// Handoff 0022 P3/P4: the light `dex.setCounts` gives the same rows as `dex.set`; the region line sums the tiles on;
+// a bar from 5 %; rows at 0 on both axes fold.
+describe('progress card', () => {
+  const order = ['bird', 'fish', 'insect', 'plant']
+  it('membersOf keeps the enum order and drops tiles without members', () => {
+    const m = membersOf({ ids: { plant: ['p1'], bird: ['b1', 'b2'], fish: [] } }, order)
+    expect(m?.tiles).toEqual([{ tile: 'bird' }, { tile: 'plant' }])
+    expect(m?.species).toEqual([{ taxonId: 'b1', tile: 'bird' }, { taxonId: 'b2', tile: 'bird' }, { taxonId: 'p1', tile: 'plant' }])
+    expect(membersOf(null, order)).toBeNull()
+    expect(groupsOf(m, { studied: ['p1'], seen: ['b1', 'x'] })).toEqual([
+      { tile: 'bird', studied: 0, seen: 1, possible: 2 },
+      { tile: 'plant', studied: 1, seen: 0, possible: 1 },
+    ])
+  })
+  it('regionOf sums the tiles on; empty tiles mean all', () => {
+    const rows = [
+      { tile: 'bird', studied: 0, seen: 1, possible: 69 },
+      { tile: 'plant', studied: 1, seen: 1, possible: 388 },
+    ]
+    expect(regionOf(onTiles(rows, []))).toEqual({ studied: 1, seen: 2, possible: 457 })
+    expect(regionOf(onTiles(rows, ['bird']))).toEqual({ studied: 0, seen: 1, possible: 69 })
+    expect(regionOf(onTiles(null, []))).toBeNull()
+  })
+  it('barWidth from 5 %, never over 100', () => {
+    expect(barWidth(7, 69)).toBe('10%')
+    expect(barWidth(4, 388)).toBeNull()
+    expect(barWidth(3, 60)).toBe('5%')
+    expect(barWidth(2, 41)).toBeNull() // 4.9 %
+    expect(barWidth(0, 0)).toBeNull()
+    expect(barWidth(5, 4)).toBe('100%')
+  })
+  it('foldRows keeps rows with a count on either axis', () => {
+    const rows = [
+      { tile: 'bird', studied: 0, seen: 1, possible: 69 },
+      { tile: 'insect', studied: 0, seen: 0, possible: 429 },
+      { tile: 'plant', studied: 1, seen: 0, possible: 388 },
+    ]
+    const { shown, folded } = foldRows(rows)
+    expect(shown.map((r) => r.tile)).toEqual(['bird', 'plant'])
+    expect(folded.map((r) => r.tile)).toEqual(['insect'])
   })
 })
