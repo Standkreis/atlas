@@ -343,7 +343,7 @@ function DemoCell({ demo, state }: { demo: DemoSpecies | null; state: 'new' | 's
       )}
       {state !== 'new' && <span className={`pointer-events-none absolute inset-0 rounded-xl ring-2 ring-inset ${state === 'seen' ? 'ring-moss' : 'ring-amber'}`} />}
       {state === 'seen' && <span className="absolute right-1 bottom-1 flex h-4 w-4 items-center justify-center rounded-full bg-moss text-[10px] font-bold text-white">✓</span>}
-      {state === 'studied' && <span className="absolute bottom-1 left-1 text-[11px]" aria-hidden>📖</span>}
+      {state === 'studied' && <span className="absolute bottom-1 left-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber text-[9px] leading-none" aria-hidden>📖</span>}
     </div>
   )
 }

@@ -304,7 +304,7 @@ function Cell({ s, name, own, isSeen, isStudied, badge, fill, onOpen }: { s: Row
           {/* The state ring is an overlay, not an inset box-shadow on the container: inset shadows paint under the image (handoff 0014 G4). */}
           {(isSeen || isStudied) && fill !== 'done' && <span className={`motion-ring pointer-events-none absolute inset-0 rounded-2xl ring-2 ring-inset ${isSeen ? 'ring-moss' : 'ring-amber'}`} />}
           {isSeen && <span className="absolute right-1.5 bottom-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-moss text-[12px] font-bold text-white">✓</span>}
-          {isStudied && <span className="absolute bottom-1.5 left-1.5 text-[12px]" aria-label={badge}>📖</span>}
+          {isStudied && <span className="absolute bottom-1.5 left-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-amber text-[11px] leading-none" aria-label={badge}>📖</span>}
         </div>
         <div className={`mt-1 truncate text-[12px] leading-tight ${isSeen || isStudied ? 'font-semibold' : 'text-ink-soft'}`}>{name}</div>
       </Link>

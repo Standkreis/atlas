@@ -34,6 +34,15 @@
       ],
       "port": 3000,
       "url": "https://localhost:3000"
+    },
+    {
+      "name": "app-prod",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd app && DATABASE_URL=postgresql://dex:dex@localhost:5433/dex WEBAUTHN_RP_ID=localhost WEBAUTHN_ORIGIN=http://localhost:3002 WEBAUTHN_SECRET=dev-only-secret-for-the-local-production-build-0123456789 PHOTO_DIR=./data/photos npx next start -p 3002"
+      ],
+      "port": 3002
     }
   ]
 }
