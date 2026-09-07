@@ -14,8 +14,8 @@ import { HERE, REGION, MODEL, PER_AGENT, promptFile, answerFile, readAnswer, rel
 
 const args = process.argv.slice(2)
 const STEP = args.find((a) => /^(prompts|collect)$/.test(a))
-const RUN = args.find((a) => /^(P1|P2)$/.test(a))
-if (!STEP || !RUN) { console.error('usage: prose.mjs prompts|collect P1|P2'); process.exit(1) }
+const RUN = args.find((a) => /^(P1|P2|P3)$/.test(a))
+if (!STEP || !RUN) { console.error('usage: prose.mjs prompts|collect P1|P2|P3'); process.exit(1) }
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d }
 const { sheets } = readJson(join(HERE, 'sheets.json'))
 const RESULTS = join(HERE, 'results.json')
@@ -88,9 +88,22 @@ const AUDIT = `You audit a species text against the numbered fact lines it was w
 Answer with JSON only, the verdict before anything else in each sentence:
 {"sentences":[{"n":1,"verdict":"supported|partial|unsupported","why":"<≤ 25 words; empty when supported>","claims":[{"claim":"<text>","fact":"F3"}, {"claim":"<text>","fact":null}]}]}`
 
-export const VARIANTS = { V0: { system: V0, paragraphs: 2, words: 170, sheet: 'full' }, V1: { system: V1, paragraphs: 2, words: 170, sheet: 'full' }, V2: { system: V2, paragraphs: 2, words: 150, sheet: 'full' }, ECO: { system: ECO, paragraphs: 1, words: 110, sheet: 'eco' } }
-const RUNS = { P1: { variant: 'V1', pick: () => true }, P2: { variant: 'ECO', pick: (n) => sheets[n].sheets.de.eco.length >= 3 } }
-results.prompts = { V0, V1, V2, ECO, AUDIT }
+// P3 (0027 F5): the P2' hand read found two direction reversals in German ("Sie wurde beim Fressen von Tagpfauenauge
+// beobachtet" for a "wird gefressen von" line; "Als Wirt verzeichnet sind <die Pilze>" for "Wirt von"), both scored supported.
+// ECO2 = ECO with rule 2 giving one template per line kind, the species always the subject; AUDIT2 makes direction a claim.
+const ECO2 = ECO.replace(/^2\. .*$/m, `2. GloBI lines are records of observed interactions ("n GloBI-Belege" / "n GloBI records"), not habits, and the species of the text is always the subject of the sentence. One template per line kind, keep the direction:
+   - "frisst: X" / "eats: X" → "wurde beim Fressen von X beobachtet" / "has been recorded eating X"
+   - "wird gefressen von: Y" / "is eaten by: Y" → "als Fressfeind ist Y verzeichnet" / "Y is recorded as a predator"
+   - "Wirt von: Z" / "host of: Z" → "ist als Wirt von Z verzeichnet" / "is recorded as a host of Z"
+   - "besucht Blüten von: P" / "visits flowers of: P" → "wurde beim Blütenbesuch an P beobachtet" / "has been recorded visiting the flowers of P"
+   - "bestäubt: P" / "pollinates: P" → "ist als Bestäuber von P verzeichnet" / "is recorded as a pollinator of P"
+   Never a sentence in which the partner takes the species' role (the plant eating the butterfly, the fungus hosting the tree). Name a partner as the sheet names it. You may leave a partner out when it contradicts biology as the other lines describe it; you may not add one. Do not add a life stage (Raupe, larva, adult) or a frequency the line does not carry.`)
+const AUDIT2 = AUDIT.replace(/^3\. Decide/m, `3. Direction is a claim: "frisst: X" states the species eats X, "wird gefressen von: Y" states Y eats the species, "Wirt von: Z" states the species hosts Z, "besucht Blüten von: P" states the species visits P. A sentence whose grammar reverses who eats, hosts or visits whom ("Sie wurde beim Fressen von Y beobachtet" for an "is eaten by" line; "Als Wirt verzeichnet sind Z" for a "host of" line) contradicts the line: "unsupported", whatever the vocabulary.
+4. Decide`).replace(/^4\. "claims"/m, '5. "claims"')
+
+export const VARIANTS = { V0: { system: V0, paragraphs: 2, words: 170, sheet: 'full' }, V1: { system: V1, paragraphs: 2, words: 170, sheet: 'full' }, V2: { system: V2, paragraphs: 2, words: 150, sheet: 'full' }, ECO: { system: ECO, paragraphs: 1, words: 110, sheet: 'eco' }, ECO2: { system: ECO2, paragraphs: 1, words: 110, sheet: 'eco', audit: AUDIT2 } }
+const RUNS = { P1: { variant: 'V1', pick: () => true }, P2: { variant: 'ECO', pick: (n) => sheets[n].sheets.de.eco.length >= 3 }, P3: { variant: 'ECO2', pick: (n) => sheets[n].sheets.de.eco.length >= 3 } }
+results.prompts = { V0, V1, V2, ECO, ECO2, AUDIT, AUDIT2 }
 
 /**
  * 0019's validator: every sentence cites, every cite exists, the paragraph count, a word cap. 0027 F4: one paragraph is
@@ -172,7 +185,7 @@ if (STEP === 'collect') {
     const sentences = a.json.paragraphs.flatMap((p) => p.sentences ?? [])
     const user2 = `FACTS:\n${factsBlock(j.lines)}\n\nTEXT (sentence n, cited ids, text):\n${sentences.map((s, i) => `${i + 1}. [${(s.cites ?? []).join(',')}] ${s.text}`).join('\n')}`
     const file = promptFile(AUD, j.sciName, j.lang), answer = answerFile(AUD, j.sciName, j.lang)
-    const doc = promptDoc({ file, answer, system: AUDIT, user: user2, max_tokens: 2000 })
+    const doc = promptDoc({ file, answer, system: VARIANTS[j.variant].audit ?? AUDIT, user: user2, max_tokens: 2000 })
     if (!existsSync(file) || readFileSync(file, 'utf8') !== doc) { writeFileSync(file, doc); newAudits.push(file) }
     r.auditPrompt = rel(file); r.auditAnswer = rel(answer)
     const au = readAnswer(answer)

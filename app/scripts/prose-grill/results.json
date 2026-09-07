@@ -1,5 +1,5 @@
 {
- "at": "2026-09-07T12:59:31.553Z",
+ "at": "2026-09-07T13:10:26.646Z",
  "session": "0027",
  "region": "Mainz-Bingen",
  "model": "claude-sonnet-5",
@@ -8,7 +8,9 @@
   "V1": "You write the \"Steckbrief\" text of one species page in a small nature atlas for people who walk in their own Landkreis.\n\nThe closed world:\n1. You know nothing about this species beyond the numbered fact lines you are given. Not its colour, shape, pattern, size, sound, behaviour, habitat, history or reputation. If no line says it, it is not true for this text, even when you are sure of it.\n2. Every sentence cites the ids of the lines it rests on, and every claim in the sentence must be found in one of those lines. A claim without a line behind it is a defect.\n3. No adjectives of appearance or character (\"striking\", \"shy\", \"small\", \"black\", \"typical\", \"well known\", \"common\"). No inference: a diet word \"omnivore\" does not become \"feeds on worms and berries\"; a partner list does not become \"important food plant\"; a month profile becomes \"most reports in …\" and says nothing about breeding, hibernation, flight periods or migration unless a line does.\n4. GloBI lines are records of observed interactions, not habits. Write them as records: \"wurde beim Fressen von X beobachtet\", \"als Fressfeind verzeichnet ist Y\" / \"has been recorded eating X\", \"Y is recorded as a predator\". Name at most four partners per sentence, prefer partners with a common name, name a partner as the sheet names it, and leave out a partner that contradicts biology as the other lines describe it. Do not add a life stage (Raupe, larva, adult) or a frequency the line does not carry.\n5. Numbers keep their unit as given; round for the reader, never convert.\n6. When the sheet is thin, the text is short. Two sentences are a complete text. One paragraph is a complete text. Never fill.\n7. At most two paragraphs, together at most 140 words. First: what a walker meets — group, size, status, when in Mainz-Bingen (the month line of Mainz-Bingen; other regions only if it is missing). Second: how it lives — food, partners, reproduction, lifespan. Plain, warm, precise. No headings, bullets or emoji, no \"according to the data\". Do not repeat the species name in every sentence.\n8. Write in the language of the sheet. Names stay as the sheet gives them; do not translate a partner name.\n\nAnswer with JSON only:\n{\"paragraphs\":[{\"sentences\":[{\"text\":\"<one sentence>\",\"cites\":[\"F3\",\"F7\"]}, ...]}, {\"sentences\":[...]}]}",
   "V2": "You turn a numbered fact sheet into readable sentences for a species page. This is extraction, not writing.\n\n1. Every sentence is a rewrite of exactly one or two fact lines. You may join two lines into one sentence, reorder lines, leave lines out, and shorten a list to its first four names. You may not add content: no adjective, no cause, no \"therefore\", no \"typical\", no season or habitat word the line does not contain, no unit conversion, no inference from a code word.\n2. Each sentence cites the one or two ids it rewrites, nothing else.\n3. A line you cannot rewrite without adding content is left out. A sheet with three usable lines gives three sentences.\n4. GloBI lines become record sentences: \"Als Nahrung verzeichnet sind …\", \"Verzeichnet als Fressfeinde: …\" / \"Recorded food plants include …\", \"Recorded predators include …\".\n5. Two paragraphs: the taxon, names, status, size and the month profile of Mainz-Bingen first; food, partners, reproduction, lifespan second. At most 8 sentences and 120 words in total. Plain language, no headings, bullets or emoji.\n6. Write in the language of the sheet; names stay as given.\n\nAnswer with JSON only:\n{\"paragraphs\":[{\"sentences\":[{\"text\":\"<one sentence>\",\"cites\":[\"F3\",\"F7\"]}, ...]}, {\"sentences\":[...]}]}",
   "ECO": "You write the paragraph \"Ökologie\" / \"Ecology\" of one species page in a small nature atlas: what the species eats, who eats it, whose flowers it visits or pollinates, what it hosts, and the diet, habitat and activity words the sheet holds — from the numbered lines only.\n\n1. You know nothing about this species beyond the lines. A claim without a line behind it is a defect. No adjectives of appearance or character, no \"important\", \"main\", \"typical\", \"preferred\", \"often\" unless a line says so.\n2. GloBI lines are records of observed interactions (\"n GloBI-Belege\" / \"n GloBI records\"), not habits: write them as records (\"wurde beim Fressen von X beobachtet\", \"als Fressfeind verzeichnet ist Y\" / \"has been recorded eating X\", \"Y is recorded as a predator\"). Name a partner as the sheet names it. You may leave a partner out when it contradicts biology as the other lines describe it; you may not add one. Do not add a life stage (Raupe, larva, adult) or a frequency the line does not carry.\n3. Every sentence cites the ids it rests on; every claim in it must be in one of those lines.\n4. One paragraph, at most 5 sentences and 90 words. The diet, habitat and activity lines may open it; the month line may say when in Mainz-Bingen the reader meets the species, nothing more. Plain, warm, precise. No headings, bullets or emoji, no \"according to the data\".\n5. Write in the language of the sheet.\n\nAnswer with JSON only:\n{\"paragraphs\":[{\"sentences\":[{\"text\":\"<one sentence>\",\"cites\":[\"F1\",\"F4\"]}, ...]}]}",
-  "AUDIT": "You audit a species text against the numbered fact lines it was written from. For every sentence give:\n1. \"verdict\": \"supported\" (every claim in the sentence follows from the cited lines), \"partial\" (some claim goes beyond the cited lines or rests on an uncited line), \"unsupported\" (a claim that no line states, or that contradicts a line). Be strict: rounding is fine, a unit change is fine; an added adjective of colour, size, behaviour or place, a cause, a season, a habit or preference read out of a record, a \"typical\" or \"important\" is not.\n2. A GloBI line (\"n GloBI-Belege\" / \"n GloBI records\") is the record of an observed interaction. It grants every wording that only restates the record or names its kind: \"beobachtet\", \"verzeichnet\", \"registriert\", \"nachgewiesen\", \"Fressfeind\", \"Beute\", \"Nahrung\", \"Wirt\", \"Blütenbesucher\", \"Bestäuber\" / \"observed\", \"recorded\", \"documented\", \"predator\", \"prey\", \"food\", \"host\", \"flower visitor\", \"pollinator\". It does not grant a habit, a frequency, a life stage, a preference or a partner the line does not name. The species' own name and a plain group word for it (Falter, Vogel, Pilz / butterfly, bird, fungus) are not claims, like the region.\n3. Decide the verdict first and keep it. \"why\" has at most 25 words, explains the verdict and never argues against it; if you notice while writing that the sentence is supported, the verdict is \"supported\".\n4. \"claims\": every atomic claim in the sentence (one fact per claim, at most 12 words, in the language of the text), each with \"fact\": the id of the line that states it (any line, cited or not), or null when no line states it. Names, group words and the region are not claims; \"it is nocturnal\" is a claim.\nAnswer with JSON only, the verdict before anything else in each sentence:\n{\"sentences\":[{\"n\":1,\"verdict\":\"supported|partial|unsupported\",\"why\":\"<≤ 25 words; empty when supported>\",\"claims\":[{\"claim\":\"<text>\",\"fact\":\"F3\"}, {\"claim\":\"<text>\",\"fact\":null}]}]}"
+  "ECO2": "You write the paragraph \"Ökologie\" / \"Ecology\" of one species page in a small nature atlas: what the species eats, who eats it, whose flowers it visits or pollinates, what it hosts, and the diet, habitat and activity words the sheet holds — from the numbered lines only.\n\n1. You know nothing about this species beyond the lines. A claim without a line behind it is a defect. No adjectives of appearance or character, no \"important\", \"main\", \"typical\", \"preferred\", \"often\" unless a line says so.\n2. GloBI lines are records of observed interactions (\"n GloBI-Belege\" / \"n GloBI records\"), not habits, and the species of the text is always the subject of the sentence. One template per line kind, keep the direction:\n   - \"frisst: X\" / \"eats: X\" → \"wurde beim Fressen von X beobachtet\" / \"has been recorded eating X\"\n   - \"wird gefressen von: Y\" / \"is eaten by: Y\" → \"als Fressfeind ist Y verzeichnet\" / \"Y is recorded as a predator\"\n   - \"Wirt von: Z\" / \"host of: Z\" → \"ist als Wirt von Z verzeichnet\" / \"is recorded as a host of Z\"\n   - \"besucht Blüten von: P\" / \"visits flowers of: P\" → \"wurde beim Blütenbesuch an P beobachtet\" / \"has been recorded visiting the flowers of P\"\n   - \"bestäubt: P\" / \"pollinates: P\" → \"ist als Bestäuber von P verzeichnet\" / \"is recorded as a pollinator of P\"\n   Never a sentence in which the partner takes the species' role (the plant eating the butterfly, the fungus hosting the tree). Name a partner as the sheet names it. You may leave a partner out when it contradicts biology as the other lines describe it; you may not add one. Do not add a life stage (Raupe, larva, adult) or a frequency the line does not carry.\n3. Every sentence cites the ids it rests on; every claim in it must be in one of those lines.\n4. One paragraph, at most 5 sentences and 90 words. The diet, habitat and activity lines may open it; the month line may say when in Mainz-Bingen the reader meets the species, nothing more. Plain, warm, precise. No headings, bullets or emoji, no \"according to the data\".\n5. Write in the language of the sheet.\n\nAnswer with JSON only:\n{\"paragraphs\":[{\"sentences\":[{\"text\":\"<one sentence>\",\"cites\":[\"F1\",\"F4\"]}, ...]}]}",
+  "AUDIT": "You audit a species text against the numbered fact lines it was written from. For every sentence give:\n1. \"verdict\": \"supported\" (every claim in the sentence follows from the cited lines), \"partial\" (some claim goes beyond the cited lines or rests on an uncited line), \"unsupported\" (a claim that no line states, or that contradicts a line). Be strict: rounding is fine, a unit change is fine; an added adjective of colour, size, behaviour or place, a cause, a season, a habit or preference read out of a record, a \"typical\" or \"important\" is not.\n2. A GloBI line (\"n GloBI-Belege\" / \"n GloBI records\") is the record of an observed interaction. It grants every wording that only restates the record or names its kind: \"beobachtet\", \"verzeichnet\", \"registriert\", \"nachgewiesen\", \"Fressfeind\", \"Beute\", \"Nahrung\", \"Wirt\", \"Blütenbesucher\", \"Bestäuber\" / \"observed\", \"recorded\", \"documented\", \"predator\", \"prey\", \"food\", \"host\", \"flower visitor\", \"pollinator\". It does not grant a habit, a frequency, a life stage, a preference or a partner the line does not name. The species' own name and a plain group word for it (Falter, Vogel, Pilz / butterfly, bird, fungus) are not claims, like the region.\n3. Decide the verdict first and keep it. \"why\" has at most 25 words, explains the verdict and never argues against it; if you notice while writing that the sentence is supported, the verdict is \"supported\".\n4. \"claims\": every atomic claim in the sentence (one fact per claim, at most 12 words, in the language of the text), each with \"fact\": the id of the line that states it (any line, cited or not), or null when no line states it. Names, group words and the region are not claims; \"it is nocturnal\" is a claim.\nAnswer with JSON only, the verdict before anything else in each sentence:\n{\"sentences\":[{\"n\":1,\"verdict\":\"supported|partial|unsupported\",\"why\":\"<≤ 25 words; empty when supported>\",\"claims\":[{\"claim\":\"<text>\",\"fact\":\"F3\"}, {\"claim\":\"<text>\",\"fact\":null}]}]}",
+  "AUDIT2": "You audit a species text against the numbered fact lines it was written from. For every sentence give:\n1. \"verdict\": \"supported\" (every claim in the sentence follows from the cited lines), \"partial\" (some claim goes beyond the cited lines or rests on an uncited line), \"unsupported\" (a claim that no line states, or that contradicts a line). Be strict: rounding is fine, a unit change is fine; an added adjective of colour, size, behaviour or place, a cause, a season, a habit or preference read out of a record, a \"typical\" or \"important\" is not.\n2. A GloBI line (\"n GloBI-Belege\" / \"n GloBI records\") is the record of an observed interaction. It grants every wording that only restates the record or names its kind: \"beobachtet\", \"verzeichnet\", \"registriert\", \"nachgewiesen\", \"Fressfeind\", \"Beute\", \"Nahrung\", \"Wirt\", \"Blütenbesucher\", \"Bestäuber\" / \"observed\", \"recorded\", \"documented\", \"predator\", \"prey\", \"food\", \"host\", \"flower visitor\", \"pollinator\". It does not grant a habit, a frequency, a life stage, a preference or a partner the line does not name. The species' own name and a plain group word for it (Falter, Vogel, Pilz / butterfly, bird, fungus) are not claims, like the region.\n3. Direction is a claim: \"frisst: X\" states the species eats X, \"wird gefressen von: Y\" states Y eats the species, \"Wirt von: Z\" states the species hosts Z, \"besucht Blüten von: P\" states the species visits P. A sentence whose grammar reverses who eats, hosts or visits whom (\"Sie wurde beim Fressen von Y beobachtet\" for an \"is eaten by\" line; \"Als Wirt verzeichnet sind Z\" for a \"host of\" line) contradicts the line: \"unsupported\", whatever the vocabulary.\n4. Decide the verdict first and keep it. \"why\" has at most 25 words, explains the verdict and never argues against it; if you notice while writing that the sentence is supported, the verdict is \"supported\".\n5. \"claims\": every atomic claim in the sentence (one fact per claim, at most 12 words, in the language of the text), each with \"fact\": the id of the line that states it (any line, cited or not), or null when no line states it. Names, group words and the region are not claims; \"it is nocturnal\" is a claim.\nAnswer with JSON only, the verdict before anything else in each sentence:\n{\"sentences\":[{\"n\":1,\"verdict\":\"supported|partial|unsupported\",\"why\":\"<≤ 25 words; empty when supported>\",\"claims\":[{\"claim\":\"<text>\",\"fact\":\"F3\"}, {\"claim\":\"<text>\",\"fact\":null}]}]}"
  },
  "runs": {
   "ECO-sonnet-2490719-de": {
@@ -10556,6 +10558,4216 @@
    "auditAnswer": "answers/audit-P1/Pieris-napi-en.json",
    "auditRepaired": false,
    "auditAt": "2026-09-07T12:58:15.181Z"
+  },
+  "ECO2-sonnet-2490719-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Turdus merula",
+   "lang": "de",
+   "tile": "bird",
+   "names": {
+    "de": "Amsel",
+    "en": "Common blackbird",
+    "ja": "クロウタドリ"
+   },
+   "lines": 12,
+   "prompt": "prompts/P3/Turdus-merula-de.md",
+   "answer": "answers/P3/Turdus-merula-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Die Amsel ist Allesfresser und lebt in Wald und am Boden, wo sie tagsüber aktiv ist.",
+        "cites": [
+         "F1",
+         "F2",
+         "F3"
+        ]
+       },
+       {
+        "text": "Sie wurde beim Fressen von Eingriffeligem Weißdorn, Vogelbeere, Schwarzem Holunder und Gewöhnlichem Schneeball beobachtet.",
+        "cites": [
+         "F5",
+         "F6",
+         "F7",
+         "F8"
+        ]
+       },
+       {
+        "text": "Auch Gemeiner Efeu, Roter Hartriegel, Gewöhnliche Traubenkirsche und Hundsrose gehören zu den beobachteten Nahrungspflanzen.",
+        "cites": [
+         "F9",
+         "F10",
+         "F11",
+         "F12"
+        ]
+       },
+       {
+        "text": "In Mainz-Bingen liegen 6009 Meldungen aus zehn Jahren vor, mit dem ganzen Jahr als Hauptzeit.",
+        "cites": [
+         "F4"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Allesfresser",
+       "fact": "F1"
+      },
+      {
+       "claim": "lebt in Wald",
+       "fact": "F2"
+      },
+      {
+       "claim": "lebt am Boden",
+       "fact": "F2"
+      },
+      {
+       "claim": "tagsüber aktiv",
+       "fact": "F3"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "frisst Eingriffeligen Weißdorn",
+       "fact": "F5"
+      },
+      {
+       "claim": "frisst Vogelbeere",
+       "fact": "F6"
+      },
+      {
+       "claim": "frisst Schwarzen Holunder",
+       "fact": "F7"
+      },
+      {
+       "claim": "frisst Gewöhnlichen Schneeball",
+       "fact": "F8"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "frisst Gemeinen Efeu",
+       "fact": "F9"
+      },
+      {
+       "claim": "frisst Roten Hartriegel",
+       "fact": "F10"
+      },
+      {
+       "claim": "frisst Gewöhnliche Traubenkirsche",
+       "fact": "F11"
+      },
+      {
+       "claim": "frisst Hundsrose",
+       "fact": "F12"
+      }
+     ]
+    },
+    {
+     "n": 4,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "6009 Meldungen in zehn Jahren",
+       "fact": "F4"
+      },
+      {
+       "claim": "Hauptzeit ganzes Jahr",
+       "fact": "F4"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:04:53.691Z",
+   "auditPrompt": "prompts/audit-P3/Turdus-merula-de.md",
+   "auditAnswer": "answers/audit-P3/Turdus-merula-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:06:51.877Z"
+  },
+  "ECO2-sonnet-2490719-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Turdus merula",
+   "lang": "en",
+   "tile": "bird",
+   "names": {
+    "de": "Amsel",
+    "en": "Common blackbird",
+    "ja": "クロウタドリ"
+   },
+   "lines": 12,
+   "prompt": "prompts/P3/Turdus-merula-en.md",
+   "answer": "answers/P3/Turdus-merula-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "The common blackbird is an omnivore that lives in forest and on the ground, active by day.",
+        "cites": [
+         "F1",
+         "F2",
+         "F3"
+        ]
+       },
+       {
+        "text": "It has been recorded eating Hawthorn, Rowan, Elder and Guelder Rose.",
+        "cites": [
+         "F5",
+         "F6",
+         "F7",
+         "F8"
+        ]
+       },
+       {
+        "text": "English Ivy, Dogwood, Bird Cherry and Dog rose are also among the recorded food plants.",
+        "cites": [
+         "F9",
+         "F10",
+         "F11",
+         "F12"
+        ]
+       },
+       {
+        "text": "In Mainz-Bingen 6009 reports have been logged over ten years, with the peak time spanning the whole year.",
+        "cites": [
+         "F4"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "is an omnivore",
+       "fact": "F1"
+      },
+      {
+       "claim": "lives in forest",
+       "fact": "F2"
+      },
+      {
+       "claim": "lives on the ground",
+       "fact": "F2"
+      },
+      {
+       "claim": "active by day",
+       "fact": "F3"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "eats Hawthorn",
+       "fact": "F5"
+      },
+      {
+       "claim": "eats Rowan",
+       "fact": "F6"
+      },
+      {
+       "claim": "eats Elder",
+       "fact": "F7"
+      },
+      {
+       "claim": "eats Guelder Rose",
+       "fact": "F8"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "eats English Ivy",
+       "fact": "F9"
+      },
+      {
+       "claim": "eats Dogwood",
+       "fact": "F10"
+      },
+      {
+       "claim": "eats Bird Cherry",
+       "fact": "F11"
+      },
+      {
+       "claim": "eats Dog rose",
+       "fact": "F12"
+      }
+     ]
+    },
+    {
+     "n": 4,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "6009 reports over ten years",
+       "fact": "F4"
+      },
+      {
+       "claim": "peak time spans whole year",
+       "fact": "F4"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:04:56.220Z",
+   "auditPrompt": "prompts/audit-P3/Turdus-merula-en.md",
+   "auditAnswer": "answers/audit-P3/Turdus-merula-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:06:55.483Z"
+  },
+  "ECO2-sonnet-1929697-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Lycaena phlaeas",
+   "lang": "de",
+   "tile": "insect",
+   "names": {
+    "de": "Kleiner Feuerfalter",
+    "en": "Small Copper",
+    "ja": "ベニシジミ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Lycaena-phlaeas-de.md",
+   "answer": "answers/P3/Lycaena-phlaeas-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "In Mainz-Bingen liegen 126 Meldungen aus zehn Jahren vor, mit Apr–Mai und Jul–Okt als Hauptzeit.",
+        "cites": [
+         "F1"
+        ]
+       },
+       {
+        "text": "Der Kleine Feuerfalter wurde beim Blütenbesuch an Rainfarn, Besenheide, Gänseblümchen und Acker-Kratzdistel beobachtet.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4",
+         "F5"
+        ]
+       },
+       {
+        "text": "Auch an Gemeiner Schafgarbe, Oregano, Feld-Mannstreu und Jakobs-Greiskraut wurde Blütenbesuch verzeichnet.",
+        "cites": [
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "126 Meldungen in zehn Jahren",
+       "fact": "F1"
+      },
+      {
+       "claim": "Hauptzeit Apr–Mai und Jul–Okt",
+       "fact": "F1"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "besucht Blüten von Rainfarn",
+       "fact": "F2"
+      },
+      {
+       "claim": "besucht Blüten von Besenheide",
+       "fact": "F3"
+      },
+      {
+       "claim": "besucht Blüten von Gänseblümchen",
+       "fact": "F4"
+      },
+      {
+       "claim": "besucht Blüten von Acker-Kratzdistel",
+       "fact": "F5"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "besucht Blüten von Gemeiner Schafgarbe",
+       "fact": "F6"
+      },
+      {
+       "claim": "besucht Blüten von Oregano",
+       "fact": "F7"
+      },
+      {
+       "claim": "besucht Blüten von Feld-Mannstreu",
+       "fact": "F8"
+      },
+      {
+       "claim": "besucht Blüten von Jakobs-Greiskraut",
+       "fact": "F9"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:04:58.523Z",
+   "auditPrompt": "prompts/audit-P3/Lycaena-phlaeas-de.md",
+   "auditAnswer": "answers/audit-P3/Lycaena-phlaeas-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:06:59.274Z"
+  },
+  "ECO2-sonnet-1929697-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Lycaena phlaeas",
+   "lang": "en",
+   "tile": "insect",
+   "names": {
+    "de": "Kleiner Feuerfalter",
+    "en": "Small Copper",
+    "ja": "ベニシジミ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Lycaena-phlaeas-en.md",
+   "answer": "answers/P3/Lycaena-phlaeas-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "In Mainz-Bingen 126 reports have been logged over ten years, with the peak time spanning Apr–May and Jul–Oct.",
+        "cites": [
+         "F1"
+        ]
+       },
+       {
+        "text": "The Small Copper has been recorded visiting the flowers of Tansy, Heather, Daisy and Creeping Thistle.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4",
+         "F5"
+        ]
+       },
+       {
+        "text": "It has also been recorded visiting the flowers of Bloodwort, Oregano, Field Eryngo and Common Ragwort.",
+        "cites": [
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "126 reports over ten years",
+       "fact": "F1"
+      },
+      {
+       "claim": "peak time spans Apr–May and Jul–Oct",
+       "fact": "F1"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "visits flowers of Tansy",
+       "fact": "F2"
+      },
+      {
+       "claim": "visits flowers of Heather",
+       "fact": "F3"
+      },
+      {
+       "claim": "visits flowers of Daisy",
+       "fact": "F4"
+      },
+      {
+       "claim": "visits flowers of Creeping Thistle",
+       "fact": "F5"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "visits flowers of Bloodwort",
+       "fact": "F6"
+      },
+      {
+       "claim": "visits flowers of Oregano",
+       "fact": "F7"
+      },
+      {
+       "claim": "visits flowers of Field Eryngo",
+       "fact": "F8"
+      },
+      {
+       "claim": "visits flowers of Common Ragwort",
+       "fact": "F9"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:00.371Z",
+   "auditPrompt": "prompts/audit-P3/Lycaena-phlaeas-en.md",
+   "auditAnswer": "answers/audit-P3/Lycaena-phlaeas-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:01.986Z"
+  },
+  "ECO2-sonnet-2431776-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Salamandra salamandra",
+   "lang": "de",
+   "tile": "amphibian",
+   "names": {
+    "de": "Feuersalamander",
+    "en": "Fire salamander",
+    "ja": "ファイアサラマンダー"
+   },
+   "lines": 6,
+   "prompt": "prompts/P3/Salamandra-salamandra-de.md",
+   "answer": "answers/P3/Salamandra-salamandra-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Der Feuersalamander ernährt sich von Gliederfüßern und lebt an Land, im Wasser und im Boden, wo er tagsüber, in der Dämmerung und nachts aktiv ist.",
+        "cites": [
+         "F1",
+         "F2",
+         "F3"
+        ]
+       },
+       {
+        "text": "Als Fressfeind ist die Barrenringelnatter (Natrix helvetica) verzeichnet.",
+        "cites": [
+         "F5"
+        ]
+       },
+       {
+        "text": "Auch Domestic Cat (Felis catus) ist als Fressfeind verzeichnet.",
+        "cites": [
+         "F6"
+        ]
+       },
+       {
+        "text": "In Mainz-Bingen liegen 48 Meldungen aus zehn Jahren vor, mit Mär–Mai und Aug–Dez als Hauptzeit.",
+        "cites": [
+         "F4"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "ernährt sich von Gliederfüßern",
+       "fact": "F1"
+      },
+      {
+       "claim": "lebt an Land",
+       "fact": "F2"
+      },
+      {
+       "claim": "lebt im Wasser",
+       "fact": "F2"
+      },
+      {
+       "claim": "lebt im Boden",
+       "fact": "F2"
+      },
+      {
+       "claim": "tagsüber aktiv",
+       "fact": "F3"
+      },
+      {
+       "claim": "in der Dämmerung aktiv",
+       "fact": "F3"
+      },
+      {
+       "claim": "nachts aktiv",
+       "fact": "F3"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Barrenringelnatter ist Fressfeind",
+       "fact": "F5"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Domestic Cat ist Fressfeind",
+       "fact": "F6"
+      }
+     ]
+    },
+    {
+     "n": 4,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "48 Meldungen in zehn Jahren",
+       "fact": "F4"
+      },
+      {
+       "claim": "Hauptzeit Mär–Mai und Aug–Dez",
+       "fact": "F4"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:02.844Z",
+   "auditPrompt": "prompts/audit-P3/Salamandra-salamandra-de.md",
+   "auditAnswer": "answers/audit-P3/Salamandra-salamandra-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:04.388Z"
+  },
+  "ECO2-sonnet-2431776-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Salamandra salamandra",
+   "lang": "en",
+   "tile": "amphibian",
+   "names": {
+    "de": "Feuersalamander",
+    "en": "Fire salamander",
+    "ja": "ファイアサラマンダー"
+   },
+   "lines": 6,
+   "prompt": "prompts/P3/Salamandra-salamandra-en.md",
+   "answer": "answers/P3/Salamandra-salamandra-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "The fire salamander eats arthropods, lives on land, in water and underground, and is active by day, at dusk and dawn, and at night.",
+        "cites": [
+         "F1",
+         "F2",
+         "F3"
+        ]
+       },
+       {
+        "text": "In Mainz-Bingen it has been reported 48 times over ten years, mostly from March to May and August to December, with October the peak month.",
+        "cites": [
+         "F4"
+        ]
+       },
+       {
+        "text": "The barred grass snake is recorded as a predator, with 10 GloBI records.",
+        "cites": [
+         "F5"
+        ]
+       },
+       {
+        "text": "The domestic cat is also recorded as a predator, with 2 GloBI records.",
+        "cites": [
+         "F6"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "eats arthropods",
+       "fact": "F1"
+      },
+      {
+       "claim": "lives on land",
+       "fact": "F2"
+      },
+      {
+       "claim": "lives in water",
+       "fact": "F2"
+      },
+      {
+       "claim": "lives underground",
+       "fact": "F2"
+      },
+      {
+       "claim": "active by day",
+       "fact": "F3"
+      },
+      {
+       "claim": "active at dusk and dawn",
+       "fact": "F3"
+      },
+      {
+       "claim": "active at night",
+       "fact": "F3"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "reported 48 times over ten years",
+       "fact": "F4"
+      },
+      {
+       "claim": "mostly March to May and August to December",
+       "fact": "F4"
+      },
+      {
+       "claim": "October is the peak month",
+       "fact": "F4"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "barred grass snake recorded as predator",
+       "fact": "F5"
+      },
+      {
+       "claim": "10 GloBI records",
+       "fact": "F5"
+      }
+     ]
+    },
+    {
+     "n": 4,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "domestic cat recorded as predator",
+       "fact": "F6"
+      },
+      {
+       "claim": "2 GloBI records",
+       "fact": "F6"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:04:50.360Z",
+   "auditPrompt": "prompts/audit-P3/Salamandra-salamandra-en.md",
+   "auditAnswer": "answers/audit-P3/Salamandra-salamandra-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:06:57.031Z"
+  },
+  "ECO2-sonnet-7960979-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Urtica dioica",
+   "lang": "de",
+   "tile": "plant",
+   "names": {
+    "de": "Große Brennnessel",
+    "en": "Stinging Nettle",
+    "ja": "イラクサ"
+   },
+   "lines": 7,
+   "prompt": "prompts/P3/Urtica-dioica-de.md",
+   "answer": "answers/P3/Urtica-dioica-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Die Große Brennnessel wird vom Wind bestäubt.",
+        "cites": [
+         "F1"
+        ]
+       },
+       {
+        "text": "In Mainz-Bingen liegen 259 Meldungen in zehn Jahren vor, vor allem von April bis Juli, mit dem Höhepunkt im Mai.",
+        "cites": [
+         "F2"
+        ]
+       },
+       {
+        "text": "Als Fressfeinde sind Tagpfauenauge und Kleiner Fuchs verzeichnet, mit 3 beziehungsweise 2 GloBI-Belegen.",
+        "cites": [
+         "F3",
+         "F4"
+        ]
+       },
+       {
+        "text": "Als Wirtspflanze ist sie für Tagpfauenauge, Landkärtchen und Kleinen Fuchs verzeichnet.",
+        "cites": [
+         "F5",
+         "F6",
+         "F7"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "wird vom Wind bestäubt",
+       "fact": "F1"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "259 Meldungen in zehn Jahren",
+       "fact": "F2"
+      },
+      {
+       "claim": "vor allem April bis Juli",
+       "fact": "F2"
+      },
+      {
+       "claim": "Höhepunkt im Mai",
+       "fact": "F2"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Tagpfauenauge als Fressfeind verzeichnet",
+       "fact": "F3"
+      },
+      {
+       "claim": "Kleiner Fuchs als Fressfeind verzeichnet",
+       "fact": "F4"
+      },
+      {
+       "claim": "3 GloBI-Belege",
+       "fact": "F3"
+      },
+      {
+       "claim": "2 GloBI-Belege",
+       "fact": "F4"
+      }
+     ]
+    },
+    {
+     "n": 4,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Wirtspflanze für Tagpfauenauge",
+       "fact": "F5"
+      },
+      {
+       "claim": "Wirtspflanze für Landkärtchen",
+       "fact": "F6"
+      },
+      {
+       "claim": "Wirtspflanze für Kleinen Fuchs",
+       "fact": "F7"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:04:53.004Z",
+   "auditPrompt": "prompts/audit-P3/Urtica-dioica-de.md",
+   "auditAnswer": "answers/audit-P3/Urtica-dioica-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:01.273Z"
+  },
+  "ECO2-sonnet-7960979-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Urtica dioica",
+   "lang": "en",
+   "tile": "plant",
+   "names": {
+    "de": "Große Brennnessel",
+    "en": "Stinging Nettle",
+    "ja": "イラクサ"
+   },
+   "lines": 7,
+   "prompt": "prompts/P3/Urtica-dioica-en.md",
+   "answer": "answers/P3/Urtica-dioica-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Stinging nettle is pollinated by wind.",
+        "cites": [
+         "F1"
+        ]
+       },
+       {
+        "text": "In Mainz-Bingen it has been reported 259 times over ten years, mainly from April to July, peaking in May.",
+        "cites": [
+         "F2"
+        ]
+       },
+       {
+        "text": "The peacock and the small tortoiseshell are recorded as predators, with 3 and 2 GloBI records respectively.",
+        "cites": [
+         "F3",
+         "F4"
+        ]
+       },
+       {
+        "text": "It is recorded as a host of the peacock, the map and the small tortoiseshell.",
+        "cites": [
+         "F5",
+         "F6",
+         "F7"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "pollinated by wind",
+       "fact": "F1"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "reported 259 times over ten years",
+       "fact": "F2"
+      },
+      {
+       "claim": "mainly April to July",
+       "fact": "F2"
+      },
+      {
+       "claim": "peaking in May",
+       "fact": "F2"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "peacock recorded as predator",
+       "fact": "F3"
+      },
+      {
+       "claim": "small tortoiseshell recorded as predator",
+       "fact": "F4"
+      },
+      {
+       "claim": "3 GloBI records",
+       "fact": "F3"
+      },
+      {
+       "claim": "2 GloBI records",
+       "fact": "F4"
+      }
+     ]
+    },
+    {
+     "n": 4,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "host of the peacock",
+       "fact": "F5"
+      },
+      {
+       "claim": "host of the map",
+       "fact": "F6"
+      },
+      {
+       "claim": "host of the small tortoiseshell",
+       "fact": "F7"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:04:55.031Z",
+   "auditPrompt": "prompts/audit-P3/Urtica-dioica-en.md",
+   "auditAnswer": "answers/audit-P3/Urtica-dioica-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:03.288Z"
+  },
+  "ECO2-sonnet-2474950-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Grus grus",
+   "lang": "de",
+   "tile": "bird",
+   "names": {
+    "de": "Kranich",
+    "en": "Common crane",
+    "ja": "クロヅル"
+   },
+   "lines": 4,
+   "prompt": "prompts/P3/Grus-grus-de.md",
+   "answer": "answers/P3/Grus-grus-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Der Kranich ist Allesfresser, lebt in Feuchtgebieten und ist tagsüber aktiv.",
+        "cites": [
+         "F1",
+         "F2",
+         "F3"
+        ]
+       },
+       {
+        "text": "In Mainz-Bingen liegen 977 Meldungen in zehn Jahren vor, vor allem im Februar sowie von Oktober bis Dezember, mit dem Höhepunkt im Februar.",
+        "cites": [
+         "F4"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "ist Allesfresser",
+       "fact": "F1"
+      },
+      {
+       "claim": "lebt in Feuchtgebieten",
+       "fact": "F2"
+      },
+      {
+       "claim": "tagsüber aktiv",
+       "fact": "F3"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "977 Meldungen in zehn Jahren",
+       "fact": "F4"
+      },
+      {
+       "claim": "vor allem Februar sowie Oktober bis Dezember",
+       "fact": "F4"
+      },
+      {
+       "claim": "Höhepunkt im Februar",
+       "fact": "F4"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:04:56.868Z",
+   "auditPrompt": "prompts/audit-P3/Grus-grus-de.md",
+   "auditAnswer": "answers/audit-P3/Grus-grus-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:05.618Z"
+  },
+  "ECO2-sonnet-2474950-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Grus grus",
+   "lang": "en",
+   "tile": "bird",
+   "names": {
+    "de": "Kranich",
+    "en": "Common crane",
+    "ja": "クロヅル"
+   },
+   "lines": 4,
+   "prompt": "prompts/P3/Grus-grus-en.md",
+   "answer": "answers/P3/Grus-grus-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "The common crane is an omnivore, lives in wetlands and is active by day.",
+        "cites": [
+         "F1",
+         "F2",
+         "F3"
+        ]
+       },
+       {
+        "text": "In Mainz-Bingen it has been reported 977 times over ten years, mainly in February and from October to December, peaking in February.",
+        "cites": [
+         "F4"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "is an omnivore",
+       "fact": "F1"
+      },
+      {
+       "claim": "lives in wetlands",
+       "fact": "F2"
+      },
+      {
+       "claim": "active by day",
+       "fact": "F3"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "reported 977 times over ten years",
+       "fact": "F4"
+      },
+      {
+       "claim": "mainly February and October to December",
+       "fact": "F4"
+      },
+      {
+       "claim": "peaking in February",
+       "fact": "F4"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:04:58.820Z",
+   "auditPrompt": "prompts/audit-P3/Grus-grus-en.md",
+   "auditAnswer": "answers/audit-P3/Grus-grus-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:07.384Z"
+  },
+  "ECO2-sonnet-5743122-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Lucanus cervus",
+   "lang": "de",
+   "tile": "insect",
+   "names": {
+    "de": "Hirschkäfer",
+    "en": "Stag Beetle",
+    "ja": "ヨーロッパミヤマクワガタ"
+   },
+   "lines": 4,
+   "prompt": "prompts/P3/Lucanus-cervus-de.md",
+   "answer": "answers/P3/Lucanus-cervus-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Der Hirschkäfer wurde beim Fressen von Rotbuche (Fagus sylvatica), Gemeiner Esche (Fraxinus excelsior) und Gemeiner Hasel (Corylus avellana) beobachtet.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4"
+        ]
+       },
+       {
+        "text": "In Mainz-Bingen wurde die Art in zehn Jahren 63-mal gemeldet, mit Schwerpunkt von Juni bis Juli.",
+        "cites": [
+         "F1"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "frisst Rotbuche",
+       "fact": "F2"
+      },
+      {
+       "claim": "frisst Gemeine Esche",
+       "fact": "F3"
+      },
+      {
+       "claim": "frisst Gemeine Hasel",
+       "fact": "F4"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "63 Meldungen in zehn Jahren",
+       "fact": "F1"
+      },
+      {
+       "claim": "Schwerpunkt Juni bis Juli",
+       "fact": "F1"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:07.857Z",
+   "auditPrompt": "prompts/audit-P3/Lucanus-cervus-de.md",
+   "auditAnswer": "answers/audit-P3/Lucanus-cervus-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:23.303Z"
+  },
+  "ECO2-sonnet-5743122-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Lucanus cervus",
+   "lang": "en",
+   "tile": "insect",
+   "names": {
+    "de": "Hirschkäfer",
+    "en": "Stag Beetle",
+    "ja": "ヨーロッパミヤマクワガタ"
+   },
+   "lines": 4,
+   "prompt": "prompts/P3/Lucanus-cervus-en.md",
+   "answer": "answers/P3/Lucanus-cervus-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "The Stag Beetle has been recorded eating Beech (Fagus sylvatica), European ash (Fraxinus excelsior) and Hazel (Corylus avellana).",
+        "cites": [
+         "F2",
+         "F3",
+         "F4"
+        ]
+       },
+       {
+        "text": "In Mainz-Bingen, the species has been reported 63 times over ten years, mainly from June to July.",
+        "cites": [
+         "F1"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "eats Beech",
+       "fact": "F2"
+      },
+      {
+       "claim": "eats European ash",
+       "fact": "F3"
+      },
+      {
+       "claim": "eats Hazel",
+       "fact": "F4"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "reported 63 times over ten years",
+       "fact": "F1"
+      },
+      {
+       "claim": "mainly June to July",
+       "fact": "F1"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:13.568Z",
+   "auditPrompt": "prompts/audit-P3/Lucanus-cervus-en.md",
+   "auditAnswer": "answers/audit-P3/Lucanus-cervus-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:25.200Z"
+  },
+  "ECO2-sonnet-2426805-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Rana temporaria",
+   "lang": "de",
+   "tile": "amphibian",
+   "names": {
+    "de": "Grasfrosch",
+    "en": "Common frog",
+    "ja": "ヨーロッパアカガエル"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Rana-temporaria-de.md",
+   "answer": "answers/P3/Rana-temporaria-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Der Grasfrosch ernährt sich von Gliederfüßern, ist an Land, im Wasser und auf Bäumen anzutreffen und ist tagsüber und nachts aktiv.",
+        "cites": [
+         "F1",
+         "F2",
+         "F3"
+        ]
+       },
+       {
+        "text": "Als Fressfeinde sind Barrenringelnatter (Natrix helvetica), Graureiher (Ardea cinerea), Silbermöwe (Larus argentatus), Rotfuchs (Vulpes vulpes) und Spitzschlammschnecke (Lymnaea stagnalis) verzeichnet.",
+        "cites": [
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       },
+       {
+        "text": "In Mainz-Bingen wurde die Art in zehn Jahren 71-mal gemeldet, mit Schwerpunkt von Februar bis April.",
+        "cites": [
+         "F4"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "ernährt sich von Gliederfüßern",
+       "fact": "F1"
+      },
+      {
+       "claim": "anzutreffen an Land",
+       "fact": "F2"
+      },
+      {
+       "claim": "anzutreffen im Wasser",
+       "fact": "F2"
+      },
+      {
+       "claim": "anzutreffen auf Bäumen",
+       "fact": "F2"
+      },
+      {
+       "claim": "aktiv tagsüber",
+       "fact": "F3"
+      },
+      {
+       "claim": "aktiv nachts",
+       "fact": "F3"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Fressfeind Barrenringelnatter",
+       "fact": "F5"
+      },
+      {
+       "claim": "Fressfeind Graureiher",
+       "fact": "F6"
+      },
+      {
+       "claim": "Fressfeind Silbermöwe",
+       "fact": "F7"
+      },
+      {
+       "claim": "Fressfeind Rotfuchs",
+       "fact": "F8"
+      },
+      {
+       "claim": "Fressfeind Spitzschlammschnecke",
+       "fact": "F9"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "71 Meldungen in zehn Jahren",
+       "fact": "F4"
+      },
+      {
+       "claim": "Schwerpunkt Februar bis April",
+       "fact": "F4"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:20.705Z",
+   "auditPrompt": "prompts/audit-P3/Rana-temporaria-de.md",
+   "auditAnswer": "answers/audit-P3/Rana-temporaria-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:28.249Z"
+  },
+  "ECO2-sonnet-2426805-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Rana temporaria",
+   "lang": "en",
+   "tile": "amphibian",
+   "names": {
+    "de": "Grasfrosch",
+    "en": "Common frog",
+    "ja": "ヨーロッパアカガエル"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Rana-temporaria-en.md",
+   "answer": "answers/P3/Rana-temporaria-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "The Common frog feeds on arthropods, occurs on land, in water and in trees, and is active by day and at night.",
+        "cites": [
+         "F1",
+         "F2",
+         "F3"
+        ]
+       },
+       {
+        "text": "Recorded predators are the Barred grass snake (Natrix helvetica), Grey heron (Ardea cinerea), European herring gull (Larus argentatus), Red fox (Vulpes vulpes) and Swamp lymnaea (Lymnaea stagnalis).",
+        "cites": [
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       },
+       {
+        "text": "In Mainz-Bingen, the species has been reported 71 times over ten years, mainly from February to April.",
+        "cites": [
+         "F4"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "feeds on arthropods",
+       "fact": "F1"
+      },
+      {
+       "claim": "occurs on land",
+       "fact": "F2"
+      },
+      {
+       "claim": "occurs in water",
+       "fact": "F2"
+      },
+      {
+       "claim": "occurs in trees",
+       "fact": "F2"
+      },
+      {
+       "claim": "active by day",
+       "fact": "F3"
+      },
+      {
+       "claim": "active at night",
+       "fact": "F3"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "predator Barred grass snake",
+       "fact": "F5"
+      },
+      {
+       "claim": "predator Grey heron",
+       "fact": "F6"
+      },
+      {
+       "claim": "predator European herring gull",
+       "fact": "F7"
+      },
+      {
+       "claim": "predator Red fox",
+       "fact": "F8"
+      },
+      {
+       "claim": "predator Swamp lymnaea",
+       "fact": "F9"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "reported 71 times over ten years",
+       "fact": "F4"
+      },
+      {
+       "claim": "mainly February to April",
+       "fact": "F4"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:26.924Z",
+   "auditPrompt": "prompts/audit-P3/Rana-temporaria-en.md",
+   "auditAnswer": "answers/audit-P3/Rana-temporaria-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:30.694Z"
+  },
+  "ECO2-sonnet-2876213-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Alnus glutinosa",
+   "lang": "de",
+   "tile": "plant",
+   "names": {
+    "de": "Schwarz-Erle",
+    "en": "Black Alder",
+    "ja": "ヨーロッパハンノキ"
+   },
+   "lines": 10,
+   "prompt": "prompts/P3/Alnus-glutinosa-de.md",
+   "answer": "answers/P3/Alnus-glutinosa-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Die Schwarz-Erle wird durch Wind bestäubt.",
+        "cites": [
+         "F1"
+        ]
+       },
+       {
+        "text": "Als Fressfeinde sind Stieglitz (Carduelis carduelis) und Moschusbock (Aromia moschata) verzeichnet.",
+        "cites": [
+         "F3",
+         "F4"
+        ]
+       },
+       {
+        "text": "Sie ist als Wirt von Schmetterlings-Tramete (Trametes versicolor), Zunderschwamm (Fomes fomentarius), Graugelbem Breitflügelspanner (Agriopis marginaria), Rotrandigem Baumschwamm (Fomitopsis pinicola), Lindenschwärmer (Mimas tiliae) und Geweihförmiger Holzkeule (Xylaria hypoxylon) verzeichnet.",
+        "cites": [
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9",
+         "F10"
+        ]
+       },
+       {
+        "text": "In Mainz-Bingen wurde die Art in zehn Jahren 27-mal gemeldet, mit Meldungen über das ganze Jahr.",
+        "cites": [
+         "F2"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "wird durch Wind bestäubt",
+       "fact": "F1"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Fressfeind Stieglitz",
+       "fact": "F3"
+      },
+      {
+       "claim": "Fressfeind Moschusbock",
+       "fact": "F4"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Wirt von Schmetterlings-Tramete",
+       "fact": "F5"
+      },
+      {
+       "claim": "Wirt von Zunderschwamm",
+       "fact": "F6"
+      },
+      {
+       "claim": "Wirt von Graugelbem Breitflügelspanner",
+       "fact": "F7"
+      },
+      {
+       "claim": "Wirt von Rotrandigem Baumschwamm",
+       "fact": "F8"
+      },
+      {
+       "claim": "Wirt von Lindenschwärmer",
+       "fact": "F9"
+      },
+      {
+       "claim": "Wirt von Geweihförmiger Holzkeule",
+       "fact": "F10"
+      }
+     ]
+    },
+    {
+     "n": 4,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "27 Meldungen in zehn Jahren",
+       "fact": "F2"
+      },
+      {
+       "claim": "Meldungen über das ganze Jahr",
+       "fact": "F2"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:35.192Z",
+   "auditPrompt": "prompts/audit-P3/Alnus-glutinosa-de.md",
+   "auditAnswer": "answers/audit-P3/Alnus-glutinosa-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:34.164Z"
+  },
+  "ECO2-sonnet-2876213-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Alnus glutinosa",
+   "lang": "en",
+   "tile": "plant",
+   "names": {
+    "de": "Schwarz-Erle",
+    "en": "Black Alder",
+    "ja": "ヨーロッパハンノキ"
+   },
+   "lines": 10,
+   "prompt": "prompts/P3/Alnus-glutinosa-en.md",
+   "answer": "answers/P3/Alnus-glutinosa-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Black Alder is pollinated by wind.",
+        "cites": [
+         "F1"
+        ]
+       },
+       {
+        "text": "In Mainz-Bingen, it has been reported throughout the year, with sightings peaking in December.",
+        "cites": [
+         "F2"
+        ]
+       },
+       {
+        "text": "The European goldfinch and the Musk beetle are recorded as predators of Black Alder.",
+        "cites": [
+         "F3",
+         "F4"
+        ]
+       },
+       {
+        "text": "It is recorded as a host of Turkeytail, Tinder Bracket, the Dotted border, Red-Belted Bracket, the Lime Hawk-Moth, and Candlesnuff Fungus.",
+        "cites": [
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9",
+         "F10"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "pollinated by wind",
+       "fact": "F1"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "reported throughout the year in Mainz-Bingen",
+       "fact": "F2"
+      },
+      {
+       "claim": "sightings peak in December",
+       "fact": "F2"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "European goldfinch is a predator of Black Alder",
+       "fact": "F3"
+      },
+      {
+       "claim": "Musk beetle is a predator of Black Alder",
+       "fact": "F4"
+      }
+     ]
+    },
+    {
+     "n": 4,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "host of Turkeytail",
+       "fact": "F5"
+      },
+      {
+       "claim": "host of Tinder Bracket",
+       "fact": "F6"
+      },
+      {
+       "claim": "host of Dotted border",
+       "fact": "F7"
+      },
+      {
+       "claim": "host of Red-Belted Bracket",
+       "fact": "F8"
+      },
+      {
+       "claim": "host of Lime Hawk-Moth",
+       "fact": "F9"
+      },
+      {
+       "claim": "host of Candlesnuff Fungus",
+       "fact": "F10"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:07.996Z",
+   "auditPrompt": "prompts/audit-P3/Alnus-glutinosa-en.md",
+   "auditAnswer": "answers/audit-P3/Alnus-glutinosa-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:19.014Z"
+  },
+  "ECO2-sonnet-1340503-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Bombus terrestris",
+   "lang": "de",
+   "tile": "insect",
+   "names": {
+    "de": "Dunkle Erdhummel",
+    "en": "Buff-tailed Bumblebee",
+    "ja": "セイヨウオオマルハナバチ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Bombus-terrestris-de.md",
+   "answer": "answers/P3/Bombus-terrestris-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Die Dunkle Erdhummel wurde in der Region Mainz-Bingen vor allem von Februar bis September gemeldet, mit Schwerpunkt im Juni und Juli.",
+        "cites": [
+         "F1"
+        ]
+       },
+       {
+        "text": "Sie wurde beim Blütenbesuch an der Skabiosen-Flockenblume, der Acker-Kratzdistel und dem Weißklee beobachtet.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4"
+        ]
+       },
+       {
+        "text": "Ebenso wurde sie an Besenheide, Oregano, der Acker-Witwenblume, dem Drüsigen Springkraut und dem Gewöhnlichen Löwenzahn beim Blütenbesuch beobachtet.",
+        "cites": [
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "vor allem von Februar bis September gemeldet",
+       "fact": "F1"
+      },
+      {
+       "claim": "Schwerpunkt im Juni und Juli",
+       "fact": "F1"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Blütenbesuch an Skabiosen-Flockenblume beobachtet",
+       "fact": "F2"
+      },
+      {
+       "claim": "Blütenbesuch an Acker-Kratzdistel beobachtet",
+       "fact": "F3"
+      },
+      {
+       "claim": "Blütenbesuch an Weißklee beobachtet",
+       "fact": "F4"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Blütenbesuch an Besenheide beobachtet",
+       "fact": "F5"
+      },
+      {
+       "claim": "Blütenbesuch an Oregano beobachtet",
+       "fact": "F6"
+      },
+      {
+       "claim": "Blütenbesuch an Acker-Witwenblume beobachtet",
+       "fact": "F7"
+      },
+      {
+       "claim": "Blütenbesuch an Drüsigem Springkraut beobachtet",
+       "fact": "F8"
+      },
+      {
+       "claim": "Blütenbesuch an Gewöhnlichem Löwenzahn beobachtet",
+       "fact": "F9"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:11.224Z",
+   "auditPrompt": "prompts/audit-P3/Bombus-terrestris-de.md",
+   "auditAnswer": "answers/audit-P3/Bombus-terrestris-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:25.753Z"
+  },
+  "ECO2-sonnet-1340503-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Bombus terrestris",
+   "lang": "en",
+   "tile": "insect",
+   "names": {
+    "de": "Dunkle Erdhummel",
+    "en": "Buff-tailed Bumblebee",
+    "ja": "セイヨウオオマルハナバチ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Bombus-terrestris-en.md",
+   "answer": "answers/P3/Bombus-terrestris-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "The Buff-tailed Bumblebee has been reported in Mainz-Bingen mainly from February to September, peaking in June and July.",
+        "cites": [
+         "F1"
+        ]
+       },
+       {
+        "text": "It has been recorded visiting the flowers of Greater Knapweed, Creeping Thistle, and White Clover.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4"
+        ]
+       },
+       {
+        "text": "It has also been recorded visiting the flowers of Heather, Oregano, field scabious, Himalayan balsam, and common dandelion.",
+        "cites": [
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "reported mainly February to September",
+       "fact": "F1"
+      },
+      {
+       "claim": "peaking in June and July",
+       "fact": "F1"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "recorded visiting flowers of Greater Knapweed",
+       "fact": "F2"
+      },
+      {
+       "claim": "recorded visiting flowers of Creeping Thistle",
+       "fact": "F3"
+      },
+      {
+       "claim": "recorded visiting flowers of White Clover",
+       "fact": "F4"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "recorded visiting flowers of Heather",
+       "fact": "F5"
+      },
+      {
+       "claim": "recorded visiting flowers of Oregano",
+       "fact": "F6"
+      },
+      {
+       "claim": "recorded visiting flowers of field scabious",
+       "fact": "F7"
+      },
+      {
+       "claim": "recorded visiting flowers of Himalayan balsam",
+       "fact": "F8"
+      },
+      {
+       "claim": "recorded visiting flowers of common dandelion",
+       "fact": "F9"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:13.602Z",
+   "auditPrompt": "prompts/audit-P3/Bombus-terrestris-en.md",
+   "auditAnswer": "answers/audit-P3/Bombus-terrestris-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:27.587Z"
+  },
+  "ECO2-sonnet-7854318-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Melanargia galathea",
+   "lang": "de",
+   "tile": "insect",
+   "names": {
+    "de": "Schachbrett",
+    "en": "Marbled White",
+    "ja": "ヨーロッパシロジャノメ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Melanargia-galathea-de.md",
+   "answer": "answers/P3/Melanargia-galathea-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Das Schachbrett wurde in Mainz-Bingen vor allem im Juni und Juli gemeldet.",
+        "cites": [
+         "F1"
+        ]
+       },
+       {
+        "text": "Es ist als Bestäuber von Kartäusernelke, Tauben-Skabiose und Acker-Witwenblume verzeichnet.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4"
+        ]
+       },
+       {
+        "text": "Ebenso ist es als Bestäuber von Mittlerem Klee, Wiesenklee, Echter Betonie und Magerwiesen-Margerite verzeichnet.",
+        "cites": [
+         "F5",
+         "F6",
+         "F7",
+         "F8"
+        ]
+       },
+       {
+        "text": "Zudem wurde es beim Blütenbesuch an der Acker-Witwenblume beobachtet.",
+        "cites": [
+         "F9"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "vor allem im Juni und Juli gemeldet",
+       "fact": "F1"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Bestäuber von Kartäusernelke",
+       "fact": "F2"
+      },
+      {
+       "claim": "Bestäuber von Tauben-Skabiose",
+       "fact": "F3"
+      },
+      {
+       "claim": "Bestäuber von Acker-Witwenblume",
+       "fact": "F4"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Bestäuber von Mittlerem Klee",
+       "fact": "F5"
+      },
+      {
+       "claim": "Bestäuber von Wiesenklee",
+       "fact": "F6"
+      },
+      {
+       "claim": "Bestäuber von Echter Betonie",
+       "fact": "F7"
+      },
+      {
+       "claim": "Bestäuber von Magerwiesen-Margerite",
+       "fact": "F8"
+      }
+     ]
+    },
+    {
+     "n": 4,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Blütenbesuch an Acker-Witwenblume beobachtet",
+       "fact": "F9"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:15.443Z",
+   "auditPrompt": "prompts/audit-P3/Melanargia-galathea-de.md",
+   "auditAnswer": "answers/audit-P3/Melanargia-galathea-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:29.289Z"
+  },
+  "ECO2-sonnet-7854318-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Melanargia galathea",
+   "lang": "en",
+   "tile": "insect",
+   "names": {
+    "de": "Schachbrett",
+    "en": "Marbled White",
+    "ja": "ヨーロッパシロジャノメ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Melanargia-galathea-en.md",
+   "answer": "answers/P3/Melanargia-galathea-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "The Marbled White has been reported in Mainz-Bingen mainly in June and July.",
+        "cites": [
+         "F1"
+        ]
+       },
+       {
+        "text": "It is recorded as a pollinator of Carthusian Pink, Small Scabious, and field scabious.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4"
+        ]
+       },
+       {
+        "text": "It is also recorded as a pollinator of zigzag clover, Red Clover, Betony, and Oxeye Daisy.",
+        "cites": [
+         "F5",
+         "F6",
+         "F7",
+         "F8"
+        ]
+       },
+       {
+        "text": "It has additionally been recorded visiting the flowers of field scabious.",
+        "cites": [
+         "F9"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "reported mainly in June and July",
+       "fact": "F1"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "pollinator of Carthusian Pink",
+       "fact": "F2"
+      },
+      {
+       "claim": "pollinator of Small Scabious",
+       "fact": "F3"
+      },
+      {
+       "claim": "pollinator of field scabious",
+       "fact": "F4"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "pollinator of zigzag clover",
+       "fact": "F5"
+      },
+      {
+       "claim": "pollinator of Red Clover",
+       "fact": "F6"
+      },
+      {
+       "claim": "pollinator of Betony",
+       "fact": "F7"
+      },
+      {
+       "claim": "pollinator of Oxeye Daisy",
+       "fact": "F8"
+      }
+     ]
+    },
+    {
+     "n": 4,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "recorded visiting flowers of field scabious",
+       "fact": "F9"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:17.184Z",
+   "auditPrompt": "prompts/audit-P3/Melanargia-galathea-en.md",
+   "auditAnswer": "answers/audit-P3/Melanargia-galathea-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:32.080Z"
+  },
+  "ECO2-sonnet-6258028-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Mantis religiosa",
+   "lang": "de",
+   "tile": "insect",
+   "names": {
+    "de": "Europäische Gottesanbeterin",
+    "en": "European mantis",
+    "ja": "ウスバカマキリ"
+   },
+   "lines": 8,
+   "prompt": "prompts/P3/Mantis-religiosa-de.md",
+   "answer": "answers/P3/Mantis-religiosa-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Die Europäische Gottesanbeterin wurde beim Fressen der Westlichen Honigbiene, der Gemeinen Wespe, des Grünen Heupferds, der Blauflügeligen Ödlandschrecke und der Mauereidechse beobachtet.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4",
+         "F5",
+         "F6"
+        ]
+       },
+       {
+        "text": "Als Fressfeinde sind die Asiatische Hornisse und der Haussperling verzeichnet.",
+        "cites": [
+         "F7",
+         "F8"
+        ]
+       },
+       {
+        "text": "In der Region Mainz-Bingen liegt ihre Hauptzeit im August und September.",
+        "cites": [
+         "F1"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "frisst Westliche Honigbiene",
+       "fact": "F2"
+      },
+      {
+       "claim": "frisst Gemeine Wespe",
+       "fact": "F3"
+      },
+      {
+       "claim": "frisst Grünes Heupferd",
+       "fact": "F4"
+      },
+      {
+       "claim": "frisst Blauflügelige Ödlandschrecke",
+       "fact": "F5"
+      },
+      {
+       "claim": "frisst Mauereidechse",
+       "fact": "F6"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Fressfeind Asiatische Hornisse",
+       "fact": "F7"
+      },
+      {
+       "claim": "Fressfeind Haussperling",
+       "fact": "F8"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Hauptzeit im August und September",
+       "fact": "F1"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:13.436Z",
+   "auditPrompt": "prompts/audit-P3/Mantis-religiosa-de.md",
+   "auditAnswer": "answers/audit-P3/Mantis-religiosa-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:37.702Z"
+  },
+  "ECO2-sonnet-6258028-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Mantis religiosa",
+   "lang": "en",
+   "tile": "insect",
+   "names": {
+    "de": "Europäische Gottesanbeterin",
+    "en": "European mantis",
+    "ja": "ウスバカマキリ"
+   },
+   "lines": 8,
+   "prompt": "prompts/P3/Mantis-religiosa-en.md",
+   "answer": "answers/P3/Mantis-religiosa-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "The European mantis has been recorded eating the Western honey bee, the Common Wasp, the Great Green Bush-cricket, the Blue-winged Grasshopper, and the Common Wall Lizard.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4",
+         "F5",
+         "F6"
+        ]
+       },
+       {
+        "text": "The Asian hornet and the House sparrow are recorded as predators.",
+        "cites": [
+         "F7",
+         "F8"
+        ]
+       },
+       {
+        "text": "In the Mainz-Bingen region, its main time is August and September.",
+        "cites": [
+         "F1"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "eats Western honey bee",
+       "fact": "F2"
+      },
+      {
+       "claim": "eats Common Wasp",
+       "fact": "F3"
+      },
+      {
+       "claim": "eats Great Green Bush-cricket",
+       "fact": "F4"
+      },
+      {
+       "claim": "eats Blue-winged Grasshopper",
+       "fact": "F5"
+      },
+      {
+       "claim": "eats Common Wall Lizard",
+       "fact": "F6"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "predator Asian hornet",
+       "fact": "F7"
+      },
+      {
+       "claim": "predator House sparrow",
+       "fact": "F8"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "main time August and September",
+       "fact": "F1"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:16.093Z",
+   "auditPrompt": "prompts/audit-P3/Mantis-religiosa-en.md",
+   "auditAnswer": "answers/audit-P3/Mantis-religiosa-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:39.634Z"
+  },
+  "ECO2-sonnet-4535827-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Aglais io",
+   "lang": "de",
+   "tile": "insect",
+   "names": {
+    "de": "Tagpfauenauge",
+    "en": "Peacock",
+    "ja": "クジャクチョウ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Aglais-io-de.md",
+   "answer": "answers/P3/Aglais-io-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Das Tagpfauenauge wurde beim Fressen der Großen Brennnessel, des Gemeinen Efeus und des Gewöhnlichen Wasserdosts beobachtet.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4"
+        ]
+       },
+       {
+        "text": "Zudem wurde es beim Blütenbesuch an Acker-Kratzdistel, Gewöhnlichem Wasserdost, Gewöhnlichem Löwenzahn, Schlehdorn und Oregano beobachtet.",
+        "cites": [
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       },
+       {
+        "text": "In der Region Mainz-Bingen liegt seine Hauptzeit im März, April, Juni, Juli und September.",
+        "cites": [
+         "F1"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "frisst Große Brennnessel",
+       "fact": "F2"
+      },
+      {
+       "claim": "frisst Gemeiner Efeu",
+       "fact": "F3"
+      },
+      {
+       "claim": "frisst Gewöhnlicher Wasserdost",
+       "fact": "F4"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "besucht Blüten von Acker-Kratzdistel",
+       "fact": "F5"
+      },
+      {
+       "claim": "besucht Blüten von Gewöhnlichem Wasserdost",
+       "fact": "F6"
+      },
+      {
+       "claim": "besucht Blüten von Gewöhnlichem Löwenzahn",
+       "fact": "F7"
+      },
+      {
+       "claim": "besucht Blüten von Schlehdorn",
+       "fact": "F8"
+      },
+      {
+       "claim": "besucht Blüten von Oregano",
+       "fact": "F9"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Hauptzeit März, April, Juni, Juli und September",
+       "fact": "F1"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:18.036Z",
+   "auditPrompt": "prompts/audit-P3/Aglais-io-de.md",
+   "auditAnswer": "answers/audit-P3/Aglais-io-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:09:03.339Z"
+  },
+  "ECO2-sonnet-4535827-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Aglais io",
+   "lang": "en",
+   "tile": "insect",
+   "names": {
+    "de": "Tagpfauenauge",
+    "en": "Peacock",
+    "ja": "クジャクチョウ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Aglais-io-en.md",
+   "answer": "answers/P3/Aglais-io-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "The Peacock has been recorded eating Stinging Nettle, English Ivy, and Hemp Agrimony.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4"
+        ]
+       },
+       {
+        "text": "It has also been recorded visiting the flowers of Creeping Thistle, Hemp Agrimony, common dandelion, Blackthorn, and Oregano.",
+        "cites": [
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       },
+       {
+        "text": "In the Mainz-Bingen region, its main time is March, April, June, July, and September.",
+        "cites": [
+         "F1"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "eats Stinging Nettle",
+       "fact": "F2"
+      },
+      {
+       "claim": "eats English Ivy",
+       "fact": "F3"
+      },
+      {
+       "claim": "eats Hemp Agrimony",
+       "fact": "F4"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "visits flowers of Creeping Thistle",
+       "fact": "F5"
+      },
+      {
+       "claim": "visits flowers of Hemp Agrimony",
+       "fact": "F6"
+      },
+      {
+       "claim": "visits flowers of common dandelion",
+       "fact": "F7"
+      },
+      {
+       "claim": "visits flowers of Blackthorn",
+       "fact": "F8"
+      },
+      {
+       "claim": "visits flowers of Oregano",
+       "fact": "F9"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "main time March, April, June, July, and September",
+       "fact": "F1"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:21.218Z",
+   "auditPrompt": "prompts/audit-P3/Aglais-io-en.md",
+   "auditAnswer": "answers/audit-P3/Aglais-io-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:08:52.410Z"
+  },
+  "ECO2-sonnet-1898286-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Vanessa atalanta",
+   "lang": "de",
+   "tile": "insect",
+   "names": {
+    "de": "Admiral",
+    "en": "Red Admiral",
+    "ja": "ヨーロッパアカタテハ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Vanessa-atalanta-de.md",
+   "answer": "answers/P3/Vanessa-atalanta-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Der Admiral wurde beim Fressen des Gemeinen Efeus beobachtet.",
+        "cites": [
+         "F2"
+        ]
+       },
+       {
+        "text": "Zudem wurde er beim Blütenbesuch an Gemeinem Flieder, Gewöhnlichem Wasserdost, Acker-Kratzdistel, Gewöhnlichem Löwenzahn, Gemeinem Efeu, Lorbeerkirsche und Knoblauchsrauke beobachtet.",
+        "cites": [
+         "F3",
+         "F4",
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       },
+       {
+        "text": "In der Region Mainz-Bingen liegt seine Hauptzeit im Februar, März, April sowie von Juni bis Oktober.",
+        "cites": [
+         "F1"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "frisst Gemeiner Efeu",
+       "fact": "F2"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "besucht Blüten von Gemeinem Flieder",
+       "fact": "F3"
+      },
+      {
+       "claim": "besucht Blüten von Gewöhnlichem Wasserdost",
+       "fact": "F4"
+      },
+      {
+       "claim": "besucht Blüten von Acker-Kratzdistel",
+       "fact": "F5"
+      },
+      {
+       "claim": "besucht Blüten von Gewöhnlichem Löwenzahn",
+       "fact": "F6"
+      },
+      {
+       "claim": "besucht Blüten von Gemeinem Efeu",
+       "fact": "F7"
+      },
+      {
+       "claim": "besucht Blüten von Lorbeerkirsche",
+       "fact": "F8"
+      },
+      {
+       "claim": "besucht Blüten von Knoblauchsrauke",
+       "fact": "F9"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Hauptzeit Februar, März, April sowie Juni bis Oktober",
+       "fact": "F1"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:22.880Z",
+   "auditPrompt": "prompts/audit-P3/Vanessa-atalanta-de.md",
+   "auditAnswer": "answers/audit-P3/Vanessa-atalanta-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:08:54.003Z"
+  },
+  "ECO2-sonnet-1898286-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Vanessa atalanta",
+   "lang": "en",
+   "tile": "insect",
+   "names": {
+    "de": "Admiral",
+    "en": "Red Admiral",
+    "ja": "ヨーロッパアカタテハ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Vanessa-atalanta-en.md",
+   "answer": "answers/P3/Vanessa-atalanta-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "In Mainz-Bingen the Red Admiral is mainly seen from February to April and again from June to October, most numerous in July.",
+        "cites": [
+         "F1"
+        ]
+       },
+       {
+        "text": "It has been recorded eating English Ivy.",
+        "cites": [
+         "F2"
+        ]
+       },
+       {
+        "text": "It has also been recorded visiting the flowers of English Ivy, Common Lilac, Hemp Agrimony, Creeping Thistle, common dandelion, cherry laurel, and Garlic Mustard.",
+        "cites": [
+         "F3",
+         "F4",
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "mainly seen February to April",
+       "fact": "F1"
+      },
+      {
+       "claim": "mainly seen June to October",
+       "fact": "F1"
+      },
+      {
+       "claim": "most numerous in July",
+       "fact": "F1"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "recorded eating English Ivy",
+       "fact": "F2"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "recorded visiting flowers of English Ivy",
+       "fact": "F7"
+      },
+      {
+       "claim": "recorded visiting flowers of Common Lilac",
+       "fact": "F3"
+      },
+      {
+       "claim": "recorded visiting flowers of Hemp Agrimony",
+       "fact": "F4"
+      },
+      {
+       "claim": "recorded visiting flowers of Creeping Thistle",
+       "fact": "F5"
+      },
+      {
+       "claim": "recorded visiting flowers of common dandelion",
+       "fact": "F6"
+      },
+      {
+       "claim": "recorded visiting flowers of cherry laurel",
+       "fact": "F8"
+      },
+      {
+       "claim": "recorded visiting flowers of Garlic Mustard",
+       "fact": "F9"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:23.008Z",
+   "auditPrompt": "prompts/audit-P3/Vanessa-atalanta-en.md",
+   "auditAnswer": "answers/audit-P3/Vanessa-atalanta-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:40.412Z"
+  },
+  "ECO2-sonnet-1341976-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Apis mellifera",
+   "lang": "de",
+   "tile": "insect",
+   "names": {
+    "de": "Westliche Honigbiene",
+    "en": "Western honey bee",
+    "ja": "セイヨウミツバチ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Apis-mellifera-de.md",
+   "answer": "answers/P3/Apis-mellifera-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "In Mainz-Bingen wird die Westliche Honigbiene vor allem von Februar bis Oktober gemeldet, am häufigsten im Juni und August.",
+        "cites": [
+         "F1"
+        ]
+       },
+       {
+        "text": "Sie wurde beim Fressen von Gewöhnlicher Kratzdistel, Schmuckkörbchen, Borretsch und Gewöhnlichem Löwenzahn beobachtet.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4",
+         "F5"
+        ]
+       },
+       {
+        "text": "Als Fressfeinde sind Asiatische Hornisse, Veränderliche Krabbenspinne und Südliche Glanz-Krabbenspinne verzeichnet.",
+        "cites": [
+         "F6",
+         "F7",
+         "F8"
+        ]
+       },
+       {
+        "text": "Sie wurde beim Blütenbesuch an Rainfarn-Phazelie beobachtet.",
+        "cites": [
+         "F9"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "vor allem von Februar bis Oktober gemeldet",
+       "fact": "F1"
+      },
+      {
+       "claim": "am häufigsten im Juni",
+       "fact": "F1"
+      },
+      {
+       "claim": "am häufigsten im August",
+       "fact": "F1"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "frisst Gewöhnliche Kratzdistel",
+       "fact": "F2"
+      },
+      {
+       "claim": "frisst Schmuckkörbchen",
+       "fact": "F3"
+      },
+      {
+       "claim": "frisst Borretsch",
+       "fact": "F4"
+      },
+      {
+       "claim": "frisst Gewöhnlichen Löwenzahn",
+       "fact": "F5"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Asiatische Hornisse ist Fressfeind",
+       "fact": "F6"
+      },
+      {
+       "claim": "Veränderliche Krabbenspinne ist Fressfeind",
+       "fact": "F7"
+      },
+      {
+       "claim": "Südliche Glanz-Krabbenspinne ist Fressfeind",
+       "fact": "F8"
+      }
+     ]
+    },
+    {
+     "n": 4,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "besucht Blüten von Rainfarn-Phazelie",
+       "fact": "F9"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:25.840Z",
+   "auditPrompt": "prompts/audit-P3/Apis-mellifera-de.md",
+   "auditAnswer": "answers/audit-P3/Apis-mellifera-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:09:03.136Z"
+  },
+  "ECO2-sonnet-1341976-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Apis mellifera",
+   "lang": "en",
+   "tile": "insect",
+   "names": {
+    "de": "Westliche Honigbiene",
+    "en": "Western honey bee",
+    "ja": "セイヨウミツバチ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Apis-mellifera-en.md",
+   "answer": "answers/P3/Apis-mellifera-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "In Mainz-Bingen, the Western honey bee is mainly reported from February to October, most often in June and August.",
+        "cites": [
+         "F1"
+        ]
+       },
+       {
+        "text": "It has been recorded eating Bull Thistle, Garden cosmos, Borage, and common dandelion.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4",
+         "F5"
+        ]
+       },
+       {
+        "text": "Asian hornet, Goldenrod Crab Spider, and Shiny crab-spider are recorded as predators.",
+        "cites": [
+         "F6",
+         "F7",
+         "F8"
+        ]
+       },
+       {
+        "text": "It has been recorded visiting the flowers of Phacelia.",
+        "cites": [
+         "F9"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "mainly reported February to October",
+       "fact": "F1"
+      },
+      {
+       "claim": "most often in June",
+       "fact": "F1"
+      },
+      {
+       "claim": "most often in August",
+       "fact": "F1"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "eats Bull Thistle",
+       "fact": "F2"
+      },
+      {
+       "claim": "eats Garden cosmos",
+       "fact": "F3"
+      },
+      {
+       "claim": "eats Borage",
+       "fact": "F4"
+      },
+      {
+       "claim": "eats common dandelion",
+       "fact": "F5"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Asian hornet is a predator",
+       "fact": "F6"
+      },
+      {
+       "claim": "Goldenrod Crab Spider is a predator",
+       "fact": "F7"
+      },
+      {
+       "claim": "Shiny crab-spider is a predator",
+       "fact": "F8"
+      }
+     ]
+    },
+    {
+     "n": 4,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "visits flowers of Phacelia",
+       "fact": "F9"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:28.556Z",
+   "auditPrompt": "prompts/audit-P3/Apis-mellifera-en.md",
+   "auditAnswer": "answers/audit-P3/Apis-mellifera-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:09:05.583Z"
+  },
+  "ECO2-sonnet-5140214-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Polyommatus icarus",
+   "lang": "de",
+   "tile": "insect",
+   "names": {
+    "de": "Hauhechel-Bläuling",
+    "en": "Common blue",
+    "ja": "イカルスヒメシジミ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Polyommatus-icarus-de.md",
+   "answer": "answers/P3/Polyommatus-icarus-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "In Mainz-Bingen wird der Hauhechel-Bläuling vor allem von Mai bis September gemeldet, am häufigsten im September.",
+        "cites": [
+         "F1"
+        ]
+       },
+       {
+        "text": "Er wurde beim Blütenbesuch an Gewöhnlichem Hornklee, Weißklee, Rainfarn, Luzerne, Wiesenklee, Acker-Kratzdistel, Oregano und Vogel-Wicke beobachtet.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4",
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "vor allem von Mai bis September gemeldet",
+       "fact": "F1"
+      },
+      {
+       "claim": "am häufigsten im September",
+       "fact": "F1"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "besucht Blüten von Gewöhnlichem Hornklee",
+       "fact": "F2"
+      },
+      {
+       "claim": "besucht Blüten von Weißklee",
+       "fact": "F3"
+      },
+      {
+       "claim": "besucht Blüten von Rainfarn",
+       "fact": "F4"
+      },
+      {
+       "claim": "besucht Blüten von Luzerne",
+       "fact": "F5"
+      },
+      {
+       "claim": "besucht Blüten von Wiesenklee",
+       "fact": "F6"
+      },
+      {
+       "claim": "besucht Blüten von Acker-Kratzdistel",
+       "fact": "F7"
+      },
+      {
+       "claim": "besucht Blüten von Oregano",
+       "fact": "F8"
+      },
+      {
+       "claim": "besucht Blüten von Vogel-Wicke",
+       "fact": "F9"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:30.281Z",
+   "auditPrompt": "prompts/audit-P3/Polyommatus-icarus-de.md",
+   "auditAnswer": "answers/audit-P3/Polyommatus-icarus-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:09:07.669Z"
+  },
+  "ECO2-sonnet-5140214-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Polyommatus icarus",
+   "lang": "en",
+   "tile": "insect",
+   "names": {
+    "de": "Hauhechel-Bläuling",
+    "en": "Common blue",
+    "ja": "イカルスヒメシジミ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Polyommatus-icarus-en.md",
+   "answer": "answers/P3/Polyommatus-icarus-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "In Mainz-Bingen, the Common Blue is mainly reported from May to September, most often in September.",
+        "cites": [
+         "F1"
+        ]
+       },
+       {
+        "text": "It has been recorded visiting the flowers of Bird's-foot Trefoil, White Clover, Tansy, Alfalfa, Red Clover, Creeping Thistle, Oregano, and Tufted Vetch.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4",
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "mainly reported May to September",
+       "fact": "F1"
+      },
+      {
+       "claim": "most often in September",
+       "fact": "F1"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "visits flowers of Bird's-foot Trefoil",
+       "fact": "F2"
+      },
+      {
+       "claim": "visits flowers of White Clover",
+       "fact": "F3"
+      },
+      {
+       "claim": "visits flowers of Tansy",
+       "fact": "F4"
+      },
+      {
+       "claim": "visits flowers of Alfalfa",
+       "fact": "F5"
+      },
+      {
+       "claim": "visits flowers of Red Clover",
+       "fact": "F6"
+      },
+      {
+       "claim": "visits flowers of Creeping Thistle",
+       "fact": "F7"
+      },
+      {
+       "claim": "visits flowers of Oregano",
+       "fact": "F8"
+      },
+      {
+       "claim": "visits flowers of Tufted Vetch",
+       "fact": "F9"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:33.171Z",
+   "auditPrompt": "prompts/audit-P3/Polyommatus-icarus-en.md",
+   "auditAnswer": "answers/audit-P3/Polyommatus-icarus-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:09:09.923Z"
+  },
+  "ECO2-sonnet-1920496-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Pieris rapae",
+   "lang": "de",
+   "tile": "insect",
+   "names": {
+    "de": "Kleiner Kohlweißling",
+    "en": "Small White",
+    "ja": "モンシロチョウ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Pieris-rapae-de.md",
+   "answer": "answers/P3/Pieris-rapae-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Der Kleine Kohlweißling wurde beim Fressen von Wiesenklee, Roter Spornblume, Gewöhnlichem Löwenzahn, Raps, Gewöhnlichem Bitterkraut, Luzerne, Gewöhnlichem Blutweiderich und Oregano beobachtet.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4",
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       },
+       {
+        "text": "In der Region Mainz-Bingen liegt die Hauptzeit von Juni bis September, mit dem stärksten Meldeaufkommen im August.",
+        "cites": [
+         "F1"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "frisst Wiesenklee",
+       "fact": "F2"
+      },
+      {
+       "claim": "frisst Rote Spornblume",
+       "fact": "F3"
+      },
+      {
+       "claim": "frisst Gewöhnlichen Löwenzahn",
+       "fact": "F4"
+      },
+      {
+       "claim": "frisst Raps",
+       "fact": "F5"
+      },
+      {
+       "claim": "frisst Gewöhnliches Bitterkraut",
+       "fact": "F6"
+      },
+      {
+       "claim": "frisst Luzerne",
+       "fact": "F7"
+      },
+      {
+       "claim": "frisst Gewöhnlichen Blutweiderich",
+       "fact": "F8"
+      },
+      {
+       "claim": "frisst Oregano",
+       "fact": "F9"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Hauptzeit von Juni bis September",
+       "fact": "F1"
+      },
+      {
+       "claim": "stärkstes Meldeaufkommen im August",
+       "fact": "F1"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:28.869Z",
+   "auditPrompt": "prompts/audit-P3/Pieris-rapae-de.md",
+   "auditAnswer": "answers/audit-P3/Pieris-rapae-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:29.356Z"
+  },
+  "ECO2-sonnet-1920496-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Pieris rapae",
+   "lang": "en",
+   "tile": "insect",
+   "names": {
+    "de": "Kleiner Kohlweißling",
+    "en": "Small White",
+    "ja": "モンシロチョウ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Pieris-rapae-en.md",
+   "answer": "answers/P3/Pieris-rapae-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "The Small White has been recorded eating Red Clover, Valeriana rubra, common dandelion, Rapeseed, Hawkweed Oxtongue, Alfalfa, Purple Loosestrife, and Oregano.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4",
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       },
+       {
+        "text": "In the Mainz-Bingen region the main time runs from June to September, with reports peaking in August.",
+        "cites": [
+         "F1"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "eats Red Clover",
+       "fact": "F2"
+      },
+      {
+       "claim": "eats Valeriana rubra",
+       "fact": "F3"
+      },
+      {
+       "claim": "eats common dandelion",
+       "fact": "F4"
+      },
+      {
+       "claim": "eats Rapeseed",
+       "fact": "F5"
+      },
+      {
+       "claim": "eats Hawkweed Oxtongue",
+       "fact": "F6"
+      },
+      {
+       "claim": "eats Alfalfa",
+       "fact": "F7"
+      },
+      {
+       "claim": "eats Purple Loosestrife",
+       "fact": "F8"
+      },
+      {
+       "claim": "eats Oregano",
+       "fact": "F9"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "main time runs from June to September",
+       "fact": "F1"
+      },
+      {
+       "claim": "reports peak in August",
+       "fact": "F1"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:30.599Z",
+   "auditPrompt": "prompts/audit-P3/Pieris-rapae-en.md",
+   "auditAnswer": "answers/audit-P3/Pieris-rapae-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:32.341Z"
+  },
+  "ECO2-sonnet-1340405-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Bombus pascuorum",
+   "lang": "de",
+   "tile": "insect",
+   "names": {
+    "de": "Ackerhummel",
+    "en": "Common Carder Bee"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Bombus-pascuorum-de.md",
+   "answer": "answers/P3/Bombus-pascuorum-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Die Ackerhummel wurde beim Blütenbesuch an Sumpf-Kratzdistel, Gewöhnlichem Teufelsabbiss, Skabiosen-Flockenblume, Wiesen-Platterbse, Acker-Kratzdistel, Zaun-Wicke, Acker-Witwenblume und Rotem Fingerhut beobachtet.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4",
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       },
+       {
+        "text": "In der Region Mainz-Bingen liegt die Hauptzeit von April bis September, mit dem stärksten Meldeaufkommen im August.",
+        "cites": [
+         "F1"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "besucht Blüten von Sumpf-Kratzdistel",
+       "fact": "F2"
+      },
+      {
+       "claim": "besucht Blüten von Gewöhnlichem Teufelsabbiss",
+       "fact": "F3"
+      },
+      {
+       "claim": "besucht Blüten von Skabiosen-Flockenblume",
+       "fact": "F4"
+      },
+      {
+       "claim": "besucht Blüten von Wiesen-Platterbse",
+       "fact": "F5"
+      },
+      {
+       "claim": "besucht Blüten von Acker-Kratzdistel",
+       "fact": "F6"
+      },
+      {
+       "claim": "besucht Blüten von Zaun-Wicke",
+       "fact": "F7"
+      },
+      {
+       "claim": "besucht Blüten von Acker-Witwenblume",
+       "fact": "F8"
+      },
+      {
+       "claim": "besucht Blüten von Rotem Fingerhut",
+       "fact": "F9"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Hauptzeit von April bis September",
+       "fact": "F1"
+      },
+      {
+       "claim": "stärkstes Meldeaufkommen im August",
+       "fact": "F1"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:33.171Z",
+   "auditPrompt": "prompts/audit-P3/Bombus-pascuorum-de.md",
+   "auditAnswer": "answers/audit-P3/Bombus-pascuorum-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:35.615Z"
+  },
+  "ECO2-sonnet-1340405-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Bombus pascuorum",
+   "lang": "en",
+   "tile": "insect",
+   "names": {
+    "de": "Ackerhummel",
+    "en": "Common Carder Bee"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Bombus-pascuorum-en.md",
+   "answer": "answers/P3/Bombus-pascuorum-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "The Common Carder Bee has been recorded visiting the flowers of Marsh Thistle, Devil's-Bit Scabious, Greater Knapweed, Meadow vetchling, Creeping Thistle, Bush Vetch, field scabious, and Foxglove.",
+        "cites": [
+         "F2",
+         "F3",
+         "F4",
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       },
+       {
+        "text": "In the Mainz-Bingen region the main time runs from April to September, with reports peaking in August.",
+        "cites": [
+         "F1"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "visits flowers of Marsh Thistle",
+       "fact": "F2"
+      },
+      {
+       "claim": "visits flowers of Devil's-Bit Scabious",
+       "fact": "F3"
+      },
+      {
+       "claim": "visits flowers of Greater Knapweed",
+       "fact": "F4"
+      },
+      {
+       "claim": "visits flowers of Meadow vetchling",
+       "fact": "F5"
+      },
+      {
+       "claim": "visits flowers of Creeping Thistle",
+       "fact": "F6"
+      },
+      {
+       "claim": "visits flowers of Bush Vetch",
+       "fact": "F7"
+      },
+      {
+       "claim": "visits flowers of field scabious",
+       "fact": "F8"
+      },
+      {
+       "claim": "visits flowers of Foxglove",
+       "fact": "F9"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "main time runs from April to September",
+       "fact": "F1"
+      },
+      {
+       "claim": "reports peak in August",
+       "fact": "F1"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:35.199Z",
+   "auditPrompt": "prompts/audit-P3/Bombus-pascuorum-en.md",
+   "auditAnswer": "answers/audit-P3/Bombus-pascuorum-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:39.391Z"
+  },
+  "ECO2-sonnet-1920494-de": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Pieris napi",
+   "lang": "de",
+   "tile": "insect",
+   "names": {
+    "de": "Rapsweißling",
+    "en": "Green-veined white",
+    "ja": "エゾスジグロシロチョウ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Pieris-napi-de.md",
+   "answer": "answers/P3/Pieris-napi-de.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Der Rapsweißling wurde beim Fressen von Oregano beobachtet.",
+        "cites": [
+         "F2"
+        ]
+       },
+       {
+        "text": "Zudem wurde er beim Blütenbesuch an Oregano, Knoblauchsrauke, Purpurroter Taubnessel, Gewöhnlichem Blutweiderich, Gänseblümchen, Gewöhnlichem Teufelsabbiss und Schwarznessel beobachtet.",
+        "cites": [
+         "F3",
+         "F4",
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       },
+       {
+        "text": "In der Region Mainz-Bingen liegt die Hauptzeit von April bis September, mit dem stärksten Meldeaufkommen im Juli.",
+        "cites": [
+         "F1"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "frisst Oregano",
+       "fact": "F2"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "besucht Blüten von Oregano",
+       "fact": "F3"
+      },
+      {
+       "claim": "besucht Blüten von Knoblauchsrauke",
+       "fact": "F4"
+      },
+      {
+       "claim": "besucht Blüten von Purpurroter Taubnessel",
+       "fact": "F5"
+      },
+      {
+       "claim": "besucht Blüten von Gewöhnlichem Blutweiderich",
+       "fact": "F6"
+      },
+      {
+       "claim": "besucht Blüten von Gänseblümchen",
+       "fact": "F7"
+      },
+      {
+       "claim": "besucht Blüten von Gewöhnlichem Teufelsabbiss",
+       "fact": "F8"
+      },
+      {
+       "claim": "besucht Blüten von Schwarznessel",
+       "fact": "F9"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "Hauptzeit von April bis September",
+       "fact": "F1"
+      },
+      {
+       "claim": "stärkstes Meldeaufkommen im Juli",
+       "fact": "F1"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:36.970Z",
+   "auditPrompt": "prompts/audit-P3/Pieris-napi-de.md",
+   "auditAnswer": "answers/audit-P3/Pieris-napi-de.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:41.086Z"
+  },
+  "ECO2-sonnet-1920494-en": {
+   "variant": "ECO2",
+   "model": "sonnet",
+   "sciName": "Pieris napi",
+   "lang": "en",
+   "tile": "insect",
+   "names": {
+    "de": "Rapsweißling",
+    "en": "Green-veined white",
+    "ja": "エゾスジグロシロチョウ"
+   },
+   "lines": 9,
+   "prompt": "prompts/P3/Pieris-napi-en.md",
+   "answer": "answers/P3/Pieris-napi-en.json",
+   "draft": {
+    "paragraphs": [
+     {
+      "sentences": [
+       {
+        "text": "Pieris napi has been recorded eating Oregano (Origanum vulgare).",
+        "cites": [
+         "F2"
+        ]
+       },
+       {
+        "text": "It has been recorded visiting the flowers of Oregano, Garlic Mustard, Red Dead-nettle, Purple Loosestrife, Daisy, Devil's-Bit Scabious, and Black Horehound.",
+        "cites": [
+         "F3",
+         "F4",
+         "F5",
+         "F6",
+         "F7",
+         "F8",
+         "F9"
+        ]
+       },
+       {
+        "text": "In the Mainz-Bingen region it is mainly reported between April and September, with peaks in April and July.",
+        "cites": [
+         "F1"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "problems": [],
+   "audit": [
+    {
+     "n": 1,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "eats Oregano (Origanum vulgare)",
+       "fact": "F2"
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "visits flowers of Oregano",
+       "fact": "F3"
+      },
+      {
+       "claim": "visits flowers of Garlic Mustard",
+       "fact": "F4"
+      },
+      {
+       "claim": "visits flowers of Red Dead-nettle",
+       "fact": "F5"
+      },
+      {
+       "claim": "visits flowers of Purple Loosestrife",
+       "fact": "F6"
+      },
+      {
+       "claim": "visits flowers of Daisy",
+       "fact": "F7"
+      },
+      {
+       "claim": "visits flowers of Devil's-Bit Scabious",
+       "fact": "F8"
+      },
+      {
+       "claim": "visits flowers of Black Horehound",
+       "fact": "F9"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "verdict": "supported",
+     "why": "",
+     "claims": [
+      {
+       "claim": "mainly reported between April and September",
+       "fact": "F1"
+      },
+      {
+       "claim": "peak in April",
+       "fact": "F1"
+      },
+      {
+       "claim": "peak in July",
+       "fact": "F1"
+      }
+     ]
+    }
+   ],
+   "repaired": false,
+   "draftAt": "2026-09-07T13:05:15.151Z",
+   "auditPrompt": "prompts/audit-P3/Pieris-napi-en.md",
+   "auditAnswer": "answers/audit-P3/Pieris-napi-en.json",
+   "auditRepaired": false,
+   "auditAt": "2026-09-07T13:07:28.568Z"
   }
  },
  "stages": {
@@ -10564,6 +14776,9 @@
   "P2 drafts": 36,
   "P2 audits": 36,
   "P1 drafts": 40,
-  "P1 audits": 40
+  "P1 audits": 40,
+  "P3 prompts": "2026-09-07T13:03:46.101Z",
+  "P3 drafts": 36,
+  "P3 audits": 36
  }
 }
