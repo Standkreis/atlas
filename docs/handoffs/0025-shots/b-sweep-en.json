@@ -1,15 +1,15 @@
 {
   "base": "http://localhost:3011",
   "locale": "en",
-  "build": "mtr61ef5",
+  "build": "mtr680nu",
   "seed": {
-    "A": "24b9ef00-2430-45eb-800e-7175807a5956",
-    "B": "d6d714e6-8da0-4b75-86af-735f51705843",
+    "A": "9d8487ea-5860-4c4e-8331-38447f9dcd34",
+    "B": "fc9f1061-c578-43df-9e97-da94eb1ab051",
     "setSize": 929,
     "seen": 2,
     "studied": 2,
-    "avatar": "/api/photo/bea22ef5-ee94-4105-995b-ab51f99c1dc6",
-    "sighting": "8a58cbdd-52de-4691-8dae-a49076c22577"
+    "avatar": "/api/photo/b470a4a1-ce7c-47a3-ab03-a518d6e75a6e",
+    "sighting": "bbda0663-5aef-4b24-9cf5-9061b1f4db1b"
   },
   "truth": {
     "59037062-15d5-452e-99dc-785cbc408874": {
@@ -84,6 +84,16 @@
     ]
   },
   "b6": {
+    "light": {
+      "text": "rgb(169, 76, 8)",
+      "paper": "rgb(245, 242, 234)",
+      "card": "rgb(255, 255, 255)"
+    },
+    "dark": {
+      "text": "rgb(240, 160, 48)",
+      "paper": "rgb(18, 27, 22)",
+      "card": "rgb(27, 38, 33)"
+    },
     "profile": {
       "number": "rgb(169, 76, 8)",
       "radioFill": "rgb(169, 76, 8)",
@@ -193,7 +203,7 @@
   },
   "b10": {
     "avatarOnline": {
-      "src": "/api/photo/bea22ef5-ee94-4105-995b-ab51f99c1dc6",
+      "src": "/api/photo/b470a4a1-ce7c-47a3-ab03-a518d6e75a6e",
       "decoded": true,
       "w": 720
     },
@@ -203,7 +213,7 @@
         "/splash.jpg"
       ],
       "avatar": [
-        "/api/photo/bea22ef5-ee94-4105-995b-ab51f99c1dc6"
+        "/api/photo/b470a4a1-ce7c-47a3-ab03-a518d6e75a6e"
       ],
       "total": 110
     },
@@ -214,28 +224,17 @@
   },
   "b8": {
     "atlas": {
-      "bannerMs": 5,
+      "bannerMs": 8,
       "onLineAfter": false,
       "fetchFails": true,
-      "wall": 6,
+      "wall": 9,
       "afterReload": {
         "onLine": true,
         "fetchFails": true,
-        "bannerMs": 1414
+        "bannerMs": 1413
       }
     },
     "profile": {
-      "bannerMs": 1,
-      "onLineAfter": false,
-      "fetchFails": true,
-      "wall": 2,
-      "afterReload": {
-        "onLine": true,
-        "fetchFails": true,
-        "bannerMs": 1017
-      }
-    },
-    "sighting": {
       "bannerMs": 1,
       "onLineAfter": false,
       "fetchFails": true,
@@ -243,7 +242,18 @@
       "afterReload": {
         "onLine": true,
         "fetchFails": true,
-        "bannerMs": 1470
+        "bannerMs": 1012
+      }
+    },
+    "sighting": {
+      "bannerMs": 1,
+      "onLineAfter": false,
+      "fetchFails": true,
+      "wall": 2,
+      "afterReload": {
+        "onLine": true,
+        "fetchFails": true,
+        "bannerMs": 1496
       }
     }
   },
@@ -306,7 +316,7 @@
       "queriesKeys": null,
       "outbox": 0,
       "snapshot": false,
-      "identity": "c196047d-fcac-4101-9e63-7b858c8a05de"
+      "identity": "49dafa0b-9b11-498b-848c-a56cfce53732"
     },
     "identityChanged": true,
     "sqlIdentity": "0"

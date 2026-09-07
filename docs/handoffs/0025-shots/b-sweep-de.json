@@ -1,15 +1,15 @@
 {
   "base": "http://localhost:3011",
   "locale": "de",
-  "build": "mtr61ef5",
+  "build": "mtr680nu",
   "seed": {
-    "A": "c5d24d2b-d3bf-4c78-bc21-4071f6daaa66",
-    "B": "ac307811-c1ac-4f3b-acaa-226f486edc83",
+    "A": "d5bfb547-9611-4150-baa8-5858d196ba7a",
+    "B": "96e3028c-e63c-49fd-9abd-df269e469a5b",
     "setSize": 929,
     "seen": 2,
     "studied": 2,
-    "avatar": "/api/photo/c8651338-961c-4938-bde0-d26749b54140",
-    "sighting": "38023dc0-aa3a-4d27-bd79-402c49f28070"
+    "avatar": "/api/photo/34195895-24d0-4363-b400-fdeb6bd49999",
+    "sighting": "e2f4aa5a-1cb7-4873-9e23-9a6e5c91f7ec"
   },
   "truth": {
     "59037062-15d5-452e-99dc-785cbc408874": {
@@ -84,6 +84,16 @@
     ]
   },
   "b6": {
+    "light": {
+      "text": "rgb(169, 76, 8)",
+      "paper": "rgb(245, 242, 234)",
+      "card": "rgb(255, 255, 255)"
+    },
+    "dark": {
+      "text": "rgb(240, 160, 48)",
+      "paper": "rgb(18, 27, 22)",
+      "card": "rgb(27, 38, 33)"
+    },
     "profile": {
       "number": "rgb(169, 76, 8)",
       "radioFill": "rgb(169, 76, 8)",
@@ -193,7 +203,7 @@
   },
   "b10": {
     "avatarOnline": {
-      "src": "/api/photo/c8651338-961c-4938-bde0-d26749b54140",
+      "src": "/api/photo/34195895-24d0-4363-b400-fdeb6bd49999",
       "decoded": true,
       "w": 720
     },
@@ -203,7 +213,7 @@
         "/splash.jpg"
       ],
       "avatar": [
-        "/api/photo/c8651338-961c-4938-bde0-d26749b54140"
+        "/api/photo/34195895-24d0-4363-b400-fdeb6bd49999"
       ],
       "total": 110
     },
@@ -214,25 +224,25 @@
   },
   "b8": {
     "atlas": {
-      "bannerMs": 5,
+      "bannerMs": 7,
       "onLineAfter": false,
       "fetchFails": true,
-      "wall": 6,
+      "wall": 9,
       "afterReload": {
         "onLine": true,
         "fetchFails": true,
-        "bannerMs": 1407
+        "bannerMs": 1388
       }
     },
     "profile": {
-      "bannerMs": 2,
+      "bannerMs": 0,
       "onLineAfter": false,
       "fetchFails": true,
-      "wall": 4,
+      "wall": 2,
       "afterReload": {
         "onLine": true,
         "fetchFails": true,
-        "bannerMs": 1001
+        "bannerMs": 1017
       }
     },
     "sighting": {
@@ -243,7 +253,7 @@
       "afterReload": {
         "onLine": true,
         "fetchFails": true,
-        "bannerMs": 1497
+        "bannerMs": 1495
       }
     }
   },
@@ -306,7 +316,7 @@
       "queriesKeys": null,
       "outbox": 0,
       "snapshot": false,
-      "identity": "92477143-4949-4451-9757-9a6d4ba131d0"
+      "identity": "04ded10a-ba15-476f-8a12-56af0ae28d4e"
     },
     "identityChanged": true,
     "sqlIdentity": "0"
