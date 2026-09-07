@@ -18,14 +18,15 @@ export const PRICE = { input: 2, cacheWrite: 2.5, cacheRead: 0.2, output: 10 }
 const API = 'https://api.anthropic.com'
 const HONEST = new Set(['outside the set', 'several', 'cannot tell'])
 
-export type SetRow = { gbifKey: number; sciName: string; de: string | null }
+export type SetRow = { gbifKey: number; sciName: string; de: string | null; en?: string | null }
 export type RegionInfo = { id: string; name: string; higher: string }
 export type RegionSet = { region: RegionInfo; rows: SetRow[]; bySci: Map<string, SetRow>; at: number }
 export type Ladder = { family: string | null; genus: string | null; species: string | null }
 export type Subject = 'single' | 'several' | 'none'
 export type Usage = { input_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number; output_tokens?: number }
 export type Cost = { input: number; cacheWrite: number; cached: number; output: number; cents: number }
-export type Answer = { gbifKey: number; sciName: string }
+/** `names`: the set member's common names, so the ladder shows "Vogelkirsche" next to the Latin without the set in the cache (journal ladder, out-of-cache set). Empty for a backbone hit. */
+export type Answer = { gbifKey: number; sciName: string; names: { de: string | null; en: string | null } }
 export type IdentifyResult = {
   subject: Subject
   /** A set member (or a backbone species for an outside name) at species rank, only at confidence ≥ THRESHOLD; else null. */
@@ -158,13 +159,13 @@ export async function join(m: ModelAnswer, bySci: Map<string, SetRow>, search: S
   const member = bySci.get(a) ?? (binomial ? bySci.get(binomial) : undefined)
   if (member) {
     if (confident && !ladder.species) ladder.species = member.sciName
-    return { subject, answer: confident ? { gbifKey: member.gbifKey, sciName: member.sciName } : null, outside: null, ...base }
+    return { subject, answer: confident ? { gbifKey: member.gbifKey, sciName: member.sciName, names: { de: member.de, en: member.en ?? null } } : null, outside: null, ...base }
   }
   let answer: Answer | null = null
   if (binomial && confident) {
     const hits = await search(binomial).catch(() => [])
     const hit = hits.find((h) => h.sciName === binomial)
-    if (hit) answer = { gbifKey: hit.gbifKey, sciName: hit.sciName }
+    if (hit) answer = { gbifKey: hit.gbifKey, sciName: hit.sciName, names: { de: null, en: null } }
   }
   if (!ladder.species && binomial && confident) ladder.species = binomial
   return { subject, answer, outside: guess, ...base }

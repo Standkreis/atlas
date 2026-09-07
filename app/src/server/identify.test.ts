@@ -51,7 +51,7 @@ describe('parseAnswer (A2)', () => {
 describe('join (A3) and the threshold (A4)', () => {
   it('a set member at or above the line is the answer, with its key', async () => {
     const r = await join(parseAnswer(cherry), set, search)
-    expect(r).toMatchObject({ subject: 'single', answer: { gbifKey: 3020791, sciName: 'Prunus avium' }, outside: null, confidence: 0.75, ladder: { family: 'Rosaceae', genus: 'Prunus', species: 'Prunus avium' } })
+    expect(r).toMatchObject({ subject: 'single', answer: { gbifKey: 3020791, sciName: 'Prunus avium', names: { de: 'Vogelkirsche', en: null } }, outside: null, confidence: 0.75, ladder: { family: 'Rosaceae', genus: 'Prunus', species: 'Prunus avium' } })
     expect(r.evidence).toHaveLength(2)
     expect(r.hint).toMatch(/Rinde/)
     expect(search).not.toHaveBeenCalled()
@@ -76,7 +76,7 @@ describe('join (A3) and the threshold (A4)', () => {
     search.mockClear()
     const r = await join(parseAnswer(bonsai), set, search)
     expect(search).toHaveBeenCalledWith('Ficus microcarpa')
-    expect(r).toMatchObject({ subject: 'single', answer: { gbifKey: 5361859, sciName: 'Ficus microcarpa' }, outside: 'Ficus microcarpa', ladder: { family: 'Moraceae', genus: 'Ficus', species: 'Ficus microcarpa' } })
+    expect(r).toMatchObject({ subject: 'single', answer: { gbifKey: 5361859, sciName: 'Ficus microcarpa', names: { de: null, en: null } }, outside: 'Ficus microcarpa', ladder: { family: 'Moraceae', genus: 'Ficus', species: 'Ficus microcarpa' } })
   })
   it('outside the set below the line: the name, no key, no search', async () => {
     search.mockClear()

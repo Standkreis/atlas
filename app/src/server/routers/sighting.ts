@@ -121,7 +121,7 @@ export const sightingRouter = router({
         const region = await ctx.db.region.findUnique({ where: { id: input.regionId }, select: { id: true, name: true, higher: true } })
         if (!region) return null
         const rows = await ctx.db.plausibility.findMany({ where: { regionId: region.id }, select: { taxon: { select: { gbifKey: true, sciName: true, commonNames: true } } } })
-        return { region, rows: rows.map((r) => ({ gbifKey: r.taxon.gbifKey, sciName: r.taxon.sciName, de: (r.taxon.commonNames as Record<string, string>).de ?? null })) }
+        return { region, rows: rows.map((r) => ({ gbifKey: r.taxon.gbifKey, sciName: r.taxon.sciName, de: (r.taxon.commonNames as Record<string, string>).de ?? null, en: (r.taxon.commonNames as Record<string, string>).en ?? null })) }
       })
       if (!set) throw new TRPCError({ code: 'NOT_FOUND', message: 'unknown region' })
       const file = await readPhoto(photo.id)

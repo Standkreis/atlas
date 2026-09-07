@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { TRPCClientError } from '@trpc/client'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { useTRPC } from '@/trpc/client'
 import { queuedPhoto } from './LogPhoto'
 import { useOutbox } from './Queue'
@@ -95,6 +95,7 @@ export function LadderSheet({ state, photoUrl, region, commonName, onTake, onSea
 
 function Body({ state, region, commonName, onTake, onSearch, onAgain, onJournal }: { state: ScanState; region: string | null; commonName?: string | null; onTake: (k: number) => void; onSearch: (q: string) => void; onAgain?: () => void; onJournal?: () => void }) {
   const t = useTranslations('scan')
+  const locale = useLocale() as 'de' | 'en'
   const close = useSheetClose()
   const primary = 'flex h-13 flex-1 items-center justify-center rounded-full bg-moss px-5 text-[17px] font-bold text-white shadow-md'
   const secondary = 'flex h-13 flex-1 items-center justify-center rounded-full bg-card px-5 text-[17px] font-semibold text-ink shadow-[0_2px_12px_rgba(30,42,35,0.06)]'
@@ -154,11 +155,13 @@ function Body({ state, region, commonName, onTake, onSearch, onAgain, onJournal 
   const rungs = RUNGS.map((k) => ({ k, v: r.ladder[k] })).filter((x): x is { k: (typeof RUNGS)[number]; v: string } => !!x.v)
   const deepest = rungs[rungs.length - 1]?.k
   const word = confidenceWord(r.confidence)
-  const title = r.answer ? (commonName ?? r.answer.sciName) : r.ladder.genus ? t('genusOnly', { genus: r.ladder.genus }) : t('unknownTitle')
+  // The common name: the caller's (from the set in the cache) or the one the answer carries (the journal's ladder has no set).
+  const common = commonName ?? r.answer?.names?.[locale] ?? r.answer?.names?.de ?? null
+  const title = r.answer ? (common ?? r.answer.sciName) : r.ladder.genus ? t('genusOnly', { genus: r.ladder.genus }) : t('unknownTitle')
   return (
     <>
       <p className="pt-1 text-[22px] leading-tight font-bold" data-testid="ladder-name">{title}</p>
-      <p className="mt-0.5 text-[15px] text-ink-soft" data-testid="ladder-confidence" data-word={word}>{r.answer && commonName && commonName !== r.answer.sciName ? <><i>{r.answer.sciName}</i> · </> : null}{t(word)}</p>
+      <p className="mt-0.5 text-[15px] text-ink-soft" data-testid="ladder-confidence" data-word={word}>{r.answer && common && common !== r.answer.sciName ? <><i>{r.answer.sciName}</i> · </> : null}{t(word)}</p>
       {rungs.length > 0 ? (
         <ol className="mt-3" data-testid="ladder-rungs">
           {rungs.map((x, i) => (
