@@ -1,7 +1,7 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
-import { createStore, del, entries, set } from 'idb-keyval'
+import { clear, createStore, del, entries, set } from 'idb-keyval'
 import { createTRPCClient, httpBatchLink, TRPCClientError } from '@trpc/client'
 import superjson from 'superjson'
 import type { inferRouterOutputs } from '@trpc/server'
@@ -76,6 +76,29 @@ const store = typeof indexedDB === 'undefined' ? null : createStore('dex-outbox'
 // `x-dex-locale` (handoff 0016 A5): the flush's `identify` answers in the page's language, as the provider's client does.
 const client = createTRPCClient<AppRouter>({ links: [httpBatchLink({ url: `${api}/api/trpc`, transformer: superjson, headers: () => ({ 'x-dex-locale': document.documentElement.lang }), fetch: (url, opts) => fetch(url, { ...opts, credentials: 'include' }) })] })
 
+// ── 0025 B9 · IndexedDB can hang (0009 A4, seen in the Simulator under the persister's load): every call races IDB_TIMEOUT.
+// A read that hangs answers with the localStorage rows only; after the first hang every write and removal also keeps a
+// snapshot of the box (rows without a blob: a photo row stays in memory for the session) in localStorage, and the next
+// load merges it back, the snapshot winning by id. A removal that hung leaves the row in IndexedDB, so it may come back
+// at the next load and be sent again: the server upserts by the client's id (0009), a repeat is not a twin. Warns once.
+const IDB_TIMEOUT = 5000
+export const FALLBACK_KEY = 'dex.outbox.fallback'
+const HUNG = Symbol('hung')
+let degraded = false // a call hung, or a snapshot from an earlier session exists: keep the snapshot in step from now on
+const timed = <T>(p: Promise<T>): Promise<T | typeof HUNG> => new Promise((resolve, reject) => {
+  const h = setTimeout(() => {
+    if (!degraded) console.warn(`[outbox] IndexedDB did not answer within ${IDB_TIMEOUT / 1000} s; localStorage keeps the rows`)
+    degraded = true
+    resolve(HUNG)
+  }, IDB_TIMEOUT)
+  p.then((v) => { clearTimeout(h); resolve(v) }, (e) => { clearTimeout(h); reject(e) })
+})
+const snapshotRead = (): Row[] => { try { const raw = localStorage.getItem(FALLBACK_KEY); return raw ? (JSON.parse(raw) as Row[]) : [] } catch { return [] } }
+const snapshotWrite = (all: Row[]) => { try { const plain = all.filter((r) => !r.blob); if (plain.length) localStorage.setItem(FALLBACK_KEY, JSON.stringify(plain)); else localStorage.removeItem(FALLBACK_KEY) } catch { /* private mode, or full */ } }
+const snapshotDrop = () => { try { localStorage.removeItem(FALLBACK_KEY) } catch { /* private mode */ } }
+/** IndexedDB's rows under the snapshot's: the snapshot was written later, by id it wins. */
+const mergeRows = (idb: Row[], snap: Row[]): Row[] => { const by = new Map(idb.map((r) => [r.id, r])); for (const r of snap) by.set(r.id, r); return [...by.values()].sort(byAge) }
+
 // ── The in-memory mirror: every read of the box goes through it, every write updates it and IndexedDB and tells the listeners ──
 let rows: Row[] = []
 let loaded: Promise<void> | null = null
@@ -87,7 +110,16 @@ const byAge = (a: Row, b: Row) => a.createdAt - b.createdAt
 
 export function load(): Promise<void> {
   if (!store) return Promise.resolve()
-  return (loaded ??= entries<string, Row>(store).then((all) => { rows = all.map(([, r]) => r).sort(byAge) }).catch(() => undefined).then(() => { isLoaded = true; notify() }))
+  return (loaded ??= timed(entries<string, Row>(store)).then(async (all) => {
+    const idb = all === HUNG ? [] : all.map(([, r]) => r)
+    const snap = snapshotRead()
+    rows = mergeRows(idb, snap)
+    if (!snap.length) return
+    if (all === HUNG) { degraded = true; return }
+    // IndexedDB answers again: the snapshot's rows go back into it; the snapshot stays only when one of the writes hangs.
+    const back = await Promise.all(snap.map((r) => timed(set(r.id, r, store)).catch(() => HUNG)))
+    if (back.every((b) => b !== HUNG)) snapshotDrop(); else degraded = true
+  }).catch(() => { rows = mergeRows(rows, snapshotRead()) }).then(() => { isLoaded = true; notify() }))
 }
 export const rowsNow = () => rows
 export const rowOf = (id: string) => rows.find((r) => r.id === id)
@@ -106,7 +138,9 @@ export function useOutboxReady(): boolean {
 async function write(row: Row) {
   rows = [...rows.filter((r) => r.id !== row.id), row].sort(byAge)
   notify()
-  if (store) await set(row.id, row, store)
+  if (!store) return
+  const r = await timed(set(row.id, row, store))
+  if (r === HUNG || degraded) snapshotWrite(rows)
 }
 /** Change one row in place (a scan row's point, its `opened` flag); a row that is gone stays gone. */
 export async function update(id: string, patch: (r: Row) => Row) {
@@ -116,7 +150,16 @@ export async function update(id: string, patch: (r: Row) => Row) {
 export async function remove(id: string) {
   rows = rows.filter((r) => r.id !== id)
   notify()
-  if (store) await del(id, store)
+  if (!store) return
+  const r = await timed(del(id, store))
+  if (r === HUNG || degraded) snapshotWrite(rows)
+}
+/** "Alles löschen" (0025, 0012 T4): the box is the identity's; memory, the snapshot and IndexedDB are emptied. */
+export async function clearOutbox() {
+  rows = []
+  notify()
+  snapshotDrop()
+  if (store) await timed(clear(store)).catch(() => undefined)
 }
 
 /**

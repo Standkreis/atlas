@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslations } from 'next-intl'
 import { useTRPC } from '@/trpc/client'
+import { clearOutbox } from './Queue'
 import { Sheet, useSheetClose } from './Sheet'
 
 // Doubt 33: two steps, the first names what goes ("2 Geräte · 14 Sichtungen"), the second goes. Never "only here".
@@ -28,7 +29,7 @@ function DeleteBody({ onDeleted }: { onDeleted: () => void }) {
     trpc.data.delete.mutationOptions({
       onSuccess: (r) => {
         if (r.step === 'confirm') setPrepared(r)
-        else { qc.clear(); onDeleted() }
+        else { qc.clear(); void clearOutbox(); onDeleted() } // 0025 (0012 T4): the persisted queries go with the identity change, the outbox here
       },
     }),
   )
