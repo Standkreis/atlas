@@ -231,6 +231,7 @@
       "remove": "Entfernen",
       "done": "Fertig",
       "adopted": "Verknüpft. {sightings, plural, =0 {Keine Sichtung} one {Eine Sichtung} other {# Sichtungen}} von hier übernommen.",
+      "adoptedStudies": "Verknüpft. {sightings, plural, =0 {Keine Sichtung} one {Eine Sichtung} other {# Sichtungen}} und {studies, plural, one {eine studierte Art} other {# studierte Arten}} von hier übernommen.",
       "unknownPasskey": "Diesen Passkey kennen wir nicht.",
       "syncedTitleEmail": "Per E-Mail verknüpft",
       "syncedBodyEmail": "Kein Passkey. Der Code aus der Mail holt deine Sichtungen auf ein neues Gerät.",

@@ -2,7 +2,7 @@ import { db } from './db'
 import { deleteAbandonedPhotos } from './photos'
 import { startRegionJob } from './routers/dex'
 
-// The restart sweep (handoff 0009 Track B; findings 0007 C2, 0008 A7 A11). The region job and the content kick run
+// The restart sweep (handoff 0009 Track B; findings 0007 C2, 0008 A7 A11; handoff 0025 A4 A5: photos and email codes). The region job and the content kick run
 // in-process and die with the server; `Region.status` and `Taxon.contentAt` say what was left. On start (instrumentation
 // `register`) and by hand (`npm run etl sweep`) this heals: no job table, no worker, no migration.
 // Two servers on one database (Track A's and this one in dev) would both sweep: a transaction-scoped advisory lock lets
@@ -14,7 +14,8 @@ import { startRegionJob } from './routers/dex'
 const LOCK = 0x0de55eec // "dex sweep", any constant does
 const QUEUED_AGE = 5 * 60_000
 const BATCH = 20
-export type SweepResult = { regions: string[]; content: number; contentDone: number; contentFailed: number; photos: number; seconds: number; cut: boolean }
+const DAY = 24 * 3_600_000
+export type SweepResult = { regions: string[]; content: number; contentDone: number; contentFailed: number; photos: number; codes: number; seconds: number; cut: boolean }
 
 export async function sweep(log: (s: string) => void = (s) => console.log(`[sweep] ${s}`), opts: { deadlineMs?: number } = {}): Promise<SweepResult | null> {
   const t0 = Date.now()
@@ -51,13 +52,18 @@ export async function sweep(log: (s: string) => void = (s) => console.log(`[swee
         contentFailed += r.failed
       }
 
-      // 3. Abandoned uploads: unattached user photos older than a day, rows and files.
+      // 3. Abandoned uploads (findings 0008 A7): unattached user photos older than a day, rows and files.
       const photos = await deleteAbandonedPhotos()
       if (photos) log(`${photos} abandoned photo(s) removed`)
 
+      // 4. Email codes (handoff 0025 A4, findings 0020 9): a code lives ten minutes; a row whose expiry is a day past, used or not,
+      // is history. Not on `tx`: the codes have nothing to do with the region lock, and a step that fails must not roll the sweep back.
+      const { count: codes } = await db.emailCode.deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - DAY) } } })
+      if (codes) log(`${codes} email code(s) older than a day removed`)
+
       const seconds = (Date.now() - t0) / 1000
-      log(`done: regions ${regions.length} · content ${missing.length} (${contentDone} filled, ${contentFailed} failed) · photos ${photos} · ${seconds.toFixed(1)} s${cut ? ' · cut at the deadline, the rest waits for the next run' : ''}`)
-      return { regions, content: missing.length, contentDone, contentFailed, photos, seconds, cut }
+      log(`done: regions ${regions.length} · content ${missing.length} (${contentDone} filled, ${contentFailed} failed) · photos ${photos} · codes ${codes} · ${seconds.toFixed(1)} s${cut ? ' · cut at the deadline, the rest waits for the next run' : ''}`)
+      return { regions, content: missing.length, contentDone, contentFailed, photos, codes, seconds, cut }
     },
     { maxWait: 5_000, timeout: 6 * 3_600_000 }, // the lock lives as long as the transaction; a region job can take an hour
   )

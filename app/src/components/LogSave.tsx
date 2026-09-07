@@ -46,6 +46,9 @@ export function LogSave({ gbifKey, photoId, fromSpecies }: { gbifKey: number; ph
   const ensure = useMutation(trpc.taxon.ensure.mutationOptions())
   const ensured = useRef(false)
   useEffect(() => { if (set && !inSet && !ensured.current) { ensured.current = true; ensure.mutate({ gbifKey }) } }, [set, inSet, gbifKey, ensure])
+  // Truly new to GBIF's vernaculars too (0025 A8): ask once more after 8 s, when the content kick has usually landed Wikidata's name.
+  const nameless = !!ensure.data && !ensure.data.contentAt && !Object.keys((ensure.data.commonNames ?? {}) as object).length
+  useEffect(() => { if (!nameless) return; const h = setTimeout(() => ensure.mutate({ gbifKey }), 8_000); return () => clearTimeout(h) }, [nameless, gbifKey, ensure])
   const card: Card | null = inSet
     ? { id: inSet.taxonId, gbifKey, sciName: inSet.sciName, names: inSet.names, tile: inSet.tile, lead: inSet.lead?.url ?? null }
     : ensure.data

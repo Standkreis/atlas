@@ -35,13 +35,21 @@ export function codeMail(code: string, locale: Locale) {
   return { subject: c.subject(code), text, html }
 }
 
+/** The address for a log line (handoff 0025 A6, findings 0020 8): first letter, ellipsis, domain. `sven@example.org` → `s…@example.org`. */
+export const maskEmail = (address: string): string => {
+  const at = address.lastIndexOf('@')
+  if (at < 0) return `${address.slice(0, 1)}…`
+  return `${address.slice(0, 1)}…@${address.slice(at + 1)}`
+}
+
 let client: Resend | null = null
 
-/// Sends the code; throws on a provider error so the caller can answer a typed tRPC error. Never logs the address in production.
+/// Sends the code; throws on a provider error so the caller can answer a typed tRPC error. Never logs the address in production;
+/// the dev log masks it (the code itself is what the dev needs).
 export async function sendCode(to: string, code: string, locale: Locale): Promise<void> {
   if (!env.RESEND_API_KEY) {
     if (isProduction) throw new Error('RESEND_API_KEY not set') // env.ts already refused to start; belt and braces
-    console.log(`[mail] code for ${to}: ${code}`)
+    console.log(`[mail] code for ${maskEmail(to)}: ${code}`)
     return
   }
   client ??= new Resend(env.RESEND_API_KEY)

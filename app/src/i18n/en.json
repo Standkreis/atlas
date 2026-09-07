@@ -231,6 +231,7 @@
       "remove": "Remove",
       "done": "Done",
       "adopted": "Linked. {sightings, plural, =0 {No sightings} one {One sighting} other {# sightings}} from here carried over.",
+      "adoptedStudies": "Linked. {sightings, plural, =0 {No sightings} one {One sighting} other {# sightings}} and {studies, plural, one {one studied species} other {# studied species}} from here carried over.",
       "unknownPasskey": "We do not know this passkey.",
       "syncedTitleEmail": "Linked by email",
       "syncedBodyEmail": "No passkey. The code from the mail brings your sightings to a new device.",

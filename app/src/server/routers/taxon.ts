@@ -25,6 +25,25 @@ const gbifSearch = async (params: Record<string, string | number>) => {
     return []
   }
 }
+/**
+ * The vernacular names GBIF holds for one key (handoff 0025 A8, findings 0008 A5): the German and English name most
+ * checklists agree on, one cached `species/{key}/vernacularNames` call. `ensure` writes them on the fresh row so the
+ * fill sheet shows the German name at once; the content kick replaces them with Wikidata's labels when it lands.
+ */
+async function gbifVernacular(gbifKey: number): Promise<Record<string, string>> {
+  const r = await get<{ results: { vernacularName: string; language?: string }[] }>(`https://api.gbif.org/v1/species/${gbifKey}/vernacularNames?limit=200`).catch(() => null)
+  const counts: Record<'de' | 'en', Map<string, number>> = { de: new Map(), en: new Map() }
+  for (const v of r?.results ?? []) {
+    const lang = v.language === 'deu' ? 'de' : v.language === 'eng' ? 'en' : null
+    if (lang && v.vernacularName) counts[lang].set(v.vernacularName, (counts[lang].get(v.vernacularName) ?? 0) + 1)
+  }
+  const names: Record<string, string> = {}
+  for (const lang of ['de', 'en'] as const) {
+    const top = [...counts[lang].entries()].sort((a, b) => b[1] - a[1])[0]
+    if (top) names[lang] = top[0]
+  }
+  return names
+}
 type LeadRow = { url: string; author: string; licence: string; licenceUrl: string | null; sourceUrl: string; origin: string }
 type Card = { id: string; gbifKey: number; sciName: string; commonNames: unknown; tile: string; assets: LeadRow[] }
 const card = (t: Card) => ({ id: t.id, gbifKey: t.gbifKey, sciName: t.sciName, names: t.commonNames as Record<string, string>, tile: t.tile, lead: t.assets[0]?.url ?? null, leadInfo: t.assets[0] ? { author: t.assets[0].author, licence: t.assets[0].licence, licenceUrl: t.assets[0].licenceUrl, sourceUrl: t.assets[0].sourceUrl, origin: t.assets[0].origin } : null })
@@ -40,7 +59,8 @@ async function regionCentre(gadmGid: string): Promise<{ lat: number; lng: number
 }
 
 // In-process content kicks for out-of-set species (handoff 0008 Track A), cached on globalThis like the region jobs so a
-// dev reload or a double tap never runs the same key twice at once. Not awaited by the caller; on Vercel the promise
+// dev reload or a double tap never runs the same key twice at once (0025 A9: the second `ensure` for a running key returns at
+// once, the job is one per key per process; across serverless instances this is best effort, two cold instances both kick). Not awaited by the caller; on Vercel the promise
 // goes to `waitUntil` (handoff 0011 Track B, `server/jobs.ts`) so the function is not frozen with the kick half done.
 const kicks: Map<number, Promise<void>> = ((globalThis as unknown as { __dexContentKicks?: Map<number, Promise<void>> }).__dexContentKicks ??= new Map())
 function kickContent(gbifKey: number) {
@@ -174,19 +194,31 @@ export const taxonRouter = router({
   ensure: publicProcedure.input(z.object({ gbifKey: z.number().int() })).mutation(async ({ ctx, input }) => {
     const existing = await ctx.db.taxon.findUnique({ where: { gbifKey: input.gbifKey }, select: ensureSelect })
     if (existing) {
-      if (!existing.contentAt) kickContent(input.gbifKey)
-      return { ...existing, lead: existing.assets[0]?.url ?? null, created: false }
+      let commonNames = existing.commonNames
+      if (!existing.contentAt) {
+        // A row without content and without a name (a GloBI target, a kick that died): GBIF's names now, the kick's later (0025 A8).
+        if (!Object.keys((commonNames ?? {}) as object).length) {
+          const names = await gbifVernacular(input.gbifKey)
+          if (Object.keys(names).length) commonNames = (await ctx.db.taxon.update({ where: { id: existing.id }, data: { commonNames: names }, select: { commonNames: true } })).commonNames
+        }
+        kickContent(input.gbifKey)
+      }
+      return { ...existing, commonNames, lead: existing.assets[0]?.url ?? null, created: false }
     }
-    const s = await gbifSpecies(input.gbifKey)
+    const [s, names] = await Promise.all([gbifSpecies(input.gbifKey), gbifVernacular(input.gbifKey)])
     if (!s) throw new Error(`GBIF has no taxon ${input.gbifKey}`)
     const tile = tileOf(s)
     if (!tile) throw new Error(`taxon ${input.gbifKey} (${s.canonicalName}) fits no tile`)
-    const created = await ctx.db.taxon.create({
-      data: { gbifKey: s.key, sciName: s.canonicalName ?? s.scientificName ?? String(s.key), rank: (s.rank ?? 'SPECIES').toLowerCase(), tile, class: s.class ?? null, order: s.order ?? null, genus: s.genus ?? null },
-      select: ensureSelect,
+    const data = { gbifKey: s.key, sciName: s.canonicalName ?? s.scientificName ?? String(s.key), rank: (s.rank ?? 'SPECIES').toLowerCase(), tile, class: s.class ?? null, order: s.order ?? null, genus: s.genus ?? null, commonNames: names }
+    // Two taps at once (0025 A9): the second create hits the unique key; it reads the row the first one made instead of failing.
+    let raced = false
+    const created = await ctx.db.taxon.create({ data, select: ensureSelect }).catch(async (e: unknown) => {
+      if (!(e instanceof Error && 'code' in e && e.code === 'P2002')) throw e
+      raced = true
+      return ctx.db.taxon.findUniqueOrThrow({ where: { gbifKey: s.key }, select: ensureSelect })
     })
     kickContent(s.key)
-    return { ...created, lead: null, created: true }
+    return { ...created, lead: created.assets[0]?.url ?? null, created: !raced }
   }),
 
   /** The typed search, capped per identity (handoff 0009 Track B); the work is `backboneSearch`. `locale` is accepted for the client's cache key. */

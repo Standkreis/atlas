@@ -75,16 +75,19 @@ export function IdentitySettings({ version }: { version: string }) {
     const response = await register(options)
     await registerVerify.mutateAsync({ response, deviceName: guessDeviceName() })
   })
+  // The adoption notice (handoff 0025 A7, findings 0020 10): names the studied species too when any came along. Shape under test in `i18n/adopted.test.ts`.
+  const adoptedNotice = (m: { sightingsMerged: number; studiesMerged: number }) =>
+    m.studiesMerged > 0 ? t('identity.adoptedStudies', { sightings: m.sightingsMerged, studies: m.studiesMerged }) : t('identity.adopted', { sightings: m.sightingsMerged })
   const signIn = () => run(async () => {
     const options = await authOptions.mutateAsync()
     const response = await authenticate(options)
     const r = await authVerify.mutateAsync({ response })
-    if (r.adopted) setNotice(t('identity.adopted', { sightings: r.merged.sightingsMerged }))
+    if (r.adopted) setNotice(adoptedNotice(r.merged))
   })
   // The email path ends here, from the row or from the sheet: the same notice as the passkey path when it adopted.
   const emailVerified = (r: EmailVerified) => {
     setAttaching(false); setError(null)
-    setNotice(r.adopted && r.merged ? t('identity.adopted', { sightings: r.merged.sightingsMerged }) : t('email.verified', { email: r.email }))
+    setNotice(r.adopted && r.merged ? adoptedNotice(r.merged) : t('email.verified', { email: r.email }))
     refresh()
   }
   const removeEmail = () => {
