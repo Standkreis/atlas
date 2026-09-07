@@ -122,11 +122,18 @@ export function SpeciesPage() {
     const years = t('facts.values.lifespan.years', { n: format.number(Number(m[1]), { maximumFractionDigits: 1 }) })
     return m[2] ? `${years} (${t(`facts.values.lifespan.${m[2]}`)})` : years
   }
-  const reproductionWords = (v: string) =>
-    v.split(' · ').map((p) => {
+  // `perYear` names what it counts: the sibling clutch/litter part decides, else the tile (AnAge writes "clutches" for
+  // egg layers and "litters" for mammals).
+  const reproductionWords = (v: string) => {
+    const parts = v.split(' · ')
+    const brood = parts.some((p) => p.startsWith('litter ')) || (!parts.some((p) => p.startsWith('clutch ')) && s.tile === 'mammal') ? 'littersPerYear' : 'clutchesPerYear'
+    return parts.map((p) => {
       const m = p.match(/^(clutch|litter|perYear|maturity) ([\d.]+)$/)
-      return m ? t(`facts.values.reproduction.${m[1]}`, { n: format.number(Number(m[2]), { maximumFractionDigits: 1 }) }) : p
+      if (!m) return p
+      const key = m[1] === 'perYear' ? brood : m[1]
+      return t(`facts.values.reproduction.${key}`, { n: format.number(Number(m[2]), { maximumFractionDigits: 1 }) })
     }).join(' · ')
+  }
   const tileKeys = TILE_KEYS[s.tile] ?? []
   const keys = [...tileKeys, ...Object.keys(facts).filter((k) => !tileKeys.includes(k))]
   const status = { k: 'status', value: `${t(`tile.${s.tile}`)}`, sub: s.iucn ? `${s.iucn} · ${t.has(`iucn.${s.iucn}`) ? t(`iucn.${s.iucn}`) : ''}`.trim() : null, sources: [dataSource('GBIF', gbifPage), ...(s.iucn ? [dataSource('IUCN Red List', `https://www.iucnredlist.org/search?query=${encodeURIComponent(s.sciName)}`)] : [])] }

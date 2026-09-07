@@ -409,7 +409,8 @@
         "reproduction": {
           "clutch": "Gelege {n} Eier",
           "litter": "Wurf {n} Junge",
-          "perYear": "{n}× im Jahr",
+          "clutchesPerYear": "{n} Gelege im Jahr",
+          "littersPerYear": "{n} Würfe im Jahr",
           "maturity": "reif mit {n} Tagen"
         },
         "migration": {

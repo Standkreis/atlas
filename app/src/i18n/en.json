@@ -409,7 +409,8 @@
         "reproduction": {
           "clutch": "clutch of {n} eggs",
           "litter": "litter of {n} young",
-          "perYear": "{n}× a year",
+          "clutchesPerYear": "{n} clutches a year",
+          "littersPerYear": "{n} litters a year",
           "maturity": "mature at {n} days"
         },
         "migration": {
