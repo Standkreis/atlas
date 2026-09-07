@@ -1,65 +1,74 @@
-// Shared bits of the prose grill (handoff 0026): paths, a disk cache under scripts/prose-grill/.cache (git-ignored),
-// the Messages API over fetch with thinking disabled, prices per model, a cost log in grill.json and the 8 $ cap.
+// Shared bits of the prose grill (0026; re-grill 0027): paths, the GloBI disk cache under scripts/prose-grill/.cache
+// (git-ignored), the JSON repair for model answers, and the 0027 file protocol. No model API is called from here or
+// anywhere in this folder (CLAUDE.md, 2026-09-07): a draft is a prompt file under prompts/<run>/<species>-<lang>.md that a
+// Claude Code subagent answers into answers/<run>/<species>-<lang>.json; the audit of that draft is prompts/audit-<run>/…
+// answered into answers/audit-<run>/…. 0026's API answers stay in .cache as evidence for the 0026 numbers only.
 // Env handling, JSON helpers and the markdown table come from the 0019 probe (steckbrief-probe/lib.mjs), by import.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
-import { keyOrNull, readJson, writeJson, md, DEV_DB, norm, pct } from '../steckbrief-probe/lib.mjs'
+import { readJson, writeJson, md, DEV_DB, norm, pct } from '../steckbrief-probe/lib.mjs'
 
-export { keyOrNull, readJson, writeJson, md, DEV_DB, norm, pct }
+export { readJson, writeJson, md, DEV_DB, norm, pct }
 export const HERE = new URL('.', import.meta.url).pathname
 export const CACHE = join(HERE, '.cache')
 mkdirSync(CACHE, { recursive: true })
-export const GRILL = join(HERE, 'grill.json')
-export const CAP_USD = 8
+export const PROMPTS = join(HERE, 'prompts')
+export const ANSWERS = join(HERE, 'answers')
+export const SESSION = '0027'
 export const REGION = 'Mainz-Bingen'
-
-/** $ per MTok, platform.claude.com/docs/en/about-claude/pricing (0015 §💸 for Sonnet and Opus; Haiku 4.5 read 2026-09-07). */
-export const MODELS = {
-  sonnet: { id: 'claude-sonnet-5', input: 2, output: 10 },
-  opus: { id: 'claude-opus-5', input: 5, output: 25 },
-  haiku: { id: 'claude-haiku-4-5-20251001', input: 1, output: 5 },
-}
-export const BATCH_DISCOUNT = 0.5
+/** The model every prompt names; subagents are spawned with `model: "sonnet"`, which is this model on the plan. */
+export const MODEL = 'claude-sonnet-5'
+/** Prompts per subagent (the brief: five, drafts and audits never in the same agent). */
+export const PER_AGENT = 5
 
 export const cachePath = (name) => join(CACHE, name)
 export const cached = (key) => { const f = cachePath(key + '.json'); return existsSync(f) ? readJson(f) : null }
 export const store = (key, v) => writeJson(cachePath(key + '.json'), v)
 export const sha = (s) => createHash('sha1').update(s).digest('hex').slice(0, 12)
 
-/** GET JSON with cache keyed by URL hash (GloBI). */
+/** GET JSON with cache keyed by URL hash (GloBI only). */
 export async function getJson(url) {
   const key = 'http-' + sha(url)
   const hit = cached(key)
   if (hit) return hit.data
-  const r = await fetch(url, { headers: { 'user-agent': 'standkreis-dex/0026-prose-grill (https://github.com/svreiser/standkreis-dex; svreiser@gmail.com)' } })
+  const r = await fetch(url, { headers: { 'user-agent': 'standkreis-dex/0027-prose-grill (https://github.com/svreiser/standkreis-dex; svreiser@gmail.com)' } })
   if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`)
   const data = await r.json()
   store(key, { url, at: new Date().toISOString(), data })
   return data
 }
 
-// ── the cost log ─────────────────────────────────────────────────────────────────────────────────────────────────
-export const grill = () => (existsSync(GRILL) ? readJson(GRILL) : { at: null, cap: CAP_USD, total: 0, calls: [] })
-export const spent = () => grill().calls.reduce((s, c) => s + c.usd, 0)
-function logCall(row) {
-  const g = grill()
-  g.calls = g.calls.filter((c) => c.id !== row.id)
-  g.calls.push(row)
-  g.total = g.calls.reduce((s, c) => s + c.usd, 0)
-  g.at = new Date().toISOString()
-  writeJson(GRILL, g)
-  return g.total
+// ── the file protocol ────────────────────────────────────────────────────────────────────────────────────────────
+export const slug = (sciName) => sciName.replace(/\s+/g, '-')
+export const promptFile = (run, sciName, lang) => join(PROMPTS, run, `${slug(sciName)}-${lang}.md`)
+export const answerFile = (run, sciName, lang) => join(ANSWERS, run, `${slug(sciName)}-${lang}.json`)
+export const rel = (f) => f.replace(HERE, '')
+/** The answer file read and repaired: `{ text, json, repaired, at }` or null when it is not there yet. */
+export function readAnswer(file) {
+  if (!existsSync(file)) return null
+  const text = readFileSync(file, 'utf8')
+  return { ...parseJson(text), text, at: statSync(file).mtime.toISOString() }
 }
 
 /**
- * The answer as JSON. Sonnet 5 without thinking stumbles on the two-paragraph shape in ~1 of 6 drafts: a stray
+ * The answer as JSON. Sonnet 5 without thinking stumbled (0026) on the two-paragraph shape in ~1 of 6 drafts: a stray
  * `{"paragraphs":[]}[0],` between the paragraphs, or a broken first attempt followed by "Wait, ich korrigiere das
  * Format:" and a complete second JSON. The sentences are intact, so: whole text → stray token cut out → the last
  * balanced top-level object that parses (unclosed braces closed). `repaired` says which path was taken; a build must expect this.
  */
 export function parseJson(text) {
-  const raw = (text ?? '').replace(/^```(?:json)?\s*|\s*```$/g, '')
+  const r = parseRaw(text)
+  // 0027 F4: Sonnet's stray `{"paragraphs":[]}` (or null) often lands *inside* the array, valid JSON, so the validator saw
+  // three paragraphs and an empty second one (6 of the 7 V1 failures in 0026). Elements without sentences go.
+  if (Array.isArray(r.json?.paragraphs) && r.json.paragraphs.some((p) => !Array.isArray(p?.sentences)) && r.json.paragraphs.some((p) => Array.isArray(p?.sentences))) {
+    r.json = { ...r.json, paragraphs: r.json.paragraphs.filter((p) => Array.isArray(p?.sentences)) }
+    r.repaired = r.repaired ? `${r.repaired}+stray-paragraph` : 'stray-paragraph'
+  }
+  return r
+}
+function parseRaw(text) {
+  const raw = (text ?? '').trim().replace(/^```(?:json)?\s*|\s*```$/g, '')
   const tryParse = (t) => { try { return JSON.parse(t) } catch { return null } }
   let json = tryParse(raw)
   if (json) return { json, repaired: false }
@@ -82,37 +91,4 @@ export function parseJson(text) {
     if (json?.paragraphs || json?.sentences) return { json, repaired: 'last-object' }
   }
   return { json: null, repaired: false }
-}
-
-let key = null
-/**
- * One Messages API call, cached by id (a cached answer costs nothing and is not logged again). `thinking` disabled,
- * system block marked for caching (moot under 1 024 tokens, harmless). Stops at the cap before sending.
- */
-export async function claude({ id, model = 'sonnet', system, user, max_tokens = 1200 }) {
-  const hit = cached(id)
-  if (hit && hit.status === 200) {
-    if (hit.text) { const p = parseJson(hit.text); if (JSON.stringify(p.json) !== JSON.stringify(hit.json)) { hit.json = p.json; hit.repaired = p.repaired; store(id, hit) } } // the parser may have learnt since
-    if (hit.json) return hit
-  }
-  if (spent() >= CAP_USD) throw new Error(`spend cap ${CAP_USD} $ reached (${spent().toFixed(3)} $)`)
-  if (!key) { key = keyOrNull('ANTHROPIC_API_KEY'); if (!key) throw new Error('no key') }
-  const m = MODELS[model]
-  const body = { model: m.id, max_tokens, thinking: { type: 'disabled' }, system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }], messages: [{ role: 'user', content: user }] }
-  const t0 = performance.now()
-  const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, body: JSON.stringify(body) })
-  const text = await r.text()
-  if (r.status === 401 || r.status === 403) { console.error(`ANTHROPIC_API_KEY rejected: HTTP ${r.status}`); process.exit(2) }
-  let res; try { res = JSON.parse(text) } catch { res = { raw: text } }
-  const u = res.usage ?? {}
-  const inTok = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0)
-  const usd = ((u.input_tokens ?? 0) * m.input + (u.cache_creation_input_tokens ?? 0) * m.input * 1.25 + (u.cache_read_input_tokens ?? 0) * m.input * 0.1 + (u.output_tokens ?? 0) * m.output) / 1e6
-  const out = { id, model: m.id, status: r.status, ms: Math.round(performance.now() - t0), at: new Date().toISOString(), usage: res.usage ?? null, usd, stop: res.stop_reason ?? null, text: res.content?.map((c) => c.text ?? '').join('') ?? null, error: res.error ?? (r.ok ? null : res) }
-  Object.assign(out, parseJson(out.text))
-  store(id, out)
-  if (r.status === 200) {
-    const total = logCall({ id, model: m.id, input: inTok, output: u.output_tokens ?? 0, cents: +(100 * usd).toFixed(3), usd, ms: out.ms, at: out.at })
-    console.log(`  ${id}: ${inTok} in · ${u.output_tokens ?? 0} out · ${(100 * usd).toFixed(2)} ¢ · ${out.ms} ms · total ${total.toFixed(3)} $${out.json ? '' : ' · NO JSON (' + out.stop + ')'}`)
-  } else console.log(`  ${id}: HTTP ${r.status} ${JSON.stringify(out.error).slice(0, 200)}`)
-  return out
 }
