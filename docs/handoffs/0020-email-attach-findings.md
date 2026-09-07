@@ -125,7 +125,7 @@ Copy: `pg_dump dex | psql dex_copy` in the container, then `DROP TABLE "EmailCod
 
 ## ❓ Doubts for the owner
 
-1. **Tracking is a domain setting at Resend**, not a per-mail flag. Once `standkreis.de` is added: Domains → standkreis.de → switch **open tracking and click tracking off**. Until then the mail cannot promise "no tracking" on the SDK side, only "nothing to track" (no link, no image).
+1. ~~**Tracking is a domain setting at Resend**, not a per-mail flag.~~ → both switched off on standkreis.de 2026-09-07. Once `standkreis.de` is added: Domains → standkreis.de → switch **open tracking and click tracking off**. Until then the mail cannot promise "no tracking" on the SDK side, only "nothing to track" (no link, no image).
 2. **Deliverability is unproven** (C8): DKIM, SPF and the return path at Resend, plus the EU region for the domain. A first mail to the owner's own address from atlas.standkreis.de is the check; also whether Gmail and iCloud put a bare-code mail from a new domain in spam.
 3. **The magic link stays out**, as the handoff decided. On the desktop the code is six keystrokes; on iOS Mail offers the code above the keyboard through `autocomplete=one-time-code` when the mail carries a recognisable code (Apple's heuristic wants the code near words like "Code"; the subject starts with it).
 4. **A shared inbox is an identity**: whoever reads the mail can adopt the identity. Same as any email login; the throttle (3 per hour per address) and 5 tries per code are the only brakes. No notification to the old address when a new device adopts.

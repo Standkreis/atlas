@@ -103,7 +103,7 @@ Branch `m5-grid`. Shots in [`0007-shots/a-*`](0007-shots/), driver scripts `app/
 | B4 | The GBIF overlay covers the whole card, not just the region; the label says "Meldungen", not "in deiner Region" | Fine for M5; M14 draws the polygon |
 | B5 | Vulpes vulpes has dense GBIF cells around Mainz yet is out of the set. Not the page's call: the ETL cut (findings 0006). The page hides the map rather than argue | Owner: is a fox "hier selten gemeldet"? |
 | B6 | No seen date in the state row until M6 supplies one via `identity.progress` | M6 |
-| B7 | AnAge facts are English strings ("21.8 years (wild)", "mature at 365 days") on the German page | Content job, M4 follow-up |
+| B7 | ~~AnAge facts are English strings ("21.8 years (wild)", "mature at 365 days") on the German page~~ → fixed in 0024 (codes, translated on the page) | ~~Content job, M4 follow-up~~ |
 | B8 | No Kyoto identity exists, so the Kyoto-only species (English intro) render as out of set for the dev identity | Cosmetic for C7 |
 | B9 | Hiding the tab bar via a sibling selector couples the species page to the Shell's DOM order | Shell gets a `hideNav` prop when Track A's files reopen |
 | B10 | Two additions to `taxon.ts` (`lead` on cards, `mapCentre`) were made because the fields were missing; nothing existing changed | Merge review |

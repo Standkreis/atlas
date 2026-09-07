@@ -25,7 +25,7 @@
 
 | # | Doubt |
 | --- | --- |
-| D1 | Until C4 runs, the deployed page prints the old English values unchanged (the client passes unknown shapes through). Harmless, but the order is deploy → recode, not the reverse: the old client would print the codes raw |
+| D1 | ~~Until C4 runs, the deployed page prints the old English values unchanged~~ → C4 ran the same day |
 | D2 | ~~AnAge's "Maximum longevity" printed as if typical~~ → fixed the same day: the cell reads **"bis 21,8 Jahre (frei lebend)"** / "up to 21.8 years (wild)". The GIFT height doubt in 0021 is the same family and still open |
 | D3 | ~~`perYear` read "2× im Jahr" without saying what~~ → fixed the same day: the page picks **Gelege** or **Würfe** from the sibling clutch/litter part, else from the tile (mammal → Würfe). Rauchschwalbe: "Gelege 6 Eier · 2 Gelege im Jahr · reif mit 365 Tagen" |
 
