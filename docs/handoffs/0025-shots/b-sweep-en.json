@@ -1,0 +1,314 @@
+{
+  "base": "http://localhost:3011",
+  "locale": "en",
+  "build": "mtr61ef5",
+  "seed": {
+    "A": "24b9ef00-2430-45eb-800e-7175807a5956",
+    "B": "d6d714e6-8da0-4b75-86af-735f51705843",
+    "setSize": 929,
+    "seen": 2,
+    "studied": 2,
+    "avatar": "/api/photo/bea22ef5-ee94-4105-995b-ab51f99c1dc6",
+    "sighting": "8a58cbdd-52de-4691-8dae-a49076c22577"
+  },
+  "truth": {
+    "59037062-15d5-452e-99dc-785cbc408874": {
+      "seen": 2,
+      "studied": 2,
+      "possible": 929
+    },
+    "67303e90-4569-4019-a36d-6c99b09b1de8": {
+      "seen": 2,
+      "studied": 2,
+      "possible": 902
+    },
+    "9783b838-3dce-45b0-846e-fe92d58991ee": {
+      "seen": 2,
+      "studied": 2,
+      "possible": 583
+    }
+  },
+  "b1": {
+    "classes": [
+      "safe-top",
+      "pt-3"
+    ],
+    "paddingTop": "12px",
+    "groupTop": "0px",
+    "groupPosition": "sticky"
+  },
+  "b2": {
+    "exploration": {
+      "liDom": 932,
+      "presentation": 3,
+      "label": "929 species",
+      "axListItems": 929,
+      "axHeadings": 3,
+      "axList": [
+        "929 species"
+      ]
+    },
+    "tile": {
+      "liDom": 936,
+      "presentation": 7,
+      "label": "929 species",
+      "axListItems": 929,
+      "axHeadings": 7,
+      "axList": [
+        "929 species"
+      ]
+    },
+    "none": {
+      "liDom": 929,
+      "presentation": 0,
+      "label": "929 species",
+      "axListItems": 929,
+      "axHeadings": 0,
+      "axList": [
+        "929 species"
+      ]
+    }
+  },
+  "drawer": {
+    "sections": [
+      "Region",
+      "Kinds",
+      "Show",
+      "Group by",
+      "Sort"
+    ],
+    "groupChips": [
+      "Progress",
+      "Kind",
+      "None"
+    ]
+  },
+  "b6": {
+    "profile": {
+      "number": "rgb(169, 76, 8)",
+      "radioFill": "rgb(169, 76, 8)",
+      "radioText": "rgb(255, 255, 255)"
+    },
+    "profileDark": {
+      "number": "rgb(240, 160, 48)",
+      "radioFill": "rgb(240, 160, 48)"
+    }
+  },
+  "b5": {
+    "cards": [
+      {
+        "region": "59037062-15d5-452e-99dc-785cbc408874",
+        "title": "Mainz-Bingen",
+        "open": "true",
+        "seen": 2,
+        "studied": 2,
+        "possible": 929,
+        "inert": false,
+        "line": "2 of 929 discovered · 2 studied"
+      },
+      {
+        "region": "67303e90-4569-4019-a36d-6c99b09b1de8",
+        "title": "Schagen",
+        "open": "false",
+        "seen": 2,
+        "studied": 2,
+        "possible": 902,
+        "inert": true,
+        "line": "2 of 902 discovered · 2 studied"
+      },
+      {
+        "region": "9783b838-3dce-45b0-846e-fe92d58991ee",
+        "title": "Südwestpfalz",
+        "open": "false",
+        "seen": 2,
+        "studied": 2,
+        "possible": 583,
+        "inert": true,
+        "line": "2 of 583 discovered · 2 studied"
+      }
+    ],
+    "truth": {
+      "59037062-15d5-452e-99dc-785cbc408874": {
+        "seen": 2,
+        "studied": 2,
+        "possible": 929
+      },
+      "67303e90-4569-4019-a36d-6c99b09b1de8": {
+        "seen": 2,
+        "studied": 2,
+        "possible": 902
+      },
+      "9783b838-3dce-45b0-846e-fe92d58991ee": {
+        "seen": 2,
+        "studied": 2,
+        "possible": 583
+      }
+    },
+    "requests": [
+      {
+        "url": "http://localhost:3011/api/trpc/dex.setCounts,dex.setCounts?batch=1&input=%7B%220",
+        "encodedBytes": 1121,
+        "bodyBytes": 832,
+        "batch": 2,
+        "keys": [
+          "region",
+          "total",
+          "byTile",
+          "seen",
+          "studied"
+        ],
+        "hasIds": false,
+        "encoding": null
+      }
+    ],
+    "match": true
+  },
+  "b3": {
+    "schagenFolded": {
+      "inert": true,
+      "axListItems": 0,
+      "axButtons": 1
+    },
+    "mbOpen": {
+      "inert": false,
+      "axListItems": 2,
+      "foldedListInert": true
+    },
+    "schagenOpened": {
+      "inert": false,
+      "axListItems": 2
+    }
+  },
+  "b4": {
+    "closed": {
+      "text": "Show 5 more groups",
+      "expanded": "false",
+      "chevrons": 1
+    },
+    "open": {
+      "text": "fewer",
+      "expanded": "true",
+      "axListItems": 7
+    }
+  },
+  "b10": {
+    "avatarOnline": {
+      "src": "/api/photo/bea22ef5-ee94-4105-995b-ab51f99c1dc6",
+      "decoded": true,
+      "w": 720
+    },
+    "caches": {
+      "splash": [
+        "/splash-720.jpg",
+        "/splash.jpg"
+      ],
+      "avatar": [
+        "/api/photo/bea22ef5-ee94-4105-995b-ab51f99c1dc6"
+      ],
+      "total": 110
+    },
+    "avatarOffline": {
+      "decoded": true,
+      "w": 720
+    }
+  },
+  "b8": {
+    "atlas": {
+      "bannerMs": 5,
+      "onLineAfter": false,
+      "fetchFails": true,
+      "wall": 6,
+      "afterReload": {
+        "onLine": true,
+        "fetchFails": true,
+        "bannerMs": 1414
+      }
+    },
+    "profile": {
+      "bannerMs": 1,
+      "onLineAfter": false,
+      "fetchFails": true,
+      "wall": 2,
+      "afterReload": {
+        "onLine": true,
+        "fetchFails": true,
+        "bannerMs": 1017
+      }
+    },
+    "sighting": {
+      "bannerMs": 1,
+      "onLineAfter": false,
+      "fetchFails": true,
+      "wall": 3,
+      "afterReload": {
+        "onLine": true,
+        "fetchFails": true,
+        "bannerMs": 1470
+      }
+    }
+  },
+  "b11": {
+    "banner": true,
+    "rows": [
+      {
+        "name": "Kyoto",
+        "inList": false,
+        "active": false,
+        "waits": false
+      },
+      {
+        "name": "Mainz-Bingen",
+        "inList": true,
+        "active": true,
+        "waits": false
+      },
+      {
+        "name": "Schagen",
+        "inList": true,
+        "active": false,
+        "waits": true
+      },
+      {
+        "name": "Südwestpfalz",
+        "inList": true,
+        "active": false,
+        "waits": true
+      }
+    ],
+    "setsCached": [
+      "59037062-15d5-452e-99dc-785cbc408874"
+    ],
+    "waitsRows": 2,
+    "before": 2,
+    "afterTap1": {
+      "occurrences": 2,
+      "line": null,
+      "sheetOpen": true
+    },
+    "afterTap2": {
+      "occurrences": 2,
+      "line": null
+    }
+  },
+  "b7": {
+    "line": "The search failed. Keep typing and it runs again. · INTERNAL_SERVER_ERROR"
+  },
+  "t4": {
+    "before": {
+      "queries": 944741,
+      "outbox": 1,
+      "snapshot": true
+    },
+    "summary": "0 devices · 2 sightings",
+    "after": {
+      "url": "/en/settings",
+      "queries": 0,
+      "queriesKeys": null,
+      "outbox": 0,
+      "snapshot": false,
+      "identity": "c196047d-fcac-4101-9e63-7b858c8a05de"
+    },
+    "identityChanged": true,
+    "sqlIdentity": "0"
+  }
+}
