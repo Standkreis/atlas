@@ -36,7 +36,7 @@ const sel = (rs, variant, f = () => true) => rs.filter((r) => r.variant === vari
 
 /** Subagents (nominal: ⌈prompts / 5⌉ per stage) and wall time per run from the file times; retries are counted by hand in the findings. */
 function stage(run) {
-  const rs = R.filter((r) => r.variant === (run === 'P1' ? 'V1' : 'ECO'))
+  const rs = R.filter((r) => r.variant === { P1: 'V1', P2: 'ECO', P3: 'ECO2' }[run])
   const t0 = now.stages?.[`${run} prompts`]
   const dEnd = rs.map((r) => r.draftAt).filter(Boolean).sort().at(-1)
   const aStart = rs.map((r) => r.auditAt).filter(Boolean).sort()[0], aEnd = rs.map((r) => r.auditAt).filter(Boolean).sort().at(-1)
@@ -59,14 +59,17 @@ out.push(`\nTotals: DB edges ${tot('full', 'before')} · full −F1 ${tot('full'
 // P2'
 const eco = sel(R, 'ECO'), ecoOld = sel(O, 'ECO')
 out.push(`\n## 🌿 P2' · Ökologie paragraph, ${eco.length / 2} species × de + en (0026: ${ecoOld.length / 2} species)\n`)
-out.push(md(HEAD, [row("ECO 0027 (P2')", measure(eco)), row('ECO 0026', measure(ecoOld)), ...splits.flatMap(([l, f]) => [row(`0027 ${l}`, measure(sel(R, 'ECO', f))), row(`0026 ${l}`, measure(sel(O, 'ECO', f)))])]))
-const handRead = Object.entries(marks).filter(([k]) => k.startsWith('ECO-') && now.runs[k])
+const eco2 = sel(R, 'ECO2')
+out.push(md(HEAD, [row("ECO 0027 (P2')", measure(eco)), ...(eco2.length ? [row("ECO2 0027 (P3, F5 direction)", measure(eco2))] : []), row('ECO 0026', measure(ecoOld)), ...splits.flatMap(([l, f]) => [row(`0027 ${l}`, measure(sel(R, 'ECO', f))), ...(eco2.length ? [row(`0027 F5 ${l}`, measure(sel(R, 'ECO2', f)))] : []), row(`0026 ${l}`, measure(sel(O, 'ECO', f)))])]))
+for (const [pre, label] of [['ECO-', "P2'"], ['ECO2-', 'P3 (F5 direction)']]) {
+const handRead = Object.entries(marks).filter(([k]) => k.startsWith(pre) && now.runs[k])
 if (handRead.length) {
   const emb = handRead.reduce((s, [, m]) => s + (m.embarrassing ?? []).length, 0)
   const odd = handRead.reduce((s, [, m]) => s + (m.odd ?? []).length, 0)
   const total = handRead.reduce((s, [k]) => s + (now.runs[k].audit?.length ?? 0), 0)
-  out.push(`\n### 👓 P2' hand read · ${handRead.length} paragraphs, ${total} sentences · 🙈 embarrassing **${emb}** · 🤔 odd ${odd}\n`)
+  out.push(`\n### 👓 ${label} hand read · ${handRead.length} paragraphs, ${total} sentences · 🙈 embarrassing **${emb}** · 🤔 odd ${odd}\n`)
   out.push(md(['species · lang', '🙈 embarrassing', '🤔 odd', 'note'], handRead.map(([k, m]) => { const r = now.runs[k]; return [`${r.names?.de ?? r.sciName} · ${r.lang}`, (m.embarrassing ?? []).map((n) => `s${n}`).join(', ') || '—', (m.odd ?? []).map((n) => `s${n}`).join(', ') || '—', m.note ?? ''] })))
+}
 }
 
 // P1'
@@ -82,7 +85,7 @@ out.push(failed.length ? md(['run', 'species · lang', 'problems'], failed.map((
 
 // Subagents and wall time
 out.push(`\n## ⏱️ Subagents and wall time (nominal ⌈n / ${PER_AGENT}⌉; retries in the findings)\n`)
-out.push(md(['run', 'drafts', 'draft agents', 'draft wall min', 'audits', 'audit agents', 'audit wall min', 'prompts → last audit min'], [stage('P2'), stage('P1')]))
+out.push(md(['run', 'drafts', 'draft agents', 'draft wall min', 'audits', 'audit agents', 'audit wall min', 'prompts → last audit min'], [stage('P2'), stage('P1'), stage('P3')]))
 
 // The plan instead of P4
 const perSpecies = 2, auditPer = 2
@@ -96,8 +99,8 @@ console.log(out.join('\n'))
 // drafts.md: every text, marked.
 const mark = (v) => (v === 'unsupported' ? ' ❌' : v === 'partial' ? ' ⚠️' : '')
 const D = [`# ✍️ drafts · 0027 prose re-grill\n\nEvery draft, sentence by sentence: \`[F3,F7]\` cited lines · ⚠️ audit "partial" · ❌ audit "unsupported" · 🟠 orphan claim (no line states it) · 🙈 hand mark (would embarrass the app) · 🤔 hand mark (odd, not wrong). Draft and audit: ${MODEL} subagents. Region ${now.region}.\n`]
-for (const variant of ['ECO', 'V1']) {
-  D.push(`\n## ${variant} (${variant === 'ECO' ? "P2'" : "P1'"})\n`)
+for (const variant of ['ECO', 'ECO2', 'V1']) {
+  D.push(`\n## ${variant} (${{ ECO: "P2'", ECO2: 'P3 · F5 direction', V1: "P1'" }[variant]})\n`)
   for (const sciName of Object.keys(sheets)) for (const lang of ['de', 'en']) {
     const r = R.find((x) => x.variant === variant && x.sciName === sciName && x.lang === lang)
     if (!r) continue

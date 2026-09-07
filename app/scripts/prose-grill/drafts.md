@@ -124,6 +124,132 @@ Every draft, sentence by sentence: `[F3,F7]` cited lines · ⚠️ audit "partia
 - s2 🤔 same
 
 
+## ECO2 (P3 · F5 direction)
+
+### Amsel · *Turdus merula* · de (bird, 12 lines) · validator ✓ · judge ssss · orphans 0
+> Die Amsel ist Allesfresser und lebt in Wald und am Boden, wo sie tagsüber aktiv ist. [F1,F2,F3] Sie wurde beim Fressen von Eingriffeligem Weißdorn, Vogelbeere, Schwarzem Holunder und Gewöhnlichem Schneeball beobachtet. [F5,F6,F7,F8] Auch Gemeiner Efeu, Roter Hartriegel, Gewöhnliche Traubenkirsche und Hundsrose gehören zu den beobachteten Nahrungspflanzen. [F9,F10,F11,F12] In Mainz-Bingen liegen 6009 Meldungen aus zehn Jahren vor, mit dem ganzen Jahr als Hauptzeit. [F4]
+
+### Amsel · *Turdus merula* · en (bird, 12 lines) · validator ✓ · judge ssss · orphans 0
+> The common blackbird is an omnivore that lives in forest and on the ground, active by day. [F1,F2,F3] It has been recorded eating Hawthorn, Rowan, Elder and Guelder Rose. [F5,F6,F7,F8] English Ivy, Dogwood, Bird Cherry and Dog rose are also among the recorded food plants. [F9,F10,F11,F12] In Mainz-Bingen 6009 reports have been logged over ten years, with the peak time spanning the whole year. [F4]
+
+### Kleiner Feuerfalter · *Lycaena phlaeas* · de (insect, 9 lines) · validator ✓ · judge sss · orphans 0
+> In Mainz-Bingen liegen 126 Meldungen aus zehn Jahren vor, mit Apr–Mai und Jul–Okt als Hauptzeit. [F1] Der Kleine Feuerfalter wurde beim Blütenbesuch an Rainfarn, Besenheide, Gänseblümchen und Acker-Kratzdistel beobachtet. [F2,F3,F4,F5] Auch an Gemeiner Schafgarbe, Oregano, Feld-Mannstreu und Jakobs-Greiskraut wurde Blütenbesuch verzeichnet. [F6,F7,F8,F9]
+
+### Kleiner Feuerfalter · *Lycaena phlaeas* · en (insect, 9 lines) · validator ✓ · judge sss · orphans 0
+> In Mainz-Bingen 126 reports have been logged over ten years, with the peak time spanning Apr–May and Jul–Oct. [F1] The Small Copper has been recorded visiting the flowers of Tansy, Heather, Daisy and Creeping Thistle. [F2,F3,F4,F5] It has also been recorded visiting the flowers of Bloodwort, Oregano, Field Eryngo and Common Ragwort. [F6,F7,F8,F9]
+
+### Feuersalamander · *Salamandra salamandra* · de (amphibian, 6 lines) · validator ✓ · judge ssss · orphans 0
+> Der Feuersalamander ernährt sich von Gliederfüßern und lebt an Land, im Wasser und im Boden, wo er tagsüber, in der Dämmerung und nachts aktiv ist. [F1,F2,F3] Als Fressfeind ist die Barrenringelnatter (Natrix helvetica) verzeichnet. [F5] Auch Domestic Cat (Felis catus) ist als Fressfeind verzeichnet. [F6] 🤔 In Mainz-Bingen liegen 48 Meldungen aus zehn Jahren vor, mit Mär–Mai und Aug–Dez als Hauptzeit. [F4]
+- s3 🤔 s3 'Domestic Cat (Felis catus)': no German vernacular in the DB
+
+### Feuersalamander · *Salamandra salamandra* · en (amphibian, 6 lines) · validator ✓ · judge ssss · orphans 0
+> The fire salamander eats arthropods, lives on land, in water and underground, and is active by day, at dusk and dawn, and at night. [F1,F2,F3] In Mainz-Bingen it has been reported 48 times over ten years, mostly from March to May and August to December, with October the peak month. [F4] The barred grass snake is recorded as a predator, with 10 GloBI records. [F5] The domestic cat is also recorded as a predator, with 2 GloBI records. [F6]
+
+### Große Brennnessel · *Urtica dioica* · de (plant, 7 lines) · validator ✓ · judge ssss · orphans 0
+> Die Große Brennnessel wird vom Wind bestäubt. [F1] In Mainz-Bingen liegen 259 Meldungen in zehn Jahren vor, vor allem von April bis Juli, mit dem Höhepunkt im Mai. [F2] Als Fressfeinde sind Tagpfauenauge und Kleiner Fuchs verzeichnet, mit 3 beziehungsweise 2 GloBI-Belegen. [F3,F4] Als Wirtspflanze ist sie für Tagpfauenauge, Landkärtchen und Kleinen Fuchs verzeichnet. [F5,F6,F7]
+
+### Große Brennnessel · *Urtica dioica* · en (plant, 7 lines) · validator ✓ · judge ssss · orphans 0
+> Stinging nettle is pollinated by wind. [F1] In Mainz-Bingen it has been reported 259 times over ten years, mainly from April to July, peaking in May. [F2] The peacock and the small tortoiseshell are recorded as predators, with 3 and 2 GloBI records respectively. [F3,F4] 🤔 It is recorded as a host of the peacock, the map and the small tortoiseshell. [F5,F6,F7]
+- s3 🤔 s3 'recorded as predators' for butterflies on a nettle: direction right, 'predator' is the template's word for a plant's eatenBy line; 'herbivore' would fit
+
+### Kranich · *Grus grus* · de (bird, 4 lines) · validator ✓ · judge ss · orphans 0
+> Der Kranich ist Allesfresser, lebt in Feuchtgebieten und ist tagsüber aktiv. [F1,F2,F3] In Mainz-Bingen liegen 977 Meldungen in zehn Jahren vor, vor allem im Februar sowie von Oktober bis Dezember, mit dem Höhepunkt im Februar. [F4]
+
+### Kranich · *Grus grus* · en (bird, 4 lines) · validator ✓ · judge ss · orphans 0
+> The common crane is an omnivore, lives in wetlands and is active by day. [F1,F2,F3] In Mainz-Bingen it has been reported 977 times over ten years, mainly in February and from October to December, peaking in February. [F4]
+
+### Hirschkäfer · *Lucanus cervus* · de (insect, 4 lines) · validator ✓ · judge ss · orphans 0
+> Der Hirschkäfer wurde beim Fressen von Rotbuche (Fagus sylvatica), Gemeiner Esche (Fraxinus excelsior) und Gemeiner Hasel (Corylus avellana) beobachtet. [F2,F3,F4] 🤔 In Mainz-Bingen wurde die Art in zehn Jahren 63-mal gemeldet, mit Schwerpunkt von Juni bis Juli. [F1]
+- s1 🤔 s1 stag beetle eating beech, ash, hazel: 2 real records each from one dataset (adults lick sap, larvae in dead wood); true to the record, thin. F2 keeps it because 2 records pass the rule
+
+### Hirschkäfer · *Lucanus cervus* · en (insect, 4 lines) · validator ✓ · judge ss · orphans 0
+> The Stag Beetle has been recorded eating Beech (Fagus sylvatica), European ash (Fraxinus excelsior) and Hazel (Corylus avellana). [F2,F3,F4] 🤔 In Mainz-Bingen, the species has been reported 63 times over ten years, mainly from June to July. [F1]
+- s1 🤔 same
+
+### Grasfrosch · *Rana temporaria* · de (amphibian, 9 lines) · validator ✓ · judge sss · orphans 0
+> Der Grasfrosch ernährt sich von Gliederfüßern, ist an Land, im Wasser und auf Bäumen anzutreffen und ist tagsüber und nachts aktiv. [F1,F2,F3] Als Fressfeinde sind Barrenringelnatter (Natrix helvetica), Graureiher (Ardea cinerea), Silbermöwe (Larus argentatus), Rotfuchs (Vulpes vulpes) und Spitzschlammschnecke (Lymnaea stagnalis) verzeichnet. [F5,F6,F7,F8,F9] 🤔 In Mainz-Bingen wurde die Art in zehn Jahren 71-mal gemeldet, mit Schwerpunkt von Februar bis April. [F4]
+- s2 🤔 s2 Spitzschlammschnecke as a frog predator, 2 iNaturalist records
+
+### Grasfrosch · *Rana temporaria* · en (amphibian, 9 lines) · validator ✓ · judge sss · orphans 0
+> The Common frog feeds on arthropods, occurs on land, in water and in trees, and is active by day and at night. [F1,F2,F3] Recorded predators are the Barred grass snake (Natrix helvetica), Grey heron (Ardea cinerea), European herring gull (Larus argentatus), Red fox (Vulpes vulpes) and Swamp lymnaea (Lymnaea stagnalis). [F5,F6,F7,F8,F9] 🤔 In Mainz-Bingen, the species has been reported 71 times over ten years, mainly from February to April. [F4]
+- s2 🤔 same, 'Swamp lymnaea'
+
+### Schwarz-Erle · *Alnus glutinosa* · de (plant, 10 lines) · validator ✓ · judge ssss · orphans 0
+> Die Schwarz-Erle wird durch Wind bestäubt. [F1] Als Fressfeinde sind Stieglitz (Carduelis carduelis) und Moschusbock (Aromia moschata) verzeichnet. [F3,F4] Sie ist als Wirt von Schmetterlings-Tramete (Trametes versicolor), Zunderschwamm (Fomes fomentarius), Graugelbem Breitflügelspanner (Agriopis marginaria), Rotrandigem Baumschwamm (Fomitopsis pinicola), Lindenschwärmer (Mimas tiliae) und Geweihförmiger Holzkeule (Xylaria hypoxylon) verzeichnet. [F5,F6,F7,F8,F9,F10] In Mainz-Bingen wurde die Art in zehn Jahren 27-mal gemeldet, mit Meldungen über das ganze Jahr. [F2]
+
+### Schwarz-Erle · *Alnus glutinosa* · en (plant, 10 lines) · validator ✓ · judge ssss · orphans 0
+> Black Alder is pollinated by wind. [F1] In Mainz-Bingen, it has been reported throughout the year, with sightings peaking in December. [F2] The European goldfinch and the Musk beetle are recorded as predators of Black Alder. [F3,F4] 🤔 It is recorded as a host of Turkeytail, Tinder Bracket, the Dotted border, Red-Belted Bracket, the Lime Hawk-Moth, and Candlesnuff Fungus. [F5,F6,F7,F8,F9,F10]
+- s3 🤔 s3 'predators of Black Alder' for goldfinch and musk beetle: the template's word for a plant's eatenBy line
+
+### Dunkle Erdhummel · *Bombus terrestris* · de (insect, 9 lines) · validator ✓ · judge sss · orphans 0
+> Die Dunkle Erdhummel wurde in der Region Mainz-Bingen vor allem von Februar bis September gemeldet, mit Schwerpunkt im Juni und Juli. [F1] Sie wurde beim Blütenbesuch an der Skabiosen-Flockenblume, der Acker-Kratzdistel und dem Weißklee beobachtet. [F2,F3,F4] Ebenso wurde sie an Besenheide, Oregano, der Acker-Witwenblume, dem Drüsigen Springkraut und dem Gewöhnlichen Löwenzahn beim Blütenbesuch beobachtet. [F5,F6,F7,F8,F9]
+
+### Dunkle Erdhummel · *Bombus terrestris* · en (insect, 9 lines) · validator ✓ · judge sss · orphans 0
+> The Buff-tailed Bumblebee has been reported in Mainz-Bingen mainly from February to September, peaking in June and July. [F1] It has been recorded visiting the flowers of Greater Knapweed, Creeping Thistle, and White Clover. [F2,F3,F4] It has also been recorded visiting the flowers of Heather, Oregano, field scabious, Himalayan balsam, and common dandelion. [F5,F6,F7,F8,F9]
+
+### Schachbrett · *Melanargia galathea* · de (insect, 9 lines) · validator ✓ · judge ssss · orphans 0
+> Das Schachbrett wurde in Mainz-Bingen vor allem im Juni und Juli gemeldet. [F1] Es ist als Bestäuber von Kartäusernelke, Tauben-Skabiose und Acker-Witwenblume verzeichnet. [F2,F3,F4] Ebenso ist es als Bestäuber von Mittlerem Klee, Wiesenklee, Echter Betonie und Magerwiesen-Margerite verzeichnet. [F5,F6,F7,F8] Zudem wurde es beim Blütenbesuch an der Acker-Witwenblume beobachtet. [F9]
+
+### Schachbrett · *Melanargia galathea* · en (insect, 9 lines) · validator ✓ · judge ssss · orphans 0
+> The Marbled White has been reported in Mainz-Bingen mainly in June and July. [F1] It is recorded as a pollinator of Carthusian Pink, Small Scabious, and field scabious. [F2,F3,F4] It is also recorded as a pollinator of zigzag clover, Red Clover, Betony, and Oxeye Daisy. [F5,F6,F7,F8] It has additionally been recorded visiting the flowers of field scabious. [F9]
+
+### Europäische Gottesanbeterin · *Mantis religiosa* · de (insect, 8 lines) · validator ✓ · judge sss · orphans 0
+> Die Europäische Gottesanbeterin wurde beim Fressen der Westlichen Honigbiene, der Gemeinen Wespe, des Grünen Heupferds, der Blauflügeligen Ödlandschrecke und der Mauereidechse beobachtet. [F2,F3,F4,F5,F6] Als Fressfeinde sind die Asiatische Hornisse und der Haussperling verzeichnet. [F7,F8] In der Region Mainz-Bingen liegt ihre Hauptzeit im August und September. [F1]
+
+### Europäische Gottesanbeterin · *Mantis religiosa* · en (insect, 8 lines) · validator ✓ · judge sss · orphans 0
+> The European mantis has been recorded eating the Western honey bee, the Common Wasp, the Great Green Bush-cricket, the Blue-winged Grasshopper, and the Common Wall Lizard. [F2,F3,F4,F5,F6] The Asian hornet and the House sparrow are recorded as predators. [F7,F8] In the Mainz-Bingen region, its main time is August and September. [F1]
+
+### Tagpfauenauge · *Aglais io* · de (insect, 9 lines) · validator ✓ · judge sss · orphans 0
+> Das Tagpfauenauge wurde beim Fressen der Großen Brennnessel, des Gemeinen Efeus und des Gewöhnlichen Wasserdosts beobachtet. [F2,F3,F4] 🤔 Zudem wurde es beim Blütenbesuch an Acker-Kratzdistel, Gewöhnlichem Wasserdost, Gewöhnlichem Löwenzahn, Schlehdorn und Oregano beobachtet. [F5,F6,F7,F8,F9] In der Region Mainz-Bingen liegt seine Hauptzeit im März, April, Juni, Juli und September. [F1]
+- s1 🤔 s1 'beim Fressen der Großen Brennnessel, des Gemeinen Efeus und des Gewöhnlichen Wasserdosts': nettle is the larval food (40 records), ivy and hemp agrimony are adults at flowers under GloBI eats
+
+### Tagpfauenauge · *Aglais io* · en (insect, 9 lines) · validator ✓ · judge sss · orphans 0
+> The Peacock has been recorded eating Stinging Nettle, English Ivy, and Hemp Agrimony. [F2,F3,F4] 🤔 It has also been recorded visiting the flowers of Creeping Thistle, Hemp Agrimony, common dandelion, Blackthorn, and Oregano. [F5,F6,F7,F8,F9] In the Mainz-Bingen region, its main time is March, April, June, July, and September. [F1]
+- s1 🤔 same
+
+### Admiral · *Vanessa atalanta* · de (insect, 9 lines) · validator ✓ · judge sss · orphans 0
+> Der Admiral wurde beim Fressen des Gemeinen Efeus beobachtet. [F2] 🤔 Zudem wurde er beim Blütenbesuch an Gemeinem Flieder, Gewöhnlichem Wasserdost, Acker-Kratzdistel, Gewöhnlichem Löwenzahn, Gemeinem Efeu, Lorbeerkirsche und Knoblauchsrauke beobachtet. [F3,F4,F5,F6,F7,F8,F9] In der Region Mainz-Bingen liegt seine Hauptzeit im Februar, März, April sowie von Juni bis Oktober. [F1]
+- s1 🤔 s1 'beim Fressen des Gemeinen Efeus': adults at ivy flowers as eats (26 records)
+
+### Admiral · *Vanessa atalanta* · en (insect, 9 lines) · validator ✓ · judge sss · orphans 0
+> In Mainz-Bingen the Red Admiral is mainly seen from February to April and again from June to October, most numerous in July. [F1] It has been recorded eating English Ivy. [F2] 🤔 It has also been recorded visiting the flowers of English Ivy, Common Lilac, Hemp Agrimony, Creeping Thistle, common dandelion, cherry laurel, and Garlic Mustard. [F3,F4,F5,F6,F7,F8,F9]
+- s2 🤔 same
+
+### Westliche Honigbiene · *Apis mellifera* · de (insect, 9 lines) · validator ✓ · judge ssss · orphans 0
+> In Mainz-Bingen wird die Westliche Honigbiene vor allem von Februar bis Oktober gemeldet, am häufigsten im Juni und August. [F1] Sie wurde beim Fressen von Gewöhnlicher Kratzdistel, Schmuckkörbchen, Borretsch und Gewöhnlichem Löwenzahn beobachtet. [F2,F3,F4,F5] Als Fressfeinde sind Asiatische Hornisse, Veränderliche Krabbenspinne und Südliche Glanz-Krabbenspinne verzeichnet. [F6,F7,F8] Sie wurde beim Blütenbesuch an Rainfarn-Phazelie beobachtet. [F9]
+
+### Westliche Honigbiene · *Apis mellifera* · en (insect, 9 lines) · validator ✓ · judge ssss · orphans 0
+> In Mainz-Bingen, the Western honey bee is mainly reported from February to October, most often in June and August. [F1] It has been recorded eating Bull Thistle, Garden cosmos, Borage, and common dandelion. [F2,F3,F4,F5] Asian hornet, Goldenrod Crab Spider, and Shiny crab-spider are recorded as predators. [F6,F7,F8] It has been recorded visiting the flowers of Phacelia. [F9]
+
+### Hauhechel-Bläuling · *Polyommatus icarus* · de (insect, 9 lines) · validator ✓ · judge ss · orphans 0
+> In Mainz-Bingen wird der Hauhechel-Bläuling vor allem von Mai bis September gemeldet, am häufigsten im September. [F1] Er wurde beim Blütenbesuch an Gewöhnlichem Hornklee, Weißklee, Rainfarn, Luzerne, Wiesenklee, Acker-Kratzdistel, Oregano und Vogel-Wicke beobachtet. [F2,F3,F4,F5,F6,F7,F8,F9]
+
+### Hauhechel-Bläuling · *Polyommatus icarus* · en (insect, 9 lines) · validator ✓ · judge ss · orphans 0
+> In Mainz-Bingen, the Common Blue is mainly reported from May to September, most often in September. [F1] It has been recorded visiting the flowers of Bird's-foot Trefoil, White Clover, Tansy, Alfalfa, Red Clover, Creeping Thistle, Oregano, and Tufted Vetch. [F2,F3,F4,F5,F6,F7,F8,F9]
+
+### Kleiner Kohlweißling · *Pieris rapae* · de (insect, 9 lines) · validator ✓ · judge ss · orphans 0
+> Der Kleine Kohlweißling wurde beim Fressen von Wiesenklee, Roter Spornblume, Gewöhnlichem Löwenzahn, Raps, Gewöhnlichem Bitterkraut, Luzerne, Gewöhnlichem Blutweiderich und Oregano beobachtet. [F2,F3,F4,F5,F6,F7,F8,F9] 🤔 In der Region Mainz-Bingen liegt die Hauptzeit von Juni bis September, mit dem stärksten Meldeaufkommen im August. [F1]
+- s1 🤔 s1 eight nectar plants as eats; a reader expects Brassicaceae
+
+### Kleiner Kohlweißling · *Pieris rapae* · en (insect, 9 lines) · validator ✓ · judge ss · orphans 0
+> The Small White has been recorded eating Red Clover, Valeriana rubra, common dandelion, Rapeseed, Hawkweed Oxtongue, Alfalfa, Purple Loosestrife, and Oregano. [F2,F3,F4,F5,F6,F7,F8,F9] 🤔 In the Mainz-Bingen region the main time runs from June to September, with reports peaking in August. [F1]
+- s1 🤔 same
+
+### Ackerhummel · *Bombus pascuorum* · de (insect, 9 lines) · validator ✓ · judge ss · orphans 0
+> Die Ackerhummel wurde beim Blütenbesuch an Sumpf-Kratzdistel, Gewöhnlichem Teufelsabbiss, Skabiosen-Flockenblume, Wiesen-Platterbse, Acker-Kratzdistel, Zaun-Wicke, Acker-Witwenblume und Rotem Fingerhut beobachtet. [F2,F3,F4,F5,F6,F7,F8,F9] In der Region Mainz-Bingen liegt die Hauptzeit von April bis September, mit dem stärksten Meldeaufkommen im August. [F1]
+
+### Ackerhummel · *Bombus pascuorum* · en (insect, 9 lines) · validator ✓ · judge ss · orphans 0
+> The Common Carder Bee has been recorded visiting the flowers of Marsh Thistle, Devil's-Bit Scabious, Greater Knapweed, Meadow vetchling, Creeping Thistle, Bush Vetch, field scabious, and Foxglove. [F2,F3,F4,F5,F6,F7,F8,F9] In the Mainz-Bingen region the main time runs from April to September, with reports peaking in August. [F1]
+
+### Rapsweißling · *Pieris napi* · de (insect, 9 lines) · validator ✓ · judge sss · orphans 0
+> Der Rapsweißling wurde beim Fressen von Oregano beobachtet. [F2] 🤔 Zudem wurde er beim Blütenbesuch an Oregano, Knoblauchsrauke, Purpurroter Taubnessel, Gewöhnlichem Blutweiderich, Gänseblümchen, Gewöhnlichem Teufelsabbiss und Schwarznessel beobachtet. [F3,F4,F5,F6,F7,F8,F9] In der Region Mainz-Bingen liegt die Hauptzeit von April bis September, mit dem stärksten Meldeaufkommen im Juli. [F1]
+- s1 🤔 s1 eats Oregano (10) next to s2 flower visits at Oregano (28): one behaviour, two GloBI verbs
+
+### Rapsweißling · *Pieris napi* · en (insect, 9 lines) · validator ✓ · judge sss · orphans 0
+> Pieris napi has been recorded eating Oregano (Origanum vulgare). [F2] 🤔 It has been recorded visiting the flowers of Oregano, Garlic Mustard, Red Dead-nettle, Purple Loosestrife, Daisy, Devil's-Bit Scabious, and Black Horehound. [F3,F4,F5,F6,F7,F8,F9] In the Mainz-Bingen region it is mainly reported between April and September, with peaks in April and July. [F1]
+- s1 🤔 same
+
+
 ## V1 (P1')
 
 ### Amsel · *Turdus merula* · de (bird, 16 lines) · validator ✓ · judge ssssssp · orphans 0

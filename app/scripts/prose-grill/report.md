@@ -36,14 +36,19 @@ Totals: DB edges 3328 · full −F1 1638 −F2 851 → 839 · eco candidates 241
 | run | validator ✓ | sentences | supported | partial | unsupported | texts with ❌ | claims | orphans | words (median) | JSON repaired draft / audit |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | ECO 0027 (P2') | 36 / 36 | 117 | 117 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 36 | 380 | 0 (0.0 / 100) | 54 | 0 / 0 |
+| ECO2 0027 (P3, F5 direction) | 36 / 36 | 110 | 110 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 36 | 360 | 0 (0.0 / 100) | 48 | 0 / 0 |
 | ECO 0026 | 38 / 38 | 141 | 118 (83.7 %) | 15 (10.6 %) | **8 (5.7 %)** | 6 / 38 | 463 | 19 (4.1 / 100) | 57 | 0 / 0 |
 | 0027 de | 18 / 18 | 58 | 58 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 18 | 189 | 0 (0.0 / 100) | 49 | 0 / 0 |
+| 0027 F5 de | 18 / 18 | 55 | 55 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 18 | 177 | 0 (0.0 / 100) | 45 | 0 / 0 |
 | 0026 de | 19 / 19 | 74 | 62 (83.8 %) | 5 (6.8 %) | **7 (9.5 %)** | 5 / 19 | 233 | 7 (3.0 / 100) | 56 | 0 / 0 |
 | 0027 en | 18 / 18 | 59 | 59 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 18 | 191 | 0 (0.0 / 100) | 57 | 0 / 0 |
+| 0027 F5 en | 18 / 18 | 55 | 55 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 18 | 183 | 0 (0.0 / 100) | 51 | 0 / 0 |
 | 0026 en | 19 / 19 | 67 | 56 (83.6 %) | 10 (14.9 %) | **1 (1.5 %)** | 1 / 19 | 230 | 12 (5.2 / 100) | 62 | 0 / 0 |
 | 0027 0019 ten | 16 / 16 | 48 | 48 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 16 | 173 | 0 (0.0 / 100) | 49 | 0 / 0 |
+| 0027 F5 0019 ten | 16 / 16 | 52 | 52 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 16 | 165 | 0 (0.0 / 100) | 57 | 0 / 0 |
 | 0026 0019 ten | 18 / 18 | 74 | 61 (82.4 %) | 9 (12.2 %) | **4 (5.4 %)** | 2 / 18 | 237 | 12 (5.1 / 100) | 62 | 0 / 0 |
 | 0027 insects | 20 / 20 | 69 | 69 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 20 | 207 | 0 (0.0 / 100) | 57 | 0 / 0 |
+| 0027 F5 insects | 20 / 20 | 58 | 58 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 20 | 195 | 0 (0.0 / 100) | 45 | 0 / 0 |
 | 0026 insects | 20 / 20 | 67 | 57 (85.1 %) | 6 (9.0 %) | **4 (6.0 %)** | 4 / 20 | 226 | 7 (3.1 / 100) | 56 | 0 / 0 |
 
 ### 👓 P2' hand read · 36 paragraphs, 117 sentences · 🙈 embarrassing **2** · 🤔 odd 8
@@ -87,6 +92,47 @@ Totals: DB edges 3328 · full −F1 1638 −F2 851 → 839 · eco candidates 241
 | Rapsweißling · de | — | s2 | s2 'Beim Fressen an Oregano (10)' next to s3 'Blütenbesuch an Oregano (28)': the same behaviour under two GloBI verbs |
 | Rapsweißling · en | — | s2 | same |
 
+### 👓 P3 (F5 direction) hand read · 36 paragraphs, 110 sentences · 🙈 embarrassing **0** · 🤔 odd 15
+
+| species · lang | 🙈 embarrassing | 🤔 odd | note |
+| --- | --- | --- | --- |
+| Amsel · de | — | — | clean; diet, habitat and activity lines now open the paragraph |
+| Amsel · en | — | — | clean |
+| Kleiner Feuerfalter · de | — | — | clean |
+| Kleiner Feuerfalter · en | — | — | clean |
+| Feuersalamander · de | — | s3 | s3 'Domestic Cat (Felis catus)': no German vernacular in the DB |
+| Feuersalamander · en | — | — | clean |
+| Große Brennnessel · de | — | — | clean: s3 'Als Fressfeinde sind Tagpfauenauge und Kleiner Fuchs verzeichnet' has the direction right now; s4 Wirtspflanze right |
+| Große Brennnessel · en | — | s3 | s3 'recorded as predators' for butterflies on a nettle: direction right, 'predator' is the template's word for a plant's eatenBy line; 'herbivore' would fit |
+| Kranich · de | — | — | clean |
+| Kranich · en | — | — | clean |
+| Hirschkäfer · de | — | s1 | s1 stag beetle eating beech, ash, hazel: 2 real records each from one dataset (adults lick sap, larvae in dead wood); true to the record, thin. F2 keeps it because 2 records pass the rule |
+| Hirschkäfer · en | — | s1 | same |
+| Grasfrosch · de | — | s2 | s2 Spitzschlammschnecke as a frog predator, 2 iNaturalist records |
+| Grasfrosch · en | — | s2 | same, 'Swamp lymnaea' |
+| Schwarz-Erle · de | — | — | clean: s3 'Sie ist als Wirt von Schmetterlings-Tramete … verzeichnet' has the direction right now |
+| Schwarz-Erle · en | — | s3 | s3 'predators of Black Alder' for goldfinch and musk beetle: the template's word for a plant's eatenBy line |
+| Dunkle Erdhummel · de | — | — | clean |
+| Dunkle Erdhummel · en | — | — | clean |
+| Schachbrett · de | — | — | clean |
+| Schachbrett · en | — | — | clean |
+| Europäische Gottesanbeterin · de | — | — | clean; the eats lines are in this time (honey bee 10, wasp 4, bush-cricket, grasshopper, wall lizard 2 each), all true to the literature |
+| Europäische Gottesanbeterin · en | — | — | clean, same |
+| Tagpfauenauge · de | — | s1 | s1 'beim Fressen der Großen Brennnessel, des Gemeinen Efeus und des Gewöhnlichen Wasserdosts': nettle is the larval food (40 records), ivy and hemp agrimony are adults at flowers under GloBI eats |
+| Tagpfauenauge · en | — | s1 | same |
+| Admiral · de | — | s1 | s1 'beim Fressen des Gemeinen Efeus': adults at ivy flowers as eats (26 records) |
+| Admiral · en | — | s2 | same |
+| Westliche Honigbiene · de | — | — | clean |
+| Westliche Honigbiene · en | — | — | clean |
+| Hauhechel-Bläuling · de | — | — | clean |
+| Hauhechel-Bläuling · en | — | — | clean |
+| Kleiner Kohlweißling · de | — | s1 | s1 eight nectar plants as eats; a reader expects Brassicaceae |
+| Kleiner Kohlweißling · en | — | s1 | same |
+| Ackerhummel · de | — | — | clean |
+| Ackerhummel · en | — | — | clean |
+| Rapsweißling · de | — | s1 | s1 eats Oregano (10) next to s2 flower visits at Oregano (28): one behaviour, two GloBI verbs |
+| Rapsweißling · en | — | s1 | same |
+
 ## ✍️ P1' · V1 closed world, 20 species × de + en
 
 | run | validator ✓ | sentences | supported | partial | unsupported | texts with ❌ | claims | orphans | words (median) | JSON repaired draft / audit |
@@ -117,6 +163,7 @@ none
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | P2 | 36 | 8 | 2.6 | 36 | 8 | 1.0 | 5.7 |
 | P1 | 40 | 8 | 3.2 | 40 | 8 | 1.6 | 7.5 |
+| P3 | 36 | 8 | 1.8 | 36 | 8 | 2.3 | 5.4 |
 
 ## 📈 The production run on the plan (was P4)
 
