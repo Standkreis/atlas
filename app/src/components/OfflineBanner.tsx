@@ -32,7 +32,11 @@ export function OfflineBanner() {
     }
     const unsubQ = qc.getQueryCache().subscribe(onEvent)
     const unsubM = qc.getMutationCache().subscribe(onEvent)
-    return () => { window.removeEventListener('online', sync); window.removeEventListener('offline', sync); unsubQ(); unsubM() }
+    // 0025 B8: the worker served this page from its cache (a reload without network); a page whose queries are all
+    // fresh would otherwise show nothing until one of them failed.
+    const onWorker = (e: MessageEvent) => { if (e.data?.type === 'dex:offline') setOffline(true) }
+    navigator.serviceWorker?.addEventListener('message', onWorker)
+    return () => { window.removeEventListener('online', sync); window.removeEventListener('offline', sync); unsubQ(); unsubM(); navigator.serviceWorker?.removeEventListener('message', onWorker) }
   }, [qc])
 
   // The pages own their headers, so the strip sits fixed at the top and the body makes room for it while it shows.

@@ -44,7 +44,14 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return
   const url = new URL(req.url)
   const own = url.origin === self.location.origin
-  if (req.mode === 'navigate') event.respondWith(navigate(req, url))
+  if (req.mode === 'navigate') {
+    const nav = navigate(req, url)
+    event.respondWith(nav.then((n) => n.response))
+    // 0025 B8: a navigation answered from the cache is the honest offline signal for a page whose queries are all
+    // fresh (nothing fails, and `navigator.onLine` may still say true). The window client exists only once the
+    // response is committed, so the word goes out a moment later, to every window; the banner keys on it.
+    event.waitUntil(nav.then((n) => (n.offline ? tellOffline() : null)))
+  }
   else if (own && url.pathname.startsWith('/_next/static/')) event.respondWith(cacheFirst(STATIC, req))
   else if (isImage(url, own)) event.respondWith(image(req))
   else if (own && ASSETS.includes(url.pathname)) event.respondWith(cacheFirst(SHELL, req))
@@ -98,12 +105,15 @@ async function navigate(req, url) {
       const c = await caches.open(SHELL)
       c.put(pageKey(url), res.clone()).then(() => trimPages(c)).catch(() => {})
     }
-    return res
+    return { response: res, offline: false }
   } catch {
     const c = await caches.open(SHELL)
-    return (await c.match(pageKey(url))) ?? (await c.match(`${pageKey(url)}/`)) ?? speciesWaits(url) ?? (await sightingShell(url, c)) ?? (await shellOf(url, c)) ?? Response.error()
+    const response = (await c.match(pageKey(url))) ?? (await c.match(`${pageKey(url)}/`)) ?? speciesWaits(url) ?? (await sightingShell(url, c)) ?? (await shellOf(url, c)) ?? Response.error()
+    return { response, offline: true }
   }
 }
+
+const tellOffline = () => new Promise((r) => setTimeout(r, 1500)).then(() => self.clients.matchAll({ type: 'window' })).then((cs) => cs.forEach((c) => c.postMessage({ type: 'dex:offline' })))
 
 async function rememberPage(url) {
   const c = await caches.open(SHELL)
