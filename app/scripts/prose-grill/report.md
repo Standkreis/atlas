@@ -1,89 +1,127 @@
-## P1 · Sonnet 5, three variants, 20 species × de + en
+# 📊 0027 prose re-grill · report
 
-| run | validator ✓ | sentences | supported | partial | unsupported | texts with ❌ | claims | orphans | words (median) | ¢ / species de+en+audit |
+Model claude-sonnet-5 as Claude Code subagents (`model: "sonnet"`), 5 prompts per agent, drafts and audits in separate agents. 0026 columns from `e58e14e` (API, Sonnet 5). No dollars: no API call was made.
+
+## 🔧 F1–F4 · edges per species
+
+`full` = the V1 sheet's GloBI lines (all DB edges of the species), `eco` = the ECO sheet's candidates (named partner, in-set or ≥ 2 records, 0026's rule). F1 = eats/eatenBy whose studies are all metawebs (Reji Chacko trophiCH, Maiorano TETRA-EU). F2 = ≤ 1 real record from ≤ 1 real study. "eco kept" = after the cap of 8; in brackets 0026's kept count.
+
+| species | tile | GloBI records | DB edges | full −F1 | full −F2 | full after | eco before (0026 rule) | eco −F1 | eco −F2 | eco after | eco kept (0026) | eco lines | ≥ 3 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Turdus merula | bird | 17253 | 200 | 184 | 0 | 16 | 198 | 182 | 0 | 16 | 8 (8) | 12 | ✓ |
+| Lycaena phlaeas | insect | 2275 | 200 | 58 | 92 | 50 | 197 | 58 | 91 | 48 | 8 (8) | 9 | ✓ |
+| Amanita muscaria | fungus | 935 | 13 | 0 | 8 | 5 | 2 | 0 | 2 | 0 | 0 (2) | 1 | ✗ |
+| Salamandra salamandra | amphibian | 1447 | 187 | 180 | 2 | 5 | 22 | 20 | 0 | 2 | 2 (8) | 6 | ✓ |
+| Urtica dioica | plant | 850 | 92 | 0 | 46 | 46 | 10 | 0 | 5 | 5 | 5 (8) | 7 | ✓ |
+| Zoropsis spinimana | insect | 5 | 2 | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 (0) | 1 | ✗ |
+| Grus grus | bird | 1750 | 198 | 197 | 1 | 0 | 28 | 28 | 0 | 0 | 0 (8) | 4 | ✓ |
+| Lucanus cervus | insect | 99 | 43 | 36 | 3 | 4 | 12 | 8 | 1 | 3 | 3 (8) | 4 | ✓ |
+| Rana temporaria | amphibian | 1192 | 198 | 170 | 19 | 9 | 54 | 41 | 8 | 5 | 5 (8) | 9 | ✓ |
+| Alnus glutinosa | plant | 24782 | 200 | 179 | 13 | 8 | 85 | 64 | 13 | 8 | 8 (8) | 10 | ✓ |
+| Bombus terrestris | insect | 38390 | 200 | 7 | 57 | 136 | 198 | 7 | 57 | 134 | 8 (8) | 9 | ✓ |
+| Melanargia galathea | insect | 1910 | 199 | 87 | 68 | 44 | 174 | 65 | 66 | 43 | 8 (8) | 9 | ✓ |
+| Mantis religiosa | insect | 592 | 196 | 164 | 12 | 20 | 39 | 25 | 7 | 7 | 7 (8) | 8 | ✓ |
+| Aglais io | insect | 2736 | 200 | 68 | 88 | 44 | 197 | 67 | 88 | 42 | 8 (8) | 9 | ✓ |
+| Vanessa atalanta | insect | 6603 | 200 | 56 | 82 | 62 | 199 | 56 | 82 | 61 | 8 (8) | 9 | ✓ |
+| Apis mellifera | insect | 50000+ (189 pair queries) | 200 | 0 | 93 | 107 | 200 | 0 | 93 | 107 | 8 (8) | 9 | ✓ |
+| Polyommatus icarus | insect | 3377 | 200 | 68 | 69 | 63 | 198 | 68 | 68 | 62 | 8 (8) | 9 | ✓ |
+| Pieris rapae | insect | 14887 | 200 | 90 | 65 | 45 | 199 | 89 | 65 | 45 | 8 (8) | 9 | ✓ |
+| Bombus pascuorum | insect | 35476 | 200 | 7 | 72 | 121 | 200 | 7 | 72 | 121 | 8 (8) | 9 | ✓ |
+| Pieris napi | insect | 3448 | 200 | 87 | 59 | 54 | 200 | 87 | 59 | 54 | 8 (8) | 9 | ✓ |
+
+Totals: DB edges 3328 · full −F1 1638 −F2 851 → 839 · eco candidates 2412 −F1 872 −F2 777 → 763. F2 drops with 0 GloBI records (the DB edge is not in GloBI's answer for the pair): Melanargia galathea 5, Aglais io 5, Apis mellifera 20. F3 and F4 are prompt and validator rules; their effect is the ❌ classification and the validator column below.
+
+## 🌿 P2' · Ökologie paragraph, 18 species × de + en (0026: 19 species)
+
+| run | validator ✓ | sentences | supported | partial | unsupported | texts with ❌ | claims | orphans | words (median) | JSON repaired draft / audit |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| V0 | 38 / 40 | 237 | 106 (44.7 %) | 89 (37.6 %) | **42 (17.7 %)** | 28 / 40 | 1030 | 198 (19.2 / 100) | 115 | 4.6 |
-| V1 | 33 / 40 | 160 | 137 (85.6 %) | 16 (10.0 %) | **7 (4.4 %)** | 6 / 40 | 698 | 27 (3.9 / 100) | 84 | 3.6 |
-| V2 | 38 / 40 | 302 | 270 (89.4 %) | 18 (6.0 %) | **14 (4.6 %)** | 13 / 40 | 919 | 11 (1.2 / 100) | 108 | 4.3 |
+| ECO 0027 (P2') | 36 / 36 | 117 | 117 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 36 | 380 | 0 (0.0 / 100) | 54 | 0 / 0 |
+| ECO 0026 | 38 / 38 | 141 | 118 (83.7 %) | 15 (10.6 %) | **8 (5.7 %)** | 6 / 38 | 463 | 19 (4.1 / 100) | 57 | 0 / 0 |
+| 0027 de | 18 / 18 | 58 | 58 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 18 | 189 | 0 (0.0 / 100) | 49 | 0 / 0 |
+| 0026 de | 19 / 19 | 74 | 62 (83.8 %) | 5 (6.8 %) | **7 (9.5 %)** | 5 / 19 | 233 | 7 (3.0 / 100) | 56 | 0 / 0 |
+| 0027 en | 18 / 18 | 59 | 59 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 18 | 191 | 0 (0.0 / 100) | 57 | 0 / 0 |
+| 0026 en | 19 / 19 | 67 | 56 (83.6 %) | 10 (14.9 %) | **1 (1.5 %)** | 1 / 19 | 230 | 12 (5.2 / 100) | 62 | 0 / 0 |
+| 0027 0019 ten | 16 / 16 | 48 | 48 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 16 | 173 | 0 (0.0 / 100) | 49 | 0 / 0 |
+| 0026 0019 ten | 18 / 18 | 74 | 61 (82.4 %) | 9 (12.2 %) | **4 (5.4 %)** | 2 / 18 | 237 | 12 (5.1 / 100) | 62 | 0 / 0 |
+| 0027 insects | 20 / 20 | 69 | 69 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 20 | 207 | 0 (0.0 / 100) | 57 | 0 / 0 |
+| 0026 insects | 20 / 20 | 67 | 57 (85.1 %) | 6 (9.0 %) | **4 (6.0 %)** | 4 / 20 | 226 | 7 (3.1 / 100) | 56 | 0 / 0 |
 
-### P1 by language and by the 0019 ten vs the ten insects
+### 👓 P2' hand read · 36 paragraphs, 117 sentences · 🙈 embarrassing **2** · 🤔 odd 8
 
-| run | validator ✓ | sentences | supported | partial | unsupported | texts with ❌ | claims | orphans | words (median) | ¢ / species de+en+audit |
+| species · lang | 🙈 embarrassing | 🤔 odd | note |
+| --- | --- | --- | --- |
+| Amsel · de | — | — | clean: eight fruit and berry plants, 17–40 real records each |
+| Amsel · en | — | — | clean |
+| Kleiner Feuerfalter · de | — | — | clean: eight nectar plants |
+| Kleiner Feuerfalter · en | — | — | clean |
+| Feuersalamander · de | — | s2 | s2 'ebenso die Domestic Cat': Felis catus has no German vernacular in the DB, the sheet falls back to the English name. The 0026 ducks, crane, boar and gull are gone (F1) |
+| Feuersalamander · en | — | — | clean: grass snake (10 records), domestic cat (2) |
+| Große Brennnessel · de | s2 | — | s2 'Sie wurde beim Fressen von Tagpfauenauge … beobachtet': the nettle observed eating the peacock. The line is 'wird gefressen von'; the model applied the eats template to eatenBy. Judge: supported. s3 (Wirtspflanze) correct |
+| Große Brennnessel · en | — | — | clean: the direction is right in English ('have been recorded eating stinging nettle') |
+| Kranich · de | — | — | clean: no partner lines survive F1/F2, one phenology sentence |
+| Kranich · en | — | — | clean |
+| Hirschkäfer · de | — | — | clean: the model left the three 2-record 'eats' lines (Rotbuche, Esche, Hasel; larval wood) out; phenology only |
+| Hirschkäfer · en | — | — | clean, same omission |
+| Grasfrosch · de | — | s2 | s2 'Spitzschlammschnecke' as a frog predator: 2 iNaturalist records (snails on spawn or dead tadpoles); true to the record, a herpetologist frowns. F2 keeps it because two records from one study pass '≤ 1' |
+| Grasfrosch · en | — | s2 | same, plus 'swamp lymnaea' as the English name |
+| Schwarz-Erle · de | s3 | — | s3 'Als Wirt verzeichnet sind Schmetterlings-Tramete, Zunderschwamm, …': reads as the fungi being the host. The line is 'Wirt von'; the eatenBy template ('Als Fressfeinde verzeichnet sind …', s2, correct) was reused for hostOf. Judge: supported (the audit agent flagged it in its summary, not in the verdict) |
+| Schwarz-Erle · en | — | — | clean: 'recorded as a host for the fungi …', 'for the moths …', direction right |
+| Dunkle Erdhummel · de | — | — | clean |
+| Dunkle Erdhummel · en | — | — | clean |
+| Schachbrett · de | — | — | clean: pollinates + visitsFlowersOf on Acker-Witwenblume both kept, both stated |
+| Schachbrett · en | — | — | clean |
+| Europäische Gottesanbeterin · de | — | — | clean: predators only; the model left the 'eats' lines (honey bee 10, wasp 4, wall lizard 2) out |
+| Europäische Gottesanbeterin · en | — | — | clean, same |
+| Tagpfauenauge · de | — | — | clean: flower visits; the 'eats' lines (nettle 40, ivy 22) left out |
+| Tagpfauenauge · en | — | — | clean |
+| Admiral · de | — | — | clean |
+| Admiral · en | — | s2 | s2 'recorded eating English Ivy': 26 iNaturalist 'eats' records are adults at ivy flowers; true to the line, 'eating' is the wrong word for nectaring |
+| Westliche Honigbiene · de | — | — | clean: Asian hornet 857 records, crab spiders, four forage plants |
+| Westliche Honigbiene · en | — | — | clean |
+| Hauhechel-Bläuling · de | — | — | clean |
+| Hauhechel-Bläuling · en | — | — | clean |
+| Kleiner Kohlweißling · de | — | s2 | s2–s4 'beim Fressen an Wiesenklee, Roter Spornblume, Löwenzahn …': all eight 'eats' lines are adults nectaring (iNaturalist); a reader expects Brassicaceae. Same in en |
+| Kleiner Kohlweißling · en | — | s2 | same |
+| Ackerhummel · de | — | — | clean: eight forage plants, 173–499 records |
+| Ackerhummel · en | — | — | clean |
+| Rapsweißling · de | — | s2 | s2 'Beim Fressen an Oregano (10)' next to s3 'Blütenbesuch an Oregano (28)': the same behaviour under two GloBI verbs |
+| Rapsweißling · en | — | s2 | same |
+
+## ✍️ P1' · V1 closed world, 20 species × de + en
+
+| run | validator ✓ | sentences | supported | partial | unsupported | texts with ❌ | claims | orphans | words (median) | JSON repaired draft / audit |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| V0 de | 20 / 20 | 120 | 65 (54.2 %) | 37 (30.8 %) | **18 (15.0 %)** | 13 / 20 | 484 | 68 (14.0 / 100) | 108 | 2.4 |
-| V0 en | 18 / 20 | 117 | 41 (35.0 %) | 52 (44.4 %) | **24 (20.5 %)** | 15 / 20 | 546 | 130 (23.8 / 100) | 129 | 2.2 |
-| V0 0019 ten | 18 / 20 | 125 | 54 (43.2 %) | 52 (41.6 %) | **19 (15.2 %)** | 14 / 20 | 478 | 91 (19.0 / 100) | 119 | 4.3 |
-| V0 insects | 20 / 20 | 112 | 52 (46.4 %) | 37 (33.0 %) | **23 (20.5 %)** | 14 / 20 | 552 | 107 (19.4 / 100) | 114 | 4.9 |
-| V1 de | 15 / 20 | 84 | 69 (82.1 %) | 10 (11.9 %) | **5 (6.0 %)** | 4 / 20 | 350 | 19 (5.4 / 100) | 81 | 2.0 |
-| V1 en | 18 / 20 | 76 | 68 (89.5 %) | 6 (7.9 %) | **2 (2.6 %)** | 2 / 20 | 348 | 8 (2.3 / 100) | 92 | 1.6 |
-| V1 0019 ten | 16 / 20 | 84 | 70 (83.3 %) | 10 (11.9 %) | **4 (4.8 %)** | 4 / 20 | 336 | 16 (4.8 / 100) | 84 | 3.4 |
-| V1 insects | 17 / 20 | 76 | 67 (88.2 %) | 6 (7.9 %) | **3 (3.9 %)** | 2 / 20 | 362 | 11 (3.0 / 100) | 86 | 3.9 |
-| V2 de | 18 / 20 | 153 | 141 (92.2 %) | 9 (5.9 %) | **3 (2.0 %)** | 3 / 20 | 449 | 0 (0.0 / 100) | 98 | 2.3 |
-| V2 en | 20 / 20 | 149 | 129 (86.6 %) | 9 (6.0 %) | **11 (7.4 %)** | 10 / 20 | 470 | 11 (2.3 / 100) | 113 | 2.0 |
-| V2 0019 ten | 19 / 20 | 154 | 135 (87.7 %) | 14 (9.1 %) | **5 (3.2 %)** | 5 / 20 | 447 | 2 (0.4 / 100) | 111 | 4.1 |
-| V2 insects | 19 / 20 | 148 | 135 (91.2 %) | 4 (2.7 %) | **9 (6.1 %)** | 8 / 20 | 472 | 9 (1.9 / 100) | 105 | 4.5 |
+| V1 0027 (P1') | 40 / 40 | 202 | 200 (99.0 %) | 2 (1.0 %) | **0 (0.0 %)** | 0 / 40 | 513 | 1 (0.2 / 100) | 69 | 0 / 0 |
+| V1 0026 | 33 / 40 | 160 | 137 (85.6 %) | 16 (10.0 %) | **7 (4.4 %)** | 6 / 40 | 698 | 27 (3.9 / 100) | 84 | 0 / 0 |
+| 0027 de | 20 / 20 | 103 | 101 (98.1 %) | 2 (1.9 %) | **0 (0.0 %)** | 0 / 20 | 258 | 1 (0.4 / 100) | 64 | 0 / 0 |
+| 0026 de | 15 / 20 | 84 | 69 (82.1 %) | 10 (11.9 %) | **5 (6.0 %)** | 4 / 20 | 350 | 19 (5.4 / 100) | 81 | 0 / 0 |
+| 0027 en | 20 / 20 | 99 | 99 (100.0 %) | 0 (0.0 %) | **0 (0.0 %)** | 0 / 20 | 255 | 0 (0.0 / 100) | 71 | 0 / 0 |
+| 0026 en | 18 / 20 | 76 | 68 (89.5 %) | 6 (7.9 %) | **2 (2.6 %)** | 2 / 20 | 348 | 8 (2.3 / 100) | 92 | 0 / 0 |
+| 0027 0019 ten | 20 / 20 | 103 | 102 (99.0 %) | 1 (1.0 %) | **0 (0.0 %)** | 0 / 20 | 235 | 0 (0.0 / 100) | 71 | 0 / 0 |
+| 0026 0019 ten | 16 / 20 | 84 | 70 (83.3 %) | 10 (11.9 %) | **4 (4.8 %)** | 4 / 20 | 336 | 16 (4.8 / 100) | 84 | 0 / 0 |
+| 0027 insects | 20 / 20 | 99 | 98 (99.0 %) | 1 (1.0 %) | **0 (0.0 %)** | 0 / 20 | 278 | 1 (0.4 / 100) | 64 | 0 / 0 |
+| 0026 insects | 17 / 20 | 76 | 67 (88.2 %) | 6 (7.9 %) | **3 (3.9 %)** | 2 / 20 | 362 | 11 (3.0 / 100) | 86 | 0 / 0 |
 
-## P2 · Ökologie paragraph, Sonnet 5, 19 species with ≥ 3 lines × de + en
+### ❌ every unsupported sentence, both runs (0)
 
-| run | validator ✓ | sentences | supported | partial | unsupported | texts with ❌ | claims | orphans | words (median) | ¢ / species de+en+audit |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| ECO | 38 / 38 | 141 | 118 (83.7 %) | 15 (10.6 %) | **8 (5.7 %)** | 6 / 38 | 463 | 19 (4.1 / 100) | 57 | 2.4 |
-| ECO de | 19 / 19 | 74 | 62 (83.8 %) | 5 (6.8 %) | **7 (9.5 %)** | 5 / 19 | 233 | 7 (3.0 / 100) | 56 | 1.3 |
-| ECO en | 19 / 19 | 67 | 56 (83.6 %) | 10 (14.9 %) | **1 (1.5 %)** | 1 / 19 | 230 | 12 (5.2 / 100) | 62 | 1.1 |
-| ECO insects | 20 / 20 | 67 | 57 (85.1 %) | 6 (9.0 %) | **4 (6.0 %)** | 4 / 20 | 226 | 7 (3.1 / 100) | 56 | 2.4 |
-| ECO 0019 ten | 18 / 18 | 74 | 61 (82.4 %) | 9 (12.2 %) | **4 (5.4 %)** | 2 / 18 | 237 | 12 (5.1 / 100) | 62 | 2.5 |
-
-### P2 hand read (10 paragraphs)
-
-| species · lang | embarrassing sentences | note |
-| --- | --- | --- |
-| Feuersalamander · de | s4, s5 | Kranich, Tafelente, Eichelhäher, Stockente, Wildschwein, Silbermöwe as Feuersalamander predators: 5–11 GloBI records each, one food-web dataset; ducks do not eat toxic salamanders |
-| Feuersalamander · en | s4 | same: pochard, mallard, herring gull as predators |
-| Kranich · de | s4 | Kranich frisst Feuersalamander: the mirror of the same food-web row |
-| Kranich · en | s3 | same, fire salamander in the crane's food list |
-| Große Brennnessel · de | s3 | Siebenpunkt- and Zweipunkt-Marienkäfer as Fressfeinde of the nettle (they eat the aphids on it), 1 record each, kept because in-set |
-| Große Brennnessel · en | s3 | same, ladybirds eating the nettle |
-| Hirschkäfer · de | s2, s3 | Hirschkäfer beim Fressen von Vogelkirsche, Schlehdorn, Kirschpflaume beobachtet: 0019 doubt 2 verbatim, 1 record each, in-set |
-| Hirschkäfer · en | s2, s3 | same, feeding on Sweet Cherry, Blackthorn, Cherry Plum |
-| Rapsweißling · de | — | Rapsweißling beim Fressen von Oregano: a nectar visit coded as eats; odd, not wrong |
-| Kleiner Kohlweißling · de | — | Kohlweißling frisst Blutweiderich, Braunelle: nectar coded as eats; odd, not wrong |
-
-Embarrassing sentences in the hand read: **11** of 40 sentences.
-
-## P3 · variant V1 on three models, 20 species × de + en
-
-| run | validator ✓ | sentences | supported | partial | unsupported | texts with ❌ | claims | orphans | words (median) | ¢ / species de+en+audit |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| claude-sonnet-5 | 33 / 40 | 160 | 137 (85.6 %) | 16 (10.0 %) | **7 (4.4 %)** | 6 / 40 | 698 | 27 (3.9 / 100) | 84 | 3.6 |
-| claude-opus-5 | 40 / 40 | 241 | 201 (83.4 %) | 26 (10.8 %) | **14 (5.8 %)** | 13 / 40 | 808 | 26 (3.2 / 100) | 102 | 5.9 |
-| claude-haiku-4-5-20251001 | 40 / 40 | 170 | 114 (67.1 %) | 34 (20.0 %) | **22 (12.9 %)** | 16 / 40 | 788 | 71 (9.0 / 100) | 77 | 3.0 |
-
-Audit is Sonnet 5 on every model; "¢ / species" holds the draft on the model plus the Sonnet audit.
-
-### P3 median tokens and latency per draft
-
-| model | input tokens | output tokens | ms | ¢ per draft | stop_reason ≠ end_turn |
-| --- | --- | --- | --- | --- | --- |
-| claude-sonnet-5 | 1970 | 364 | 5485 | 0.74 | 0 |
-| claude-opus-5 | 1259 | 404 | 6538 | 1.76 | 0 |
-| claude-haiku-4-5-20251001 | 1493 | 321 | 3613 | 0.32 | 0 |
-
-## P4 · cost at scale (Batches API −50 % on draft and audit)
-
-| variant · model | ¢ / species (API) | ¢ / species (Batches) | 2 414 taxa (Neon) | one region ≈ 300 | rewrite 20 % / year of 2 414 |
-| --- | --- | --- | --- | --- | --- |
-| V1 · claude-sonnet-5 | 3.6 | 1.8 | 43.58 $ | 5.42 $ | 8.72 $ |
-| V0 · claude-sonnet-5 | 4.6 | 2.3 | 55.32 $ | 6.87 $ | 11.06 $ |
-| V2 · claude-sonnet-5 | 4.3 | 2.1 | 51.77 $ | 6.43 $ | 10.35 $ |
-| ECO · claude-sonnet-5 | 2.4 | 1.2 | 29.48 $ | 3.66 $ | 5.90 $ |
-| V1 · claude-opus-5 | 5.9 | 2.9 | 70.80 $ | 8.80 $ | 14.16 $ |
-| V1 · claude-haiku-4-5-20251001 | 3.0 | 1.5 | 35.97 $ | 4.47 $ | 7.19 $ |
-
-## 💸 Spend · 476 paid calls · **4.730 $** of the 8 $ cap
-
-| model · call | calls | input tokens | output tokens | $ |
+| run | species · lang | s | text | judge |
 | --- | --- | --- | --- | --- |
-| claude-sonnet-5 · draft | 158 | 259641 | 62902 | 1.148 |
-| claude-sonnet-5 · audit | 238 | 423357 | 191980 | 2.767 |
-| claude-opus-5 · draft | 40 | 78133 | 16773 | 0.690 |
-| claude-haiku-4-5-20251001 · draft | 40 | 59104 | 13139 | 0.125 |
+
+### validator failures (0)
+
+none
+
+## ⏱️ Subagents and wall time (nominal ⌈n / 5⌉; retries in the findings)
+
+| run | drafts | draft agents | draft wall min | audits | audit agents | audit wall min | prompts → last audit min |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| P2 | 36 | 8 | 2.6 | 36 | 8 | 1.0 | 5.7 |
+| P1 | 40 | 8 | 3.2 | 40 | 8 | 1.6 | 7.5 |
+
+## 📈 The production run on the plan (was P4)
+
+| scope | taxa | drafts (de+en) | audits | subagents (5 each) | subagent minutes at 1 min each |
+| --- | --- | --- | --- | --- | --- |
+| one region | 300 | 600 | 600 | 240 | 240 |
+| Neon today | 2414 | 4828 | 4828 | 1932 | 1932 |
+| rewrite 20 % / year | 483 | 966 | 966 | 388 | 388 |
