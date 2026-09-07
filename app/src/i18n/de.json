@@ -437,7 +437,12 @@
           "terrestrial": "an Land",
           "aquatic": "im Wasser",
           "arboreal": "auf Bäumen",
-          "fossorial": "im Boden"
+          "fossorial": "im Boden",
+          "ground": "Boden",
+          "understory": "Unterholz",
+          "canopy": "Baumkronen",
+          "aerial": "Luft",
+          "water": "Wasser"
         },
         "diet": {
           "invertivore": "Wirbellose",

@@ -78,6 +78,10 @@ export const metres = (m: number) => (m < 1 ? `${Math.round(m * 100)} cm` : `${t
 const HABITAT: Record<string, string> = { Forest: 'forest', Woodland: 'woodland', Grassland: 'grassland', Wetland: 'wetland', Marine: 'marine', Coastal: 'coastal', Shrubland: 'shrubland', Desert: 'desert', Rock: 'rock', 'Human Modified': 'human', Riverine: 'riverine' }
 const NICHE: Record<string, string> = { Invertivore: 'invertivore', Omnivore: 'omnivore', Granivore: 'granivore', Frugivore: 'frugivore', 'Herbivore terrestrial': 'herbivore', 'Herbivore aquatic': 'herbivoreAquatic', 'Aquatic predator': 'aquaticPredator', Vertivore: 'vertivore', Scavenger: 'scavenger', Nectarivore: 'nectarivore' }
 const MIGRATION: Record<string, string> = { '1': 'resident', '2': 'partial', '3': 'full' }
+// EltonTraits foraging strata (% of foraging time) folded to five words; the second word of a bird's habitat (0025 C2).
+const STRATA: [string, string[]][] = [['water', ['ForStrat-watbelowsurf', 'ForStrat-wataroundsurf']], ['ground', ['ForStrat-ground']], ['understory', ['ForStrat-understory']], ['canopy', ['ForStrat-midhigh', 'ForStrat-canopy']], ['aerial', ['ForStrat-aerial']]]
+/** The stratum the primary class already says: "Feuchtgebiet, Wasser" or "Grasland, Boden" would repeat itself. */
+const SAID: Record<string, string> = { wetland: 'water', marine: 'water', coastal: 'water', riverine: 'water', grassland: 'ground', desert: 'ground', rock: 'ground', shrubland: 'understory' }
 const flags = (row: Row, map: Record<string, string>) => Object.entries(map).filter(([col]) => row[col] === '1').map(([, code]) => code)
 
 /** EltonTraits diet shares (%) → the categories at 20 % or more, largest first, at most three. */
@@ -88,6 +92,18 @@ export function dietFromShares(row: Row): string[] {
     ['fruit', share(['Diet-Fruit'])], ['nectar', share(['Diet-Nect'])], ['seeds', share(['Diet-Seed'])], ['plants', share(['Diet-PlantO'])],
   ]
   return cats.filter(([, s]) => s >= 20).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c]) => c)
+}
+
+/**
+ * EltonTraits' foraging stratum as the second word of a bird's habitat (0025 C2): the stratum with at least half of the
+ * foraging time, when the AVONET class does not say it already. Amsel: Forest + ground 60 → "forest, ground"; Mauersegler:
+ * Human Modified + aerial 100 → "human, aerial"; Stockente: Wetland + water 80 → "wetland"; Buchfink: ground 40 → "forest".
+ */
+export function stratumWord(row: Row, habitat: string | undefined): string | null {
+  const share = (cols: string[]) => cols.reduce((a, c) => a + (num(row[c]) ?? 0), 0)
+  const top = STRATA.map(([code, cols]) => [code, share(cols)] as const).sort((a, b) => b[1] - a[1])[0]
+  if (!top || top[1] < 50) return null
+  return habitat && SAID[habitat] === top[0] ? null : top[0]
 }
 
 /** The Steckbrief facts a taxon gets from the files; `names` = its binomial first, then GBIF synonyms. Empty for other tiles. */
@@ -101,7 +117,10 @@ export function bulkFacts(tile: string, names: string[]): Record<string, Fact> {
     if (a) {
       const g = num(a.Mass); if (g) fact('mass', grams(g), REFS.avonet)
       fact('migration', MIGRATION[a.Migration ?? ''], REFS.avonet)
-      fact('habitat', HABITAT[a.Habitat ?? ''], REFS.avonet)
+      const habitat = HABITAT[a.Habitat ?? '']
+      const stratum = e ? stratumWord(e, habitat) : null
+      if (habitat && stratum) out.habitat = { value: `${habitat}, ${stratum}`, source: 'AVONET, EltonTraits', url: REFS.avonet.url, licence: REFS.avonet.licence } // CC BY covers both, Elton is CC0
+      else fact('habitat', habitat, REFS.avonet)
       fact('diet', NICHE[a['Trophic.Niche'] ?? ''], REFS.avonet)
     }
     if (e && !miss(e.Nocturnal)) fact('activity', e.Nocturnal === '1' ? 'nocturnal' : 'diurnal', REFS.elton)
