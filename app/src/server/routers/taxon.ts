@@ -211,12 +211,14 @@ export const taxonRouter = router({
     if (!tile) throw new Error(`taxon ${input.gbifKey} (${s.canonicalName}) fits no tile`)
     const data = { gbifKey: s.key, sciName: s.canonicalName ?? s.scientificName ?? String(s.key), rank: (s.rank ?? 'SPECIES').toLowerCase(), tile, class: s.class ?? null, order: s.order ?? null, genus: s.genus ?? null, commonNames: names }
     // Two taps at once (0025 A9): the second create hits the unique key; it reads the row the first one made instead of failing.
+    let raced = false
     const created = await ctx.db.taxon.create({ data, select: ensureSelect }).catch(async (e: unknown) => {
       if (!(e instanceof Error && 'code' in e && e.code === 'P2002')) throw e
+      raced = true
       return ctx.db.taxon.findUniqueOrThrow({ where: { gbifKey: s.key }, select: ensureSelect })
     })
     kickContent(s.key)
-    return { ...created, lead: created.assets[0]?.url ?? null, created: true }
+    return { ...created, lead: created.assets[0]?.url ?? null, created: !raced }
   }),
 
   /** The typed search, capped per identity (handoff 0009 Track B); the work is `backboneSearch`. `locale` is accepted for the client's cache key. */
