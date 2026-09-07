@@ -401,6 +401,9 @@
         "other": "Sound"
       },
       "values": {
+        "height": {
+          "max": "up to {v}"
+        },
         "lifespan": {
           "years": "up to {n} years",
           "wild": "wild",

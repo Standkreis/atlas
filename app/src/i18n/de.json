@@ -401,6 +401,9 @@
         "other": "Laut"
       },
       "values": {
+        "height": {
+          "max": "bis {v}"
+        },
         "lifespan": {
           "years": "bis {n} Jahre",
           "wild": "frei lebend",

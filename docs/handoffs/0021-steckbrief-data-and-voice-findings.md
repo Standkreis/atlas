@@ -138,7 +138,7 @@ Headless Chrome drops `Network.emulateNetworkConditions` on the hard navigation 
 | --- | --- |
 | A | **Fliegenpilz "Heilpilz"**: Wikidata P789 holds `medicinal mushrooms` next to poisonous and psychoactive. The code is translated faithfully; the mycomorphbox is only as good as its editors. The box above stays the guard |
 | B | AnAge values are still English on the German page (`21.8 years (wild)`, `mature at 365 days`) — untouched by this handoff, the same before |
-| C | GIFT `height` is the **maximum** (`1.6.2`): Brennnessel 3 m, Stieleiche 50 m. Correct but tall; a label "Höhe bis" would say so |
+| C | ~~GIFT `height` is the **maximum** (`1.6.2`): Brennnessel 3 m, Stieleiche 50 m. Correct but tall~~ → fixed with 0024: the cell reads **"bis 3 m"** / "up to 3 m" (`species.facts.values.height.max`) |
 | D | Bird `habitat` from AVONET is one word (`Wald` for the Amsel, `Gebüsch` for the Schwarzkehlchen); AVONET's `Habitat` is the primary class only |
 | E | 5 of 89 Mainz-Bingen taxa have no clip: 3 with ND-only recordings, 4 grasshoppers whose A recordings are WAV only. Cropping or transcoding would need ffmpeg in the ETL; left out |
 | F | Sounds are all NC (`CC BY-NC-SA`, one `CC BY-NC`): fine for this app, a blocker for anything sold later |

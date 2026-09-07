@@ -110,7 +110,9 @@ export function SpeciesPage() {
   const factWords = (k: string, v: string) => {
     if (CODED.has(k)) return v.split(', ').map((c) => (t.has(`facts.values.${k}.${c}`) ? t(`facts.values.${k}.${c}`) : c)).join(', ')
     if (k === 'flowering') return locale === 'en' ? v.replace(/Mär|Mai|Okt|Dez/g, (m) => MONTHS_EN[m] ?? m) : v
-    if (METRIC.has(k) && locale === 'de') return v.replace(/(\d)\.(\d)/g, '$1,$2')
+    const metric = METRIC.has(k) && locale === 'de' ? v.replace(/(\d)\.(\d)/g, '$1,$2') : v
+    if (k === 'height') return t('facts.values.height.max', { v: metric }) // GIFT 1.6.2 is the maximum (findings 0021 doubt C)
+    if (METRIC.has(k)) return metric
     if (k === 'lifespan') return lifespanWords(v)
     if (k === 'reproduction') return reproductionWords(v)
     return v
