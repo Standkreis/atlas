@@ -1,0 +1,13 @@
+{
+ "_": "Hand read of every Ökologie paragraph (P2), 2026-09-07, Claude Fable 5.1 for the owner. `embarrassing`: sentence numbers a reader who knows the species would laugh at; the audit marks every one of them supported, because they are true to the GloBI line.",
+ "ECO-sonnet-2431776-de": { "embarrassing": [4, 5], "note": "Kranich, Tafelente, Eichelhäher, Stockente, Wildschwein, Silbermöwe as Feuersalamander predators: 5–11 GloBI records each, one food-web dataset; ducks do not eat toxic salamanders" },
+ "ECO-sonnet-2431776-en": { "embarrassing": [4], "note": "same: pochard, mallard, herring gull as predators" },
+ "ECO-sonnet-2474950-de": { "embarrassing": [4], "note": "Kranich frisst Feuersalamander: the mirror of the same food-web row" },
+ "ECO-sonnet-2474950-en": { "embarrassing": [3], "note": "same, fire salamander in the crane's food list" },
+ "ECO-sonnet-7960979-de": { "embarrassing": [3], "note": "Siebenpunkt- and Zweipunkt-Marienkäfer as Fressfeinde of the nettle (they eat the aphids on it), 1 record each, kept because in-set" },
+ "ECO-sonnet-7960979-en": { "embarrassing": [3], "note": "same, ladybirds eating the nettle" },
+ "ECO-sonnet-5743122-de": { "embarrassing": [2, 3], "note": "Hirschkäfer beim Fressen von Vogelkirsche, Schlehdorn, Kirschpflaume beobachtet: 0019 doubt 2 verbatim, 1 record each, in-set" },
+ "ECO-sonnet-5743122-en": { "embarrassing": [2, 3], "note": "same, feeding on Sweet Cherry, Blackthorn, Cherry Plum" },
+ "ECO-sonnet-1920494-de": { "embarrassing": [], "note": "Rapsweißling beim Fressen von Oregano: a nectar visit coded as eats; odd, not wrong" },
+ "ECO-sonnet-1920496-de": { "embarrassing": [], "note": "Kohlweißling frisst Blutweiderich, Braunelle: nectar coded as eats; odd, not wrong" }
+}

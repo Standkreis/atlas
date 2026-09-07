@@ -1,0 +1,4767 @@
+{
+ "at": "2026-09-07T12:00:45.526Z",
+ "cap": 8,
+ "total": 4.729801499999999,
+ "calls": [
+  {
+   "id": "draft-V1-sonnet-2490719-en",
+   "model": "claude-sonnet-5",
+   "input": 1668,
+   "output": 351,
+   "cents": 0.685,
+   "usd": 0.006846,
+   "ms": 5485,
+   "at": "2026-09-07T11:40:15.076Z"
+  },
+  {
+   "id": "draft-V1-sonnet-2490719-de",
+   "model": "claude-sonnet-5",
+   "input": 1863,
+   "output": 461,
+   "cents": 0.834,
+   "usd": 0.008336,
+   "ms": 6148,
+   "at": "2026-09-07T11:40:15.729Z"
+  },
+  {
+   "id": "audit-V1-sonnet-2490719-en",
+   "model": "claude-sonnet-5",
+   "input": 1583,
+   "output": 671,
+   "cents": 0.988,
+   "usd": 0.009876,
+   "ms": 5571,
+   "at": "2026-09-07T11:40:20.649Z"
+  },
+  {
+   "id": "audit-V1-sonnet-2490719-de",
+   "model": "claude-sonnet-5",
+   "input": 1863,
+   "output": 839,
+   "cents": 1.212,
+   "usd": 0.012116,
+   "ms": 8089,
+   "at": "2026-09-07T11:40:23.820Z"
+  },
+  {
+   "id": "draft-V0-sonnet-2490719-en",
+   "model": "claude-sonnet-5",
+   "input": 1509,
+   "output": 421,
+   "cents": 0.723,
+   "usd": 0.007228,
+   "ms": 4645,
+   "at": "2026-09-07T11:40:41.944Z"
+  },
+  {
+   "id": "draft-V0-sonnet-2490719-de",
+   "model": "claude-sonnet-5",
+   "input": 1704,
+   "output": 543,
+   "cents": 0.884,
+   "usd": 0.008838,
+   "ms": 6449,
+   "at": "2026-09-07T11:40:43.736Z"
+  },
+  {
+   "id": "draft-V0-sonnet-1929697-de",
+   "model": "claude-sonnet-5",
+   "input": 2416,
+   "output": 489,
+   "cents": 0.972,
+   "usd": 0.009722,
+   "ms": 7033,
+   "at": "2026-09-07T11:40:44.331Z"
+  },
+  {
+   "id": "audit-V0-sonnet-2490719-en",
+   "model": "claude-sonnet-5",
+   "input": 1645,
+   "output": 935,
+   "cents": 1.264,
+   "usd": 0.01264,
+   "ms": 8137,
+   "at": "2026-09-07T11:40:50.083Z"
+  },
+  {
+   "id": "audit-V0-sonnet-2490719-de",
+   "model": "claude-sonnet-5",
+   "input": 1929,
+   "output": 1009,
+   "cents": 1.395,
+   "usd": 0.013948,
+   "ms": 9303,
+   "at": "2026-09-07T11:40:53.040Z"
+  },
+  {
+   "id": "audit-V0-sonnet-1929697-de",
+   "model": "claude-sonnet-5",
+   "input": 2591,
+   "output": 956,
+   "cents": 1.474,
+   "usd": 0.014742,
+   "ms": 9016,
+   "at": "2026-09-07T11:40:53.348Z"
+  },
+  {
+   "id": "draft-V0-sonnet-1929697-en",
+   "model": "claude-sonnet-5",
+   "input": 2161,
+   "output": 402,
+   "cents": 0.834,
+   "usd": 0.008342,
+   "ms": 7023,
+   "at": "2026-09-07T11:40:57.107Z"
+  },
+  {
+   "id": "draft-V0-sonnet-8168319-de",
+   "model": "claude-sonnet-5",
+   "input": 1538,
+   "output": 376,
+   "cents": 0.684,
+   "usd": 0.006836,
+   "ms": 4702,
+   "at": "2026-09-07T11:40:57.744Z"
+  },
+  {
+   "id": "draft-V0-sonnet-8168319-en",
+   "model": "claude-sonnet-5",
+   "input": 1406,
+   "output": 390,
+   "cents": 0.671,
+   "usd": 0.006712,
+   "ms": 4502,
+   "at": "2026-09-07T11:40:57.852Z"
+  },
+  {
+   "id": "audit-V0-sonnet-8168319-en",
+   "model": "claude-sonnet-5",
+   "input": 1495,
+   "output": 894,
+   "cents": 1.193,
+   "usd": 0.01193,
+   "ms": 7632,
+   "at": "2026-09-07T11:41:05.484Z"
+  },
+  {
+   "id": "audit-V0-sonnet-8168319-de",
+   "model": "claude-sonnet-5",
+   "input": 1606,
+   "output": 856,
+   "cents": 1.177,
+   "usd": 0.011772,
+   "ms": 8615,
+   "at": "2026-09-07T11:41:06.360Z"
+  },
+  {
+   "id": "audit-V0-sonnet-1929697-en",
+   "model": "claude-sonnet-5",
+   "input": 2283,
+   "output": 1175,
+   "cents": 1.632,
+   "usd": 0.016316,
+   "ms": 10972,
+   "at": "2026-09-07T11:41:08.080Z"
+  },
+  {
+   "id": "draft-V0-sonnet-2431776-en",
+   "model": "claude-sonnet-5",
+   "input": 1588,
+   "output": 401,
+   "cents": 0.719,
+   "usd": 0.007186,
+   "ms": 5432,
+   "at": "2026-09-07T11:41:11.794Z"
+  },
+  {
+   "id": "draft-V0-sonnet-2431776-de",
+   "model": "claude-sonnet-5",
+   "input": 1753,
+   "output": 522,
+   "cents": 0.873,
+   "usd": 0.008726,
+   "ms": 7933,
+   "at": "2026-09-07T11:41:13.420Z"
+  },
+  {
+   "id": "draft-V0-sonnet-7960979-de",
+   "model": "claude-sonnet-5",
+   "input": 2027,
+   "output": 541,
+   "cents": 0.946,
+   "usd": 0.009464,
+   "ms": 6198,
+   "at": "2026-09-07T11:41:14.279Z"
+  },
+  {
+   "id": "audit-V0-sonnet-2431776-en",
+   "model": "claude-sonnet-5",
+   "input": 1701,
+   "output": 950,
+   "cents": 1.29,
+   "usd": 0.012902,
+   "ms": 7533,
+   "at": "2026-09-07T11:41:19.328Z"
+  },
+  {
+   "id": "draft-V0-sonnet-7960979-en",
+   "model": "claude-sonnet-5",
+   "input": 1852,
+   "output": 480,
+   "cents": 0.85,
+   "usd": 0.008504,
+   "ms": 5618,
+   "at": "2026-09-07T11:41:24.949Z"
+  },
+  {
+   "id": "audit-V0-sonnet-2431776-de",
+   "model": "claude-sonnet-5",
+   "input": 1959,
+   "output": 1282,
+   "cents": 1.674,
+   "usd": 0.016738,
+   "ms": 11649,
+   "at": "2026-09-07T11:41:25.070Z"
+  },
+  {
+   "id": "audit-V0-sonnet-7960979-de",
+   "model": "claude-sonnet-5",
+   "input": 2237,
+   "output": 1176,
+   "cents": 1.623,
+   "usd": 0.016234,
+   "ms": 10943,
+   "at": "2026-09-07T11:41:25.224Z"
+  },
+  {
+   "id": "draft-V0-sonnet-2153287-de",
+   "model": "claude-sonnet-5",
+   "input": 1113,
+   "output": 303,
+   "cents": 0.526,
+   "usd": 0.005256,
+   "ms": 5333,
+   "at": "2026-09-07T11:41:30.405Z"
+  },
+  {
+   "id": "draft-V0-sonnet-2153287-en",
+   "model": "claude-sonnet-5",
+   "input": 1007,
+   "output": 323,
+   "cents": 0.524,
+   "usd": 0.005244,
+   "ms": 5576,
+   "at": "2026-09-07T11:41:30.803Z"
+  },
+  {
+   "id": "audit-V0-sonnet-7960979-en",
+   "model": "claude-sonnet-5",
+   "input": 2036,
+   "output": 1146,
+   "cents": 1.553,
+   "usd": 0.015532,
+   "ms": 9270,
+   "at": "2026-09-07T11:41:34.219Z"
+  },
+  {
+   "id": "audit-V0-sonnet-2153287-de",
+   "model": "claude-sonnet-5",
+   "input": 1111,
+   "output": 488,
+   "cents": 0.71,
+   "usd": 0.007102,
+   "ms": 5267,
+   "at": "2026-09-07T11:41:35.672Z"
+  },
+  {
+   "id": "audit-V0-sonnet-2153287-en",
+   "model": "claude-sonnet-5",
+   "input": 1047,
+   "output": 673,
+   "cents": 0.882,
+   "usd": 0.008824,
+   "ms": 5647,
+   "at": "2026-09-07T11:41:36.451Z"
+  },
+  {
+   "id": "draft-V0-sonnet-2474950-de",
+   "model": "claude-sonnet-5",
+   "input": 1521,
+   "output": 500,
+   "cents": 0.804,
+   "usd": 0.008042,
+   "ms": 5465,
+   "at": "2026-09-07T11:41:39.686Z"
+  },
+  {
+   "id": "draft-V0-sonnet-2474950-en",
+   "model": "claude-sonnet-5",
+   "input": 1359,
+   "output": 555,
+   "cents": 0.827,
+   "usd": 0.008268,
+   "ms": 5943,
+   "at": "2026-09-07T11:41:41.616Z"
+  },
+  {
+   "id": "draft-V0-sonnet-5743122-de",
+   "model": "claude-sonnet-5",
+   "input": 1419,
+   "output": 488,
+   "cents": 0.772,
+   "usd": 0.007718,
+   "ms": 5666,
+   "at": "2026-09-07T11:41:42.119Z"
+  },
+  {
+   "id": "audit-V0-sonnet-2474950-de",
+   "model": "claude-sonnet-5",
+   "input": 1704,
+   "output": 1002,
+   "cents": 1.343,
+   "usd": 0.013428,
+   "ms": 9711,
+   "at": "2026-09-07T11:41:49.398Z"
+  },
+  {
+   "id": "audit-V0-sonnet-2474950-en",
+   "model": "claude-sonnet-5",
+   "input": 1616,
+   "output": 1369,
+   "cents": 1.692,
+   "usd": 0.016922,
+   "ms": 9886,
+   "at": "2026-09-07T11:41:51.502Z"
+  },
+  {
+   "id": "audit-V0-sonnet-5743122-de",
+   "model": "claude-sonnet-5",
+   "input": 1591,
+   "output": 960,
+   "cents": 1.278,
+   "usd": 0.012782,
+   "ms": 10137,
+   "at": "2026-09-07T11:41:52.258Z"
+  },
+  {
+   "id": "draft-V0-sonnet-5743122-en",
+   "model": "claude-sonnet-5",
+   "input": 1273,
+   "output": 324,
+   "cents": 0.579,
+   "usd": 0.005786,
+   "ms": 4534,
+   "at": "2026-09-07T11:41:53.933Z"
+  },
+  {
+   "id": "draft-V0-sonnet-2426805-de",
+   "model": "claude-sonnet-5",
+   "input": 1811,
+   "output": 568,
+   "cents": 0.93,
+   "usd": 0.009302,
+   "ms": 6200,
+   "at": "2026-09-07T11:41:57.703Z"
+  },
+  {
+   "id": "draft-V0-sonnet-2426805-en",
+   "model": "claude-sonnet-5",
+   "input": 1630,
+   "output": 430,
+   "cents": 0.756,
+   "usd": 0.00756,
+   "ms": 6693,
+   "at": "2026-09-07T11:41:58.952Z"
+  },
+  {
+   "id": "audit-V0-sonnet-5743122-en",
+   "model": "claude-sonnet-5",
+   "input": 1317,
+   "output": 720,
+   "cents": 0.983,
+   "usd": 0.009834,
+   "ms": 5877,
+   "at": "2026-09-07T11:41:59.811Z"
+  },
+  {
+   "id": "draft-V0-sonnet-2876213-de",
+   "model": "claude-sonnet-5",
+   "input": 1759,
+   "output": 530,
+   "cents": 0.882,
+   "usd": 0.008818,
+   "ms": 5716,
+   "at": "2026-09-07T11:42:05.528Z"
+  },
+  {
+   "id": "audit-V0-sonnet-2426805-en",
+   "model": "claude-sonnet-5",
+   "input": 1749,
+   "output": 1021,
+   "cents": 1.371,
+   "usd": 0.013708,
+   "ms": 8546,
+   "at": "2026-09-07T11:42:07.498Z"
+  },
+  {
+   "id": "audit-V0-sonnet-2426805-de",
+   "model": "claude-sonnet-5",
+   "input": 2057,
+   "output": 1183,
+   "cents": 1.594,
+   "usd": 0.015944,
+   "ms": 9934,
+   "at": "2026-09-07T11:42:07.638Z"
+  },
+  {
+   "id": "draft-V0-sonnet-2876213-en",
+   "model": "claude-sonnet-5",
+   "input": 1589,
+   "output": 460,
+   "cents": 0.778,
+   "usd": 0.007778,
+   "ms": 4964,
+   "at": "2026-09-07T11:42:12.464Z"
+  },
+  {
+   "id": "draft-V0-sonnet-1340503-de",
+   "model": "claude-sonnet-5",
+   "input": 1893,
+   "output": 450,
+   "cents": 0.829,
+   "usd": 0.008286,
+   "ms": 6363,
+   "at": "2026-09-07T11:42:14.003Z"
+  },
+  {
+   "id": "audit-V0-sonnet-2876213-de",
+   "model": "claude-sonnet-5",
+   "input": 1971,
+   "output": 1154,
+   "cents": 1.548,
+   "usd": 0.015482,
+   "ms": 8944,
+   "at": "2026-09-07T11:42:14.473Z"
+  },
+  {
+   "id": "audit-V0-sonnet-2876213-en",
+   "model": "claude-sonnet-5",
+   "input": 1754,
+   "output": 974,
+   "cents": 1.325,
+   "usd": 0.013248,
+   "ms": 7489,
+   "at": "2026-09-07T11:42:19.955Z"
+  },
+  {
+   "id": "draft-V0-sonnet-1340503-en",
+   "model": "claude-sonnet-5",
+   "input": 1683,
+   "output": 454,
+   "cents": 0.791,
+   "usd": 0.007906,
+   "ms": 6001,
+   "at": "2026-09-07T11:42:20.478Z"
+  },
+  {
+   "id": "draft-V0-sonnet-7854318-de",
+   "model": "claude-sonnet-5",
+   "input": 2108,
+   "output": 482,
+   "cents": 0.904,
+   "usd": 0.009036,
+   "ms": 5936,
+   "at": "2026-09-07T11:42:25.891Z"
+  },
+  {
+   "id": "audit-V0-sonnet-1340503-de",
+   "model": "claude-sonnet-5",
+   "input": 2040,
+   "output": 1138,
+   "cents": 1.546,
+   "usd": 0.01546,
+   "ms": 13088,
+   "at": "2026-09-07T11:42:27.092Z"
+  },
+  {
+   "id": "audit-V0-sonnet-1340503-en",
+   "model": "claude-sonnet-5",
+   "input": 1851,
+   "output": 1156,
+   "cents": 1.526,
+   "usd": 0.015262,
+   "ms": 9874,
+   "at": "2026-09-07T11:42:30.352Z"
+  },
+  {
+   "id": "draft-V0-sonnet-7854318-en",
+   "model": "claude-sonnet-5",
+   "input": 1877,
+   "output": 367,
+   "cents": 0.742,
+   "usd": 0.007424,
+   "ms": 4693,
+   "at": "2026-09-07T11:42:31.787Z"
+  },
+  {
+   "id": "audit-V0-sonnet-7854318-de",
+   "model": "claude-sonnet-5",
+   "input": 2284,
+   "output": 1072,
+   "cents": 1.529,
+   "usd": 0.015288,
+   "ms": 9288,
+   "at": "2026-09-07T11:42:35.181Z"
+  },
+  {
+   "id": "draft-V0-sonnet-6258028-de",
+   "model": "claude-sonnet-5",
+   "input": 1612,
+   "output": 463,
+   "cents": 0.785,
+   "usd": 0.007854,
+   "ms": 5503,
+   "at": "2026-09-07T11:42:35.859Z"
+  },
+  {
+   "id": "audit-V0-sonnet-7854318-en",
+   "model": "claude-sonnet-5",
+   "input": 1974,
+   "output": 937,
+   "cents": 1.332,
+   "usd": 0.013318,
+   "ms": 7250,
+   "at": "2026-09-07T11:42:39.038Z"
+  },
+  {
+   "id": "draft-V0-sonnet-6258028-en",
+   "model": "claude-sonnet-5",
+   "input": 1473,
+   "output": 337,
+   "cents": 0.632,
+   "usd": 0.006316,
+   "ms": 3932,
+   "at": "2026-09-07T11:42:39.115Z"
+  },
+  {
+   "id": "audit-V0-sonnet-6258028-de",
+   "model": "claude-sonnet-5",
+   "input": 1754,
+   "output": 1006,
+   "cents": 1.357,
+   "usd": 0.013568,
+   "ms": 9911,
+   "at": "2026-09-07T11:42:45.770Z"
+  },
+  {
+   "id": "audit-V0-sonnet-6258028-en",
+   "model": "claude-sonnet-5",
+   "input": 1533,
+   "output": 765,
+   "cents": 1.072,
+   "usd": 0.010716,
+   "ms": 6986,
+   "at": "2026-09-07T11:42:46.102Z"
+  },
+  {
+   "id": "draft-V0-sonnet-4535827-de",
+   "model": "claude-sonnet-5",
+   "input": 2277,
+   "output": 546,
+   "cents": 1.001,
+   "usd": 0.010014,
+   "ms": 9189,
+   "at": "2026-09-07T11:42:48.229Z"
+  },
+  {
+   "id": "draft-V0-sonnet-4535827-en",
+   "model": "claude-sonnet-5",
+   "input": 2033,
+   "output": 403,
+   "cents": 0.81,
+   "usd": 0.008096,
+   "ms": 5005,
+   "at": "2026-09-07T11:42:50.777Z"
+  },
+  {
+   "id": "draft-V0-sonnet-1898286-de",
+   "model": "claude-sonnet-5",
+   "input": 2293,
+   "output": 676,
+   "cents": 1.135,
+   "usd": 0.011346,
+   "ms": 7614,
+   "at": "2026-09-07T11:42:53.717Z"
+  },
+  {
+   "id": "audit-V0-sonnet-4535827-en",
+   "model": "claude-sonnet-5",
+   "input": 2162,
+   "output": 976,
+   "cents": 1.408,
+   "usd": 0.014084,
+   "ms": 7505,
+   "at": "2026-09-07T11:42:58.283Z"
+  },
+  {
+   "id": "audit-V0-sonnet-4535827-de",
+   "model": "claude-sonnet-5",
+   "input": 2509,
+   "output": 1326,
+   "cents": 1.828,
+   "usd": 0.018278,
+   "ms": 11264,
+   "at": "2026-09-07T11:42:59.494Z"
+  },
+  {
+   "id": "draft-V0-sonnet-1898286-en",
+   "model": "claude-sonnet-5",
+   "input": 2026,
+   "output": 454,
+   "cents": 0.859,
+   "usd": 0.008592,
+   "ms": 7427,
+   "at": "2026-09-07T11:43:05.711Z"
+  },
+  {
+   "id": "audit-V0-sonnet-1898286-de",
+   "model": "claude-sonnet-5",
+   "input": 2648,
+   "output": 1468,
+   "cents": 1.998,
+   "usd": 0.019976,
+   "ms": 12166,
+   "at": "2026-09-07T11:43:05.884Z"
+  },
+  {
+   "id": "draft-V0-sonnet-1341976-de",
+   "model": "claude-sonnet-5",
+   "input": 2223,
+   "output": 565,
+   "cents": 1.01,
+   "usd": 0.010096,
+   "ms": 7646,
+   "at": "2026-09-07T11:43:07.142Z"
+  },
+  {
+   "id": "draft-V0-sonnet-1341976-en",
+   "model": "claude-sonnet-5",
+   "input": 1953,
+   "output": 492,
+   "cents": 0.883,
+   "usd": 0.008826,
+   "ms": 5913,
+   "at": "2026-09-07T11:43:11.799Z"
+  },
+  {
+   "id": "audit-V0-sonnet-1898286-en",
+   "model": "claude-sonnet-5",
+   "input": 2184,
+   "output": 1564,
+   "cents": 2.001,
+   "usd": 0.020008,
+   "ms": 12146,
+   "at": "2026-09-07T11:43:17.864Z"
+  },
+  {
+   "id": "audit-V0-sonnet-1341976-de",
+   "model": "claude-sonnet-5",
+   "input": 2471,
+   "output": 1262,
+   "cents": 1.756,
+   "usd": 0.017562,
+   "ms": 10876,
+   "at": "2026-09-07T11:43:18.018Z"
+  },
+  {
+   "id": "audit-V0-sonnet-1341976-en",
+   "model": "claude-sonnet-5",
+   "input": 2151,
+   "output": 1095,
+   "cents": 1.525,
+   "usd": 0.015252,
+   "ms": 10153,
+   "at": "2026-09-07T11:43:21.952Z"
+  },
+  {
+   "id": "draft-V0-sonnet-5140214-en",
+   "model": "claude-sonnet-5",
+   "input": 1989,
+   "output": 394,
+   "cents": 0.792,
+   "usd": 0.007918,
+   "ms": 4908,
+   "at": "2026-09-07T11:43:22.928Z"
+  },
+  {
+   "id": "draft-V0-sonnet-5140214-de",
+   "model": "claude-sonnet-5",
+   "input": 2256,
+   "output": 838,
+   "cents": 1.289,
+   "usd": 0.012892,
+   "ms": 9292,
+   "at": "2026-09-07T11:43:27.160Z"
+  },
+  {
+   "id": "draft-V0-sonnet-1920496-en",
+   "model": "claude-sonnet-5",
+   "input": 1904,
+   "output": 365,
+   "cents": 0.746,
+   "usd": 0.007458,
+   "ms": 4575,
+   "at": "2026-09-07T11:43:31.738Z"
+  },
+  {
+   "id": "draft-V0-sonnet-1920496-de",
+   "model": "claude-sonnet-5",
+   "input": 2135,
+   "output": 586,
+   "cents": 1.013,
+   "usd": 0.01013,
+   "ms": 10082,
+   "at": "2026-09-07T11:43:32.035Z"
+  },
+  {
+   "id": "audit-V0-sonnet-5140214-en",
+   "model": "claude-sonnet-5",
+   "input": 2105,
+   "output": 1048,
+   "cents": 1.469,
+   "usd": 0.01469,
+   "ms": 9253,
+   "at": "2026-09-07T11:43:32.181Z"
+  },
+  {
+   "id": "draft-V0-sonnet-1340405-de",
+   "model": "claude-sonnet-5",
+   "input": 2036,
+   "output": 519,
+   "cents": 0.926,
+   "usd": 0.009262,
+   "ms": 6019,
+   "at": "2026-09-07T11:43:38.202Z"
+  },
+  {
+   "id": "audit-V0-sonnet-1920496-en",
+   "model": "claude-sonnet-5",
+   "input": 2002,
+   "output": 857,
+   "cents": 1.257,
+   "usd": 0.012574,
+   "ms": 8107,
+   "at": "2026-09-07T11:43:39.846Z"
+  },
+  {
+   "id": "audit-V0-sonnet-1920496-de",
+   "model": "claude-sonnet-5",
+   "input": 2402,
+   "output": 1309,
+   "cents": 1.789,
+   "usd": 0.017894,
+   "ms": 12510,
+   "at": "2026-09-07T11:43:44.546Z"
+  },
+  {
+   "id": "draft-V0-sonnet-1340405-en",
+   "model": "claude-sonnet-5",
+   "input": 1799,
+   "output": 551,
+   "cents": 0.911,
+   "usd": 0.009108,
+   "ms": 7671,
+   "at": "2026-09-07T11:43:47.520Z"
+  },
+  {
+   "id": "audit-V0-sonnet-1340405-de",
+   "model": "claude-sonnet-5",
+   "input": 2239,
+   "output": 1054,
+   "cents": 1.502,
+   "usd": 0.015018,
+   "ms": 9343,
+   "at": "2026-09-07T11:43:47.545Z"
+  },
+  {
+   "id": "draft-V0-sonnet-1920494-de",
+   "model": "claude-sonnet-5",
+   "input": 1989,
+   "output": 565,
+   "cents": 0.963,
+   "usd": 0.009628,
+   "ms": 6523,
+   "at": "2026-09-07T11:43:51.071Z"
+  },
+  {
+   "id": "draft-V1-sonnet-1929697-de",
+   "model": "claude-sonnet-5",
+   "input": 2575,
+   "output": 399,
+   "cents": 0.914,
+   "usd": 0.00914,
+   "ms": 6439,
+   "at": "2026-09-07T11:43:53.987Z"
+  },
+  {
+   "id": "draft-V0-sonnet-1920494-en",
+   "model": "claude-sonnet-5",
+   "input": 1779,
+   "output": 455,
+   "cents": 0.811,
+   "usd": 0.008108,
+   "ms": 6761,
+   "at": "2026-09-07T11:43:54.284Z"
+  },
+  {
+   "id": "audit-V0-sonnet-1920494-de",
+   "model": "claude-sonnet-5",
+   "input": 2233,
+   "output": 1164,
+   "cents": 1.611,
+   "usd": 0.016106,
+   "ms": 9486,
+   "at": "2026-09-07T11:44:00.559Z"
+  },
+  {
+   "id": "audit-V1-sonnet-1929697-de",
+   "model": "claude-sonnet-5",
+   "input": 2517,
+   "output": 770,
+   "cents": 1.273,
+   "usd": 0.012734,
+   "ms": 7067,
+   "at": "2026-09-07T11:44:01.056Z"
+  },
+  {
+   "id": "draft-V1-sonnet-1929697-en",
+   "model": "claude-sonnet-5",
+   "input": 2320,
+   "output": 364,
+   "cents": 0.828,
+   "usd": 0.00828,
+   "ms": 5512,
+   "at": "2026-09-07T11:44:06.073Z"
+  },
+  {
+   "id": "draft-V1-sonnet-8168319-de",
+   "model": "claude-sonnet-5",
+   "input": 1697,
+   "output": 374,
+   "cents": 0.713,
+   "usd": 0.007134,
+   "ms": 5823,
+   "at": "2026-09-07T11:44:06.880Z"
+  },
+  {
+   "id": "audit-V1-sonnet-1929697-en",
+   "model": "claude-sonnet-5",
+   "input": 2253,
+   "output": 734,
+   "cents": 1.185,
+   "usd": 0.011846,
+   "ms": 5405,
+   "at": "2026-09-07T11:44:11.479Z"
+  },
+  {
+   "id": "draft-V1-sonnet-8168319-en",
+   "model": "claude-sonnet-5",
+   "input": 1565,
+   "output": 283,
+   "cents": 0.596,
+   "usd": 0.00596,
+   "ms": 4798,
+   "at": "2026-09-07T11:44:12.627Z"
+  },
+  {
+   "id": "audit-V1-sonnet-8168319-de",
+   "model": "claude-sonnet-5",
+   "input": 1593,
+   "output": 698,
+   "cents": 1.017,
+   "usd": 0.010166,
+   "ms": 6450,
+   "at": "2026-09-07T11:44:13.330Z"
+  },
+  {
+   "id": "draft-V1-sonnet-2431776-de",
+   "model": "claude-sonnet-5",
+   "input": 1912,
+   "output": 393,
+   "cents": 0.775,
+   "usd": 0.007754,
+   "ms": 5302,
+   "at": "2026-09-07T11:44:16.784Z"
+  },
+  {
+   "id": "draft-V1-sonnet-2431776-en",
+   "model": "claude-sonnet-5",
+   "input": 1747,
+   "output": 341,
+   "cents": 0.69,
+   "usd": 0.006904,
+   "ms": 4950,
+   "at": "2026-09-07T11:44:18.281Z"
+  },
+  {
+   "id": "audit-V1-sonnet-8168319-en",
+   "model": "claude-sonnet-5",
+   "input": 1417,
+   "output": 676,
+   "cents": 0.959,
+   "usd": 0.009594,
+   "ms": 5922,
+   "at": "2026-09-07T11:44:18.550Z"
+  },
+  {
+   "id": "draft-V1-sonnet-7960979-en",
+   "model": "claude-sonnet-5",
+   "input": 2011,
+   "output": 145,
+   "cents": 0.547,
+   "usd": 0.005472,
+   "ms": 2781,
+   "at": "2026-09-07T11:44:21.333Z"
+  },
+  {
+   "id": "audit-V1-sonnet-2431776-de",
+   "model": "claude-sonnet-5",
+   "input": 1846,
+   "output": 763,
+   "cents": 1.132,
+   "usd": 0.011322,
+   "ms": 6492,
+   "at": "2026-09-07T11:44:23.277Z"
+  },
+  {
+   "id": "audit-V1-sonnet-7960979-en",
+   "model": "claude-sonnet-5",
+   "input": 1739,
+   "output": 228,
+   "cents": 0.576,
+   "usd": 0.005758,
+   "ms": 2968,
+   "at": "2026-09-07T11:44:24.301Z"
+  },
+  {
+   "id": "draft-V1-sonnet-7960979-de",
+   "model": "claude-sonnet-5",
+   "input": 2186,
+   "output": 728,
+   "cents": 1.165,
+   "usd": 0.011652,
+   "ms": 8644,
+   "at": "2026-09-07T11:44:26.926Z"
+  },
+  {
+   "id": "draft-V1-sonnet-2153287-en",
+   "model": "claude-sonnet-5",
+   "input": 1166,
+   "output": 191,
+   "cents": 0.424,
+   "usd": 0.004242,
+   "ms": 4265,
+   "at": "2026-09-07T11:44:28.570Z"
+  },
+  {
+   "id": "draft-V1-sonnet-2153287-de",
+   "model": "claude-sonnet-5",
+   "input": 1272,
+   "output": 225,
+   "cents": 0.479,
+   "usd": 0.004794,
+   "ms": 5578,
+   "at": "2026-09-07T11:44:28.859Z"
+  },
+  {
+   "id": "audit-V1-sonnet-2153287-en",
+   "model": "claude-sonnet-5",
+   "input": 931,
+   "output": 297,
+   "cents": 0.483,
+   "usd": 0.004832,
+   "ms": 2618,
+   "at": "2026-09-07T11:44:31.188Z"
+  },
+  {
+   "id": "draft-V1-sonnet-2474950-de",
+   "model": "claude-sonnet-5",
+   "input": 1680,
+   "output": 400,
+   "cents": 0.736,
+   "usd": 0.00736,
+   "ms": 4666,
+   "at": "2026-09-07T11:44:31.596Z"
+  },
+  {
+   "id": "audit-V1-sonnet-2153287-de",
+   "model": "claude-sonnet-5",
+   "input": 1041,
+   "output": 495,
+   "cents": 0.703,
+   "usd": 0.007032,
+   "ms": 5791,
+   "at": "2026-09-07T11:44:34.651Z"
+  },
+  {
+   "id": "draft-V1-sonnet-2474950-en",
+   "model": "claude-sonnet-5",
+   "input": 1518,
+   "output": 310,
+   "cents": 0.614,
+   "usd": 0.006136,
+   "ms": 5500,
+   "at": "2026-09-07T11:44:36.690Z"
+  },
+  {
+   "id": "audit-V1-sonnet-2474950-de",
+   "model": "claude-sonnet-5",
+   "input": 1620,
+   "output": 582,
+   "cents": 0.906,
+   "usd": 0.00906,
+   "ms": 5516,
+   "at": "2026-09-07T11:44:37.114Z"
+  },
+  {
+   "id": "draft-V1-sonnet-5743122-de",
+   "model": "claude-sonnet-5",
+   "input": 1578,
+   "output": 304,
+   "cents": 0.62,
+   "usd": 0.006196,
+   "ms": 4476,
+   "at": "2026-09-07T11:44:39.129Z"
+  },
+  {
+   "id": "draft-V1-sonnet-5743122-en",
+   "model": "claude-sonnet-5",
+   "input": 1432,
+   "output": 198,
+   "cents": 0.484,
+   "usd": 0.004844,
+   "ms": 3571,
+   "at": "2026-09-07T11:44:40.686Z"
+  },
+  {
+   "id": "audit-V1-sonnet-2474950-en",
+   "model": "claude-sonnet-5",
+   "input": 1395,
+   "output": 658,
+   "cents": 0.937,
+   "usd": 0.00937,
+   "ms": 5873,
+   "at": "2026-09-07T11:44:42.564Z"
+  },
+  {
+   "id": "audit-V1-sonnet-5743122-en",
+   "model": "claude-sonnet-5",
+   "input": 1207,
+   "output": 390,
+   "cents": 0.631,
+   "usd": 0.006314,
+   "ms": 3756,
+   "at": "2026-09-07T11:44:44.442Z"
+  },
+  {
+   "id": "audit-V1-sonnet-5743122-de",
+   "model": "claude-sonnet-5",
+   "input": 1413,
+   "output": 496,
+   "cents": 0.779,
+   "usd": 0.007786,
+   "ms": 5440,
+   "at": "2026-09-07T11:44:44.569Z"
+  },
+  {
+   "id": "draft-V1-sonnet-2426805-de",
+   "model": "claude-sonnet-5",
+   "input": 1970,
+   "output": 474,
+   "cents": 0.868,
+   "usd": 0.00868,
+   "ms": 6322,
+   "at": "2026-09-07T11:44:48.887Z"
+  },
+  {
+   "id": "draft-V1-sonnet-2426805-en",
+   "model": "claude-sonnet-5",
+   "input": 1789,
+   "output": 329,
+   "cents": 0.687,
+   "usd": 0.006868,
+   "ms": 4828,
+   "at": "2026-09-07T11:44:49.275Z"
+  },
+  {
+   "id": "draft-V1-sonnet-2876213-de",
+   "model": "claude-sonnet-5",
+   "input": 1918,
+   "output": 369,
+   "cents": 0.753,
+   "usd": 0.007526,
+   "ms": 5229,
+   "at": "2026-09-07T11:44:49.831Z"
+  },
+  {
+   "id": "audit-V1-sonnet-2426805-en",
+   "model": "claude-sonnet-5",
+   "input": 1683,
+   "output": 709,
+   "cents": 1.046,
+   "usd": 0.010456,
+   "ms": 5954,
+   "at": "2026-09-07T11:44:55.229Z"
+  },
+  {
+   "id": "audit-V1-sonnet-2876213-de",
+   "model": "claude-sonnet-5",
+   "input": 1815,
+   "output": 697,
+   "cents": 1.06,
+   "usd": 0.0106,
+   "ms": 7349,
+   "at": "2026-09-07T11:44:57.181Z"
+  },
+  {
+   "id": "audit-V1-sonnet-2426805-de",
+   "model": "claude-sonnet-5",
+   "input": 1979,
+   "output": 882,
+   "cents": 1.278,
+   "usd": 0.012778,
+   "ms": 8517,
+   "at": "2026-09-07T11:44:57.404Z"
+  },
+  {
+   "id": "draft-V1-sonnet-2876213-en",
+   "model": "claude-sonnet-5",
+   "input": 1748,
+   "output": 270,
+   "cents": 0.62,
+   "usd": 0.006196,
+   "ms": 4340,
+   "at": "2026-09-07T11:44:59.573Z"
+  },
+  {
+   "id": "draft-V1-sonnet-1340503-de",
+   "model": "claude-sonnet-5",
+   "input": 2052,
+   "output": 389,
+   "cents": 0.799,
+   "usd": 0.007994,
+   "ms": 5724,
+   "at": "2026-09-07T11:45:02.907Z"
+  },
+  {
+   "id": "draft-V1-sonnet-1340503-en",
+   "model": "claude-sonnet-5",
+   "input": 1842,
+   "output": 325,
+   "cents": 0.693,
+   "usd": 0.006934,
+   "ms": 7291,
+   "at": "2026-09-07T11:45:04.698Z"
+  },
+  {
+   "id": "audit-V1-sonnet-2876213-en",
+   "model": "claude-sonnet-5",
+   "input": 1588,
+   "output": 544,
+   "cents": 0.862,
+   "usd": 0.008616,
+   "ms": 5872,
+   "at": "2026-09-07T11:45:05.446Z"
+  },
+  {
+   "id": "draft-V1-sonnet-7854318-en",
+   "model": "claude-sonnet-5",
+   "input": 2036,
+   "output": 307,
+   "cents": 0.714,
+   "usd": 0.007142,
+   "ms": 4619,
+   "at": "2026-09-07T11:45:10.068Z"
+  },
+  {
+   "id": "draft-V1-sonnet-7854318-de",
+   "model": "claude-sonnet-5",
+   "input": 2267,
+   "output": 456,
+   "cents": 0.909,
+   "usd": 0.009094,
+   "ms": 7367,
+   "at": "2026-09-07T11:45:10.275Z"
+  },
+  {
+   "id": "audit-V1-sonnet-1340503-en",
+   "model": "claude-sonnet-5",
+   "input": 1719,
+   "output": 761,
+   "cents": 1.105,
+   "usd": 0.011048,
+   "ms": 8324,
+   "at": "2026-09-07T11:45:13.023Z"
+  },
+  {
+   "id": "draft-V1-sonnet-6258028-de",
+   "model": "claude-sonnet-5",
+   "input": 1771,
+   "output": 360,
+   "cents": 0.714,
+   "usd": 0.007142,
+   "ms": 5458,
+   "at": "2026-09-07T11:45:15.528Z"
+  },
+  {
+   "id": "draft-V1-sonnet-6258028-en",
+   "model": "claude-sonnet-5",
+   "input": 1632,
+   "output": 239,
+   "cents": 0.565,
+   "usd": 0.005654,
+   "ms": 3447,
+   "at": "2026-09-07T11:45:16.471Z"
+  },
+  {
+   "id": "audit-V1-sonnet-7854318-de",
+   "model": "claude-sonnet-5",
+   "input": 2247,
+   "output": 803,
+   "cents": 1.252,
+   "usd": 0.012524,
+   "ms": 8505,
+   "at": "2026-09-07T11:45:18.781Z"
+  },
+  {
+   "id": "audit-V1-sonnet-6258028-en",
+   "model": "claude-sonnet-5",
+   "input": 1451,
+   "output": 400,
+   "cents": 0.69,
+   "usd": 0.006902,
+   "ms": 5336,
+   "at": "2026-09-07T11:45:21.808Z"
+  },
+  {
+   "id": "draft-V1-sonnet-4535827-de",
+   "model": "claude-sonnet-5",
+   "input": 2436,
+   "output": 383,
+   "cents": 0.87,
+   "usd": 0.008702,
+   "ms": 7532,
+   "at": "2026-09-07T11:45:23.061Z"
+  },
+  {
+   "id": "draft-V1-sonnet-4535827-en",
+   "model": "claude-sonnet-5",
+   "input": 2192,
+   "output": 299,
+   "cents": 0.737,
+   "usd": 0.007374,
+   "ms": 5440,
+   "at": "2026-09-07T11:45:24.225Z"
+  },
+  {
+   "id": "draft-V1-sonnet-1898286-de",
+   "model": "claude-sonnet-5",
+   "input": 2452,
+   "output": 470,
+   "cents": 0.96,
+   "usd": 0.009604,
+   "ms": 6999,
+   "at": "2026-09-07T11:45:28.810Z"
+  },
+  {
+   "id": "audit-V1-sonnet-4535827-de",
+   "model": "claude-sonnet-5",
+   "input": 2370,
+   "output": 857,
+   "cents": 1.331,
+   "usd": 0.01331,
+   "ms": 7083,
+   "at": "2026-09-07T11:45:30.146Z"
+  },
+  {
+   "id": "audit-V1-sonnet-4535827-en",
+   "model": "claude-sonnet-5",
+   "input": 2074,
+   "output": 687,
+   "cents": 1.102,
+   "usd": 0.011018,
+   "ms": 5924,
+   "at": "2026-09-07T11:45:30.150Z"
+  },
+  {
+   "id": "draft-V1-sonnet-1898286-en",
+   "model": "claude-sonnet-5",
+   "input": 2185,
+   "output": 490,
+   "cents": 0.927,
+   "usd": 0.00927,
+   "ms": 6271,
+   "at": "2026-09-07T11:45:36.420Z"
+  },
+  {
+   "id": "draft-V1-sonnet-1341976-de",
+   "model": "claude-sonnet-5",
+   "input": 2382,
+   "output": 418,
+   "cents": 0.894,
+   "usd": 0.008944,
+   "ms": 6343,
+   "at": "2026-09-07T11:45:36.494Z"
+  },
+  {
+   "id": "draft-V1-sonnet-1341976-en",
+   "model": "claude-sonnet-5",
+   "input": 2112,
+   "output": 298,
+   "cents": 0.72,
+   "usd": 0.007204,
+   "ms": 4786,
+   "at": "2026-09-07T11:45:41.208Z"
+  },
+  {
+   "id": "audit-V1-sonnet-1898286-de",
+   "model": "claude-sonnet-5",
+   "input": 2458,
+   "output": 1165,
+   "cents": 1.657,
+   "usd": 0.016566,
+   "ms": 13025,
+   "at": "2026-09-07T11:45:41.836Z"
+  },
+  {
+   "id": "audit-V1-sonnet-1341976-de",
+   "model": "claude-sonnet-5",
+   "input": 2340,
+   "output": 642,
+   "cents": 1.11,
+   "usd": 0.0111,
+   "ms": 6075,
+   "at": "2026-09-07T11:45:42.569Z"
+  },
+  {
+   "id": "audit-V1-sonnet-1341976-en",
+   "model": "claude-sonnet-5",
+   "input": 1981,
+   "output": 586,
+   "cents": 0.982,
+   "usd": 0.009822,
+   "ms": 5095,
+   "at": "2026-09-07T11:45:46.304Z"
+  },
+  {
+   "id": "draft-V1-sonnet-5140214-de",
+   "model": "claude-sonnet-5",
+   "input": 2415,
+   "output": 426,
+   "cents": 0.909,
+   "usd": 0.00909,
+   "ms": 5758,
+   "at": "2026-09-07T11:45:47.596Z"
+  },
+  {
+   "id": "draft-V1-sonnet-5140214-en",
+   "model": "claude-sonnet-5",
+   "input": 2148,
+   "output": 373,
+   "cents": 0.803,
+   "usd": 0.008026,
+   "ms": 6116,
+   "at": "2026-09-07T11:45:48.687Z"
+  },
+  {
+   "id": "draft-V1-sonnet-1920496-de",
+   "model": "claude-sonnet-5",
+   "input": 2294,
+   "output": 362,
+   "cents": 0.821,
+   "usd": 0.008208,
+   "ms": 7317,
+   "at": "2026-09-07T11:45:53.622Z"
+  },
+  {
+   "id": "audit-V1-sonnet-5140214-en",
+   "model": "claude-sonnet-5",
+   "input": 2084,
+   "output": 810,
+   "cents": 1.227,
+   "usd": 0.012268,
+   "ms": 6590,
+   "at": "2026-09-07T11:45:55.278Z"
+  },
+  {
+   "id": "audit-V1-sonnet-1920496-de",
+   "model": "claude-sonnet-5",
+   "input": 2202,
+   "output": 590,
+   "cents": 1.03,
+   "usd": 0.010304,
+   "ms": 5709,
+   "at": "2026-09-07T11:45:59.332Z"
+  },
+  {
+   "id": "draft-V1-sonnet-1920496-en",
+   "model": "claude-sonnet-5",
+   "input": 2063,
+   "output": 271,
+   "cents": 0.684,
+   "usd": 0.006836,
+   "ms": 4931,
+   "at": "2026-09-07T11:46:00.212Z"
+  },
+  {
+   "id": "draft-V1-sonnet-1340405-de",
+   "model": "claude-sonnet-5",
+   "input": 2195,
+   "output": 609,
+   "cents": 1.048,
+   "usd": 0.01048,
+   "ms": 7416,
+   "at": "2026-09-07T11:46:03.833Z"
+  },
+  {
+   "id": "draft-V1-sonnet-1340405-en",
+   "model": "claude-sonnet-5",
+   "input": 1958,
+   "output": 320,
+   "cents": 0.712,
+   "usd": 0.007116,
+   "ms": 5115,
+   "at": "2026-09-07T11:46:04.449Z"
+  },
+  {
+   "id": "audit-V1-sonnet-1920496-en",
+   "model": "claude-sonnet-5",
+   "input": 1916,
+   "output": 546,
+   "cents": 0.929,
+   "usd": 0.009292,
+   "ms": 4433,
+   "at": "2026-09-07T11:46:04.646Z"
+  },
+  {
+   "id": "draft-V1-sonnet-1920494-de",
+   "model": "claude-sonnet-5",
+   "input": 2148,
+   "output": 371,
+   "cents": 0.801,
+   "usd": 0.008006,
+   "ms": 5304,
+   "at": "2026-09-07T11:46:09.139Z"
+  },
+  {
+   "id": "audit-V1-sonnet-1340405-en",
+   "model": "claude-sonnet-5",
+   "input": 1845,
+   "output": 581,
+   "cents": 0.95,
+   "usd": 0.0095,
+   "ms": 5018,
+   "at": "2026-09-07T11:46:09.468Z"
+  },
+  {
+   "id": "draft-V1-sonnet-1920494-en",
+   "model": "claude-sonnet-5",
+   "input": 1938,
+   "output": 398,
+   "cents": 0.786,
+   "usd": 0.007856,
+   "ms": 5365,
+   "at": "2026-09-07T11:46:10.015Z"
+  },
+  {
+   "id": "audit-V1-sonnet-1920494-de",
+   "model": "claude-sonnet-5",
+   "input": 2052,
+   "output": 635,
+   "cents": 1.045,
+   "usd": 0.010454,
+   "ms": 5430,
+   "at": "2026-09-07T11:46:14.569Z"
+  },
+  {
+   "id": "draft-V2-sonnet-2490719-en",
+   "model": "claude-sonnet-5",
+   "input": 1425,
+   "output": 426,
+   "cents": 0.711,
+   "usd": 0.00711,
+   "ms": 7296,
+   "at": "2026-09-07T11:46:17.314Z"
+  },
+  {
+   "id": "draft-V2-sonnet-2490719-de",
+   "model": "claude-sonnet-5",
+   "input": 1620,
+   "output": 496,
+   "cents": 0.82,
+   "usd": 0.0082,
+   "ms": 8747,
+   "at": "2026-09-07T11:46:18.219Z"
+  },
+  {
+   "id": "draft-V2-sonnet-1929697-de",
+   "model": "claude-sonnet-5",
+   "input": 2332,
+   "output": 582,
+   "cents": 1.048,
+   "usd": 0.010484,
+   "ms": 9993,
+   "at": "2026-09-07T11:46:24.567Z"
+  },
+  {
+   "id": "audit-V2-sonnet-2490719-en",
+   "model": "claude-sonnet-5",
+   "input": 1626,
+   "output": 1032,
+   "cents": 1.357,
+   "usd": 0.013572,
+   "ms": 9211,
+   "at": "2026-09-07T11:46:26.526Z"
+  },
+  {
+   "id": "audit-V2-sonnet-2490719-de",
+   "model": "claude-sonnet-5",
+   "input": 1874,
+   "output": 914,
+   "cents": 1.289,
+   "usd": 0.012888,
+   "ms": 8827,
+   "at": "2026-09-07T11:46:27.048Z"
+  },
+  {
+   "id": "draft-V2-sonnet-1929697-en",
+   "model": "claude-sonnet-5",
+   "input": 2077,
+   "output": 488,
+   "cents": 0.903,
+   "usd": 0.009034,
+   "ms": 6337,
+   "at": "2026-09-07T11:46:32.865Z"
+  },
+  {
+   "id": "audit-V2-sonnet-1929697-de",
+   "model": "claude-sonnet-5",
+   "input": 2648,
+   "output": 1084,
+   "cents": 1.614,
+   "usd": 0.016136,
+   "ms": 8698,
+   "at": "2026-09-07T11:46:33.266Z"
+  },
+  {
+   "id": "draft-V2-sonnet-8168319-de",
+   "model": "claude-sonnet-5",
+   "input": 1454,
+   "output": 466,
+   "cents": 0.757,
+   "usd": 0.007568,
+   "ms": 6330,
+   "at": "2026-09-07T11:46:33.382Z"
+  },
+  {
+   "id": "draft-V2-sonnet-8168319-en",
+   "model": "claude-sonnet-5",
+   "input": 1322,
+   "output": 426,
+   "cents": 0.69,
+   "usd": 0.006904,
+   "ms": 4979,
+   "at": "2026-09-07T11:46:38.250Z"
+  },
+  {
+   "id": "audit-V2-sonnet-8168319-de",
+   "model": "claude-sonnet-5",
+   "input": 1664,
+   "output": 892,
+   "cents": 1.225,
+   "usd": 0.012248,
+   "ms": 8136,
+   "at": "2026-09-07T11:46:41.519Z"
+  },
+  {
+   "id": "audit-V2-sonnet-1929697-en",
+   "model": "claude-sonnet-5",
+   "input": 2345,
+   "output": 1124,
+   "cents": 1.593,
+   "usd": 0.01593,
+   "ms": 9902,
+   "at": "2026-09-07T11:46:42.769Z"
+  },
+  {
+   "id": "audit-V2-sonnet-8168319-en",
+   "model": "claude-sonnet-5",
+   "input": 1536,
+   "output": 898,
+   "cents": 1.205,
+   "usd": 0.012052,
+   "ms": 7241,
+   "at": "2026-09-07T11:46:45.492Z"
+  },
+  {
+   "id": "draft-V2-sonnet-2431776-en",
+   "model": "claude-sonnet-5",
+   "input": 1504,
+   "output": 426,
+   "cents": 0.727,
+   "usd": 0.007268,
+   "ms": 4806,
+   "at": "2026-09-07T11:46:47.577Z"
+  },
+  {
+   "id": "draft-V2-sonnet-2431776-de",
+   "model": "claude-sonnet-5",
+   "input": 1669,
+   "output": 532,
+   "cents": 0.866,
+   "usd": 0.008658,
+   "ms": 6099,
+   "at": "2026-09-07T11:46:47.625Z"
+  },
+  {
+   "id": "draft-V2-sonnet-7960979-de",
+   "model": "claude-sonnet-5",
+   "input": 1943,
+   "output": 501,
+   "cents": 0.89,
+   "usd": 0.008896,
+   "ms": 6350,
+   "at": "2026-09-07T11:46:51.846Z"
+  },
+  {
+   "id": "audit-V2-sonnet-2431776-en",
+   "model": "claude-sonnet-5",
+   "input": 1710,
+   "output": 877,
+   "cents": 1.219,
+   "usd": 0.01219,
+   "ms": 6571,
+   "at": "2026-09-07T11:46:54.148Z"
+  },
+  {
+   "id": "audit-V2-sonnet-2431776-de",
+   "model": "claude-sonnet-5",
+   "input": 1945,
+   "output": 1002,
+   "cents": 1.391,
+   "usd": 0.01391,
+   "ms": 8009,
+   "at": "2026-09-07T11:46:55.635Z"
+  },
+  {
+   "id": "draft-V2-sonnet-7960979-en",
+   "model": "claude-sonnet-5",
+   "input": 1768,
+   "output": 479,
+   "cents": 0.833,
+   "usd": 0.008326,
+   "ms": 5286,
+   "at": "2026-09-07T11:46:59.437Z"
+  },
+  {
+   "id": "draft-V2-sonnet-2153287-de",
+   "model": "claude-sonnet-5",
+   "input": 1029,
+   "output": 306,
+   "cents": 0.512,
+   "usd": 0.005118,
+   "ms": 3869,
+   "at": "2026-09-07T11:46:59.510Z"
+  },
+  {
+   "id": "audit-V2-sonnet-7960979-de",
+   "model": "claude-sonnet-5",
+   "input": 2197,
+   "output": 1012,
+   "cents": 1.451,
+   "usd": 0.014514,
+   "ms": 9944,
+   "at": "2026-09-07T11:47:01.793Z"
+  },
+  {
+   "id": "audit-V2-sonnet-2153287-de",
+   "model": "claude-sonnet-5",
+   "input": 1101,
+   "output": 469,
+   "cents": 0.689,
+   "usd": 0.006892,
+   "ms": 5072,
+   "at": "2026-09-07T11:47:04.584Z"
+  },
+  {
+   "id": "draft-V2-sonnet-2153287-en",
+   "model": "claude-sonnet-5",
+   "input": 923,
+   "output": 488,
+   "cents": 0.673,
+   "usd": 0.006726,
+   "ms": 5834,
+   "at": "2026-09-07T11:47:07.629Z"
+  },
+  {
+   "id": "audit-V2-sonnet-7960979-en",
+   "model": "claude-sonnet-5",
+   "input": 2019,
+   "output": 1043,
+   "cents": 1.447,
+   "usd": 0.014468,
+   "ms": 9275,
+   "at": "2026-09-07T11:47:08.714Z"
+  },
+  {
+   "id": "draft-V2-sonnet-2474950-de",
+   "model": "claude-sonnet-5",
+   "input": 1437,
+   "output": 599,
+   "cents": 0.886,
+   "usd": 0.008864,
+   "ms": 6834,
+   "at": "2026-09-07T11:47:11.422Z"
+  },
+  {
+   "id": "draft-V2-sonnet-2474950-en",
+   "model": "claude-sonnet-5",
+   "input": 1275,
+   "output": 390,
+   "cents": 0.645,
+   "usd": 0.00645,
+   "ms": 4607,
+   "at": "2026-09-07T11:47:12.244Z"
+  },
+  {
+   "id": "draft-V2-sonnet-5743122-de",
+   "model": "claude-sonnet-5",
+   "input": 1335,
+   "output": 386,
+   "cents": 0.653,
+   "usd": 0.00653,
+   "ms": 4778,
+   "at": "2026-09-07T11:47:13.500Z"
+  },
+  {
+   "id": "audit-V2-sonnet-2474950-en",
+   "model": "claude-sonnet-5",
+   "input": 1451,
+   "output": 769,
+   "cents": 1.059,
+   "usd": 0.010592,
+   "ms": 5653,
+   "at": "2026-09-07T11:47:17.900Z"
+  },
+  {
+   "id": "draft-V2-sonnet-5743122-en",
+   "model": "claude-sonnet-5",
+   "input": 1189,
+   "output": 447,
+   "cents": 0.685,
+   "usd": 0.006848,
+   "ms": 5487,
+   "at": "2026-09-07T11:47:18.996Z"
+  },
+  {
+   "id": "audit-V2-sonnet-2474950-de",
+   "model": "claude-sonnet-5",
+   "input": 1790,
+   "output": 1176,
+   "cents": 1.534,
+   "usd": 0.01534,
+   "ms": 10440,
+   "at": "2026-09-07T11:47:21.865Z"
+  },
+  {
+   "id": "draft-V2-sonnet-2426805-de",
+   "model": "claude-sonnet-5",
+   "input": 1727,
+   "output": 630,
+   "cents": 0.975,
+   "usd": 0.009754,
+   "ms": 7103,
+   "at": "2026-09-07T11:47:25.011Z"
+  },
+  {
+   "id": "audit-V2-sonnet-5743122-en",
+   "model": "claude-sonnet-5",
+   "input": 1424,
+   "output": 776,
+   "cents": 1.061,
+   "usd": 0.010608,
+   "ms": 6800,
+   "at": "2026-09-07T11:47:25.797Z"
+  },
+  {
+   "id": "draft-V2-sonnet-2426805-en",
+   "model": "claude-sonnet-5",
+   "input": 1546,
+   "output": 413,
+   "cents": 0.722,
+   "usd": 0.007222,
+   "ms": 6653,
+   "at": "2026-09-07T11:47:28.521Z"
+  },
+  {
+   "id": "draft-V2-sonnet-2876213-de",
+   "model": "claude-sonnet-5",
+   "input": 1675,
+   "output": 488,
+   "cents": 0.823,
+   "usd": 0.00823,
+   "ms": 6247,
+   "at": "2026-09-07T11:47:32.049Z"
+  },
+  {
+   "id": "audit-V2-sonnet-2426805-de",
+   "model": "claude-sonnet-5",
+   "input": 2066,
+   "output": 1217,
+   "cents": 1.63,
+   "usd": 0.016302,
+   "ms": 9332,
+   "at": "2026-09-07T11:47:34.347Z"
+  },
+  {
+   "id": "audit-V2-sonnet-2426805-en",
+   "model": "claude-sonnet-5",
+   "input": 1735,
+   "output": 890,
+   "cents": 1.237,
+   "usd": 0.01237,
+   "ms": 6500,
+   "at": "2026-09-07T11:47:35.022Z"
+  },
+  {
+   "id": "draft-V2-sonnet-2876213-en",
+   "model": "claude-sonnet-5",
+   "input": 1505,
+   "output": 424,
+   "cents": 0.725,
+   "usd": 0.00725,
+   "ms": 5025,
+   "at": "2026-09-07T11:47:39.374Z"
+  },
+  {
+   "id": "draft-V2-sonnet-1340503-de",
+   "model": "claude-sonnet-5",
+   "input": 1809,
+   "output": 528,
+   "cents": 0.89,
+   "usd": 0.008898,
+   "ms": 6710,
+   "at": "2026-09-07T11:47:41.736Z"
+  },
+  {
+   "id": "audit-V2-sonnet-2876213-de",
+   "model": "claude-sonnet-5",
+   "input": 1921,
+   "output": 1064,
+   "cents": 1.448,
+   "usd": 0.014482,
+   "ms": 9744,
+   "at": "2026-09-07T11:47:41.793Z"
+  },
+  {
+   "id": "draft-V2-sonnet-1340503-en",
+   "model": "claude-sonnet-5",
+   "input": 1599,
+   "output": 414,
+   "cents": 0.734,
+   "usd": 0.007338,
+   "ms": 4671,
+   "at": "2026-09-07T11:47:46.469Z"
+  },
+  {
+   "id": "audit-V2-sonnet-1340503-de",
+   "model": "claude-sonnet-5",
+   "input": 2094,
+   "output": 853,
+   "cents": 1.272,
+   "usd": 0.012718,
+   "ms": 8268,
+   "at": "2026-09-07T11:47:50.006Z"
+  },
+  {
+   "id": "draft-V2-sonnet-7854318-en",
+   "model": "claude-sonnet-5",
+   "input": 1793,
+   "output": 409,
+   "cents": 0.768,
+   "usd": 0.007676,
+   "ms": 5097,
+   "at": "2026-09-07T11:47:55.107Z"
+  },
+  {
+   "id": "audit-V2-sonnet-1340503-en",
+   "model": "claude-sonnet-5",
+   "input": 1795,
+   "output": 835,
+   "cents": 1.194,
+   "usd": 0.01194,
+   "ms": 8702,
+   "at": "2026-09-07T11:47:55.173Z"
+  },
+  {
+   "id": "draft-V2-sonnet-7854318-de",
+   "model": "claude-sonnet-5",
+   "input": 2024,
+   "output": 580,
+   "cents": 0.985,
+   "usd": 0.009848,
+   "ms": 6768,
+   "at": "2026-09-07T11:47:55.369Z"
+  },
+  {
+   "id": "draft-V2-sonnet-6258028-de",
+   "model": "claude-sonnet-5",
+   "input": 1528,
+   "output": 459,
+   "cents": 0.765,
+   "usd": 0.007646,
+   "ms": 5534,
+   "at": "2026-09-07T11:48:00.713Z"
+  },
+  {
+   "id": "audit-V2-sonnet-7854318-en",
+   "model": "claude-sonnet-5",
+   "input": 1984,
+   "output": 942,
+   "cents": 1.339,
+   "usd": 0.013388,
+   "ms": 7321,
+   "at": "2026-09-07T11:48:02.430Z"
+  },
+  {
+   "id": "audit-V2-sonnet-7854318-de",
+   "model": "claude-sonnet-5",
+   "input": 2358,
+   "output": 1153,
+   "cents": 1.625,
+   "usd": 0.016246,
+   "ms": 9492,
+   "at": "2026-09-07T11:48:04.864Z"
+  },
+  {
+   "id": "draft-V2-sonnet-6258028-en",
+   "model": "claude-sonnet-5",
+   "input": 1389,
+   "output": 312,
+   "cents": 0.59,
+   "usd": 0.005898,
+   "ms": 4502,
+   "at": "2026-09-07T11:48:06.938Z"
+  },
+  {
+   "id": "audit-V2-sonnet-6258028-de",
+   "model": "claude-sonnet-5",
+   "input": 1742,
+   "output": 817,
+   "cents": 1.165,
+   "usd": 0.011654,
+   "ms": 6941,
+   "at": "2026-09-07T11:48:07.656Z"
+  },
+  {
+   "id": "audit-V2-sonnet-6258028-en",
+   "model": "claude-sonnet-5",
+   "input": 1500,
+   "output": 620,
+   "cents": 0.92,
+   "usd": 0.0092,
+   "ms": 5058,
+   "at": "2026-09-07T11:48:11.997Z"
+  },
+  {
+   "id": "draft-V2-sonnet-4535827-de",
+   "model": "claude-sonnet-5",
+   "input": 2193,
+   "output": 592,
+   "cents": 1.031,
+   "usd": 0.010306,
+   "ms": 9934,
+   "at": "2026-09-07T11:48:14.801Z"
+  },
+  {
+   "id": "draft-V2-sonnet-4535827-en",
+   "model": "claude-sonnet-5",
+   "input": 1949,
+   "output": 438,
+   "cents": 0.828,
+   "usd": 0.008278,
+   "ms": 7859,
+   "at": "2026-09-07T11:48:15.521Z"
+  },
+  {
+   "id": "draft-V2-sonnet-1898286-de",
+   "model": "claude-sonnet-5",
+   "input": 2209,
+   "output": 582,
+   "cents": 1.024,
+   "usd": 0.010238,
+   "ms": 10003,
+   "at": "2026-09-07T11:48:22.007Z"
+  },
+  {
+   "id": "audit-V2-sonnet-4535827-de",
+   "model": "claude-sonnet-5",
+   "input": 2539,
+   "output": 1062,
+   "cents": 1.57,
+   "usd": 0.015698,
+   "ms": 8038,
+   "at": "2026-09-07T11:48:22.840Z"
+  },
+  {
+   "id": "audit-V2-sonnet-4535827-en",
+   "model": "claude-sonnet-5",
+   "input": 2168,
+   "output": 946,
+   "cents": 1.38,
+   "usd": 0.013796,
+   "ms": 7860,
+   "at": "2026-09-07T11:48:23.382Z"
+  },
+  {
+   "id": "draft-V2-sonnet-1898286-en",
+   "model": "claude-sonnet-5",
+   "input": 1942,
+   "output": 447,
+   "cents": 0.835,
+   "usd": 0.008354,
+   "ms": 6184,
+   "at": "2026-09-07T11:48:29.028Z"
+  },
+  {
+   "id": "draft-V2-sonnet-1341976-de",
+   "model": "claude-sonnet-5",
+   "input": 2139,
+   "output": 574,
+   "cents": 1.002,
+   "usd": 0.010018,
+   "ms": 7087,
+   "at": "2026-09-07T11:48:30.477Z"
+  },
+  {
+   "id": "audit-V2-sonnet-1898286-de",
+   "model": "claude-sonnet-5",
+   "input": 2546,
+   "output": 1203,
+   "cents": 1.712,
+   "usd": 0.017122,
+   "ms": 9751,
+   "at": "2026-09-07T11:48:31.760Z"
+  },
+  {
+   "id": "audit-V2-sonnet-1898286-en",
+   "model": "claude-sonnet-5",
+   "input": 2169,
+   "output": 937,
+   "cents": 1.371,
+   "usd": 0.013708,
+   "ms": 7107,
+   "at": "2026-09-07T11:48:36.136Z"
+  },
+  {
+   "id": "draft-V2-sonnet-1341976-en",
+   "model": "claude-sonnet-5",
+   "input": 1869,
+   "output": 439,
+   "cents": 0.813,
+   "usd": 0.008128,
+   "ms": 5314,
+   "at": "2026-09-07T11:48:37.078Z"
+  },
+  {
+   "id": "audit-V2-sonnet-1341976-de",
+   "model": "claude-sonnet-5",
+   "input": 2435,
+   "output": 1172,
+   "cents": 1.659,
+   "usd": 0.01659,
+   "ms": 11051,
+   "at": "2026-09-07T11:48:41.529Z"
+  },
+  {
+   "id": "draft-V2-sonnet-5140214-de",
+   "model": "claude-sonnet-5",
+   "input": 2172,
+   "output": 568,
+   "cents": 1.002,
+   "usd": 0.010024,
+   "ms": 7139,
+   "at": "2026-09-07T11:48:43.282Z"
+  },
+  {
+   "id": "audit-V2-sonnet-1341976-en",
+   "model": "claude-sonnet-5",
+   "input": 2090,
+   "output": 1111,
+   "cents": 1.529,
+   "usd": 0.01529,
+   "ms": 8637,
+   "at": "2026-09-07T11:48:45.716Z"
+  },
+  {
+   "id": "draft-V2-sonnet-5140214-en",
+   "model": "claude-sonnet-5",
+   "input": 1905,
+   "output": 408,
+   "cents": 0.789,
+   "usd": 0.00789,
+   "ms": 6003,
+   "at": "2026-09-07T11:48:47.537Z"
+  },
+  {
+   "id": "audit-V2-sonnet-5140214-de",
+   "model": "claude-sonnet-5",
+   "input": 2469,
+   "output": 1025,
+   "cents": 1.519,
+   "usd": 0.015188,
+   "ms": 8305,
+   "at": "2026-09-07T11:48:51.588Z"
+  },
+  {
+   "id": "draft-V2-sonnet-1920496-de",
+   "model": "claude-sonnet-5",
+   "input": 2051,
+   "output": 495,
+   "cents": 0.905,
+   "usd": 0.009052,
+   "ms": 6720,
+   "at": "2026-09-07T11:48:52.439Z"
+  },
+  {
+   "id": "audit-V2-sonnet-5140214-en",
+   "model": "claude-sonnet-5",
+   "input": 2103,
+   "output": 857,
+   "cents": 1.278,
+   "usd": 0.012776,
+   "ms": 6246,
+   "at": "2026-09-07T11:48:53.786Z"
+  },
+  {
+   "id": "draft-V2-sonnet-1920496-en",
+   "model": "claude-sonnet-5",
+   "input": 1820,
+   "output": 364,
+   "cents": 0.728,
+   "usd": 0.00728,
+   "ms": 5009,
+   "at": "2026-09-07T11:48:56.603Z"
+  },
+  {
+   "id": "audit-V2-sonnet-1920496-de",
+   "model": "claude-sonnet-5",
+   "input": 2303,
+   "output": 896,
+   "cents": 1.357,
+   "usd": 0.013566,
+   "ms": 7415,
+   "at": "2026-09-07T11:48:59.854Z"
+  },
+  {
+   "id": "draft-V2-sonnet-1340405-de",
+   "model": "claude-sonnet-5",
+   "input": 1952,
+   "output": 597,
+   "cents": 0.987,
+   "usd": 0.009874,
+   "ms": 7650,
+   "at": "2026-09-07T11:49:01.437Z"
+  },
+  {
+   "id": "audit-V2-sonnet-1920496-en",
+   "model": "claude-sonnet-5",
+   "input": 1985,
+   "output": 764,
+   "cents": 1.161,
+   "usd": 0.01161,
+   "ms": 6052,
+   "at": "2026-09-07T11:49:02.657Z"
+  },
+  {
+   "id": "draft-V2-sonnet-1340405-en",
+   "model": "claude-sonnet-5",
+   "input": 1715,
+   "output": 413,
+   "cents": 0.756,
+   "usd": 0.00756,
+   "ms": 5286,
+   "at": "2026-09-07T11:49:05.144Z"
+  },
+  {
+   "id": "draft-V2-sonnet-1920494-de",
+   "model": "claude-sonnet-5",
+   "input": 1905,
+   "output": 487,
+   "cents": 0.868,
+   "usd": 0.00868,
+   "ms": 6217,
+   "at": "2026-09-07T11:49:08.880Z"
+  },
+  {
+   "id": "audit-V2-sonnet-1340405-de",
+   "model": "claude-sonnet-5",
+   "input": 2269,
+   "output": 1036,
+   "cents": 1.49,
+   "usd": 0.014898,
+   "ms": 7957,
+   "at": "2026-09-07T11:49:09.397Z"
+  },
+  {
+   "id": "audit-V2-sonnet-1340405-en",
+   "model": "claude-sonnet-5",
+   "input": 1914,
+   "output": 1009,
+   "cents": 1.392,
+   "usd": 0.013918,
+   "ms": 8592,
+   "at": "2026-09-07T11:49:13.738Z"
+  },
+  {
+   "id": "draft-V2-sonnet-1920494-en",
+   "model": "claude-sonnet-5",
+   "input": 1695,
+   "output": 388,
+   "cents": 0.727,
+   "usd": 0.00727,
+   "ms": 5946,
+   "at": "2026-09-07T11:49:15.352Z"
+  },
+  {
+   "id": "audit-V2-sonnet-1920494-de",
+   "model": "claude-sonnet-5",
+   "input": 2155,
+   "output": 936,
+   "cents": 1.367,
+   "usd": 0.01367,
+   "ms": 7809,
+   "at": "2026-09-07T11:49:16.691Z"
+  },
+  {
+   "id": "audit-V2-sonnet-1920494-en",
+   "model": "claude-sonnet-5",
+   "input": 1874,
+   "output": 872,
+   "cents": 1.247,
+   "usd": 0.012468,
+   "ms": 8187,
+   "at": "2026-09-07T11:49:23.541Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-2490719-en",
+   "model": "claude-sonnet-5",
+   "input": 1063,
+   "output": 233,
+   "cents": 0.446,
+   "usd": 0.004456,
+   "ms": 4185,
+   "at": "2026-09-07T11:49:27.734Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-2490719-de",
+   "model": "claude-sonnet-5",
+   "input": 1184,
+   "output": 372,
+   "cents": 0.609,
+   "usd": 0.006088,
+   "ms": 4579,
+   "at": "2026-09-07T11:49:28.127Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-1929697-de",
+   "model": "claude-sonnet-5",
+   "input": 1164,
+   "output": 333,
+   "cents": 0.566,
+   "usd": 0.005658,
+   "ms": 4917,
+   "at": "2026-09-07T11:49:28.467Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-1929697-de",
+   "model": "claude-sonnet-5",
+   "input": 1238,
+   "output": 545,
+   "cents": 0.793,
+   "usd": 0.007926,
+   "ms": 4453,
+   "at": "2026-09-07T11:49:32.922Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-2490719-de",
+   "model": "claude-sonnet-5",
+   "input": 1317,
+   "output": 637,
+   "cents": 0.9,
+   "usd": 0.009004,
+   "ms": 5898,
+   "at": "2026-09-07T11:49:34.026Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-1929697-en",
+   "model": "claude-sonnet-5",
+   "input": 1041,
+   "output": 263,
+   "cents": 0.471,
+   "usd": 0.004712,
+   "ms": 4306,
+   "at": "2026-09-07T11:49:35.875Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-8168319-en",
+   "model": "claude-sonnet-5",
+   "input": 781,
+   "output": 160,
+   "cents": 0.316,
+   "usd": 0.003162,
+   "ms": 2632,
+   "at": "2026-09-07T11:49:36.664Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-8168319-de",
+   "model": "claude-sonnet-5",
+   "input": 842,
+   "output": 271,
+   "cents": 0.439,
+   "usd": 0.004394,
+   "ms": 4016,
+   "at": "2026-09-07T11:49:36.943Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-8168319-en",
+   "model": "claude-sonnet-5",
+   "input": 732,
+   "output": 188,
+   "cents": 0.334,
+   "usd": 0.003344,
+   "ms": 2255,
+   "at": "2026-09-07T11:49:38.920Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-1929697-en",
+   "model": "claude-sonnet-5",
+   "input": 1095,
+   "output": 448,
+   "cents": 0.667,
+   "usd": 0.00667,
+   "ms": 3895,
+   "at": "2026-09-07T11:49:39.771Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-8168319-de",
+   "model": "claude-sonnet-5",
+   "input": 868,
+   "output": 440,
+   "cents": 0.614,
+   "usd": 0.006136,
+   "ms": 4078,
+   "at": "2026-09-07T11:49:41.023Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-2431776-en",
+   "model": "claude-sonnet-5",
+   "input": 1104,
+   "output": 277,
+   "cents": 0.498,
+   "usd": 0.004978,
+   "ms": 3499,
+   "at": "2026-09-07T11:49:43.276Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-7960979-de",
+   "model": "claude-sonnet-5",
+   "input": 1166,
+   "output": 312,
+   "cents": 0.545,
+   "usd": 0.005452,
+   "ms": 3685,
+   "at": "2026-09-07T11:49:44.711Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-2431776-de",
+   "model": "claude-sonnet-5",
+   "input": 1229,
+   "output": 373,
+   "cents": 0.619,
+   "usd": 0.006188,
+   "ms": 6399,
+   "at": "2026-09-07T11:49:45.328Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-2431776-en",
+   "model": "claude-sonnet-5",
+   "input": 1164,
+   "output": 562,
+   "cents": 0.795,
+   "usd": 0.007948,
+   "ms": 5659,
+   "at": "2026-09-07T11:49:48.937Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-7960979-de",
+   "model": "claude-sonnet-5",
+   "input": 1234,
+   "output": 501,
+   "cents": 0.748,
+   "usd": 0.007478,
+   "ms": 4608,
+   "at": "2026-09-07T11:49:49.321Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-2431776-de",
+   "model": "claude-sonnet-5",
+   "input": 1349,
+   "output": 805,
+   "cents": 1.075,
+   "usd": 0.010748,
+   "ms": 6830,
+   "at": "2026-09-07T11:49:52.161Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-7960979-en",
+   "model": "claude-sonnet-5",
+   "input": 1045,
+   "output": 289,
+   "cents": 0.498,
+   "usd": 0.00498,
+   "ms": 3889,
+   "at": "2026-09-07T11:49:52.838Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-2474950-de",
+   "model": "claude-sonnet-5",
+   "input": 1178,
+   "output": 379,
+   "cents": 0.615,
+   "usd": 0.006146,
+   "ms": 5515,
+   "at": "2026-09-07T11:49:54.846Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-2474950-en",
+   "model": "claude-sonnet-5",
+   "input": 1062,
+   "output": 237,
+   "cents": 0.449,
+   "usd": 0.004494,
+   "ms": 3761,
+   "at": "2026-09-07T11:49:55.933Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-7960979-en",
+   "model": "claude-sonnet-5",
+   "input": 1109,
+   "output": 451,
+   "cents": 0.673,
+   "usd": 0.006728,
+   "ms": 3830,
+   "at": "2026-09-07T11:49:56.672Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-2474950-en",
+   "model": "claude-sonnet-5",
+   "input": 1096,
+   "output": 456,
+   "cents": 0.675,
+   "usd": 0.006752,
+   "ms": 4021,
+   "at": "2026-09-07T11:49:59.957Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-2474950-de",
+   "model": "claude-sonnet-5",
+   "input": 1311,
+   "output": 596,
+   "cents": 0.858,
+   "usd": 0.008582,
+   "ms": 5928,
+   "at": "2026-09-07T11:50:00.778Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-5743122-de",
+   "model": "claude-sonnet-5",
+   "input": 1100,
+   "output": 279,
+   "cents": 0.499,
+   "usd": 0.00499,
+   "ms": 4479,
+   "at": "2026-09-07T11:50:01.160Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-5743122-en",
+   "model": "claude-sonnet-5",
+   "input": 1002,
+   "output": 231,
+   "cents": 0.431,
+   "usd": 0.004314,
+   "ms": 4978,
+   "at": "2026-09-07T11:50:04.939Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-5743122-de",
+   "model": "claude-sonnet-5",
+   "input": 1129,
+   "output": 449,
+   "cents": 0.675,
+   "usd": 0.006748,
+   "ms": 4147,
+   "at": "2026-09-07T11:50:05.310Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-2426805-de",
+   "model": "claude-sonnet-5",
+   "input": 1217,
+   "output": 345,
+   "cents": 0.588,
+   "usd": 0.005884,
+   "ms": 4623,
+   "at": "2026-09-07T11:50:05.412Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-5743122-en",
+   "model": "claude-sonnet-5",
+   "input": 1016,
+   "output": 404,
+   "cents": 0.607,
+   "usd": 0.006072,
+   "ms": 3508,
+   "at": "2026-09-07T11:50:08.450Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-2426805-en",
+   "model": "claude-sonnet-5",
+   "input": 1085,
+   "output": 285,
+   "cents": 0.502,
+   "usd": 0.00502,
+   "ms": 4137,
+   "at": "2026-09-07T11:50:09.457Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-2426805-de",
+   "model": "claude-sonnet-5",
+   "input": 1319,
+   "output": 784,
+   "cents": 1.048,
+   "usd": 0.010478,
+   "ms": 6772,
+   "at": "2026-09-07T11:50:12.187Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-2876213-de",
+   "model": "claude-sonnet-5",
+   "input": 1176,
+   "output": 330,
+   "cents": 0.565,
+   "usd": 0.005652,
+   "ms": 6728,
+   "at": "2026-09-07T11:50:15.190Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-2426805-en",
+   "model": "claude-sonnet-5",
+   "input": 1149,
+   "output": 551,
+   "cents": 0.781,
+   "usd": 0.007808,
+   "ms": 5867,
+   "at": "2026-09-07T11:50:15.327Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-2876213-en",
+   "model": "claude-sonnet-5",
+   "input": 1069,
+   "output": 268,
+   "cents": 0.482,
+   "usd": 0.004818,
+   "ms": 3540,
+   "at": "2026-09-07T11:50:15.739Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-1340503-de",
+   "model": "claude-sonnet-5",
+   "input": 1157,
+   "output": 340,
+   "cents": 0.571,
+   "usd": 0.005714,
+   "ms": 4767,
+   "at": "2026-09-07T11:50:20.099Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-2876213-de",
+   "model": "claude-sonnet-5",
+   "input": 1259,
+   "output": 614,
+   "cents": 0.866,
+   "usd": 0.008658,
+   "ms": 5320,
+   "at": "2026-09-07T11:50:20.511Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-2876213-en",
+   "model": "claude-sonnet-5",
+   "input": 1121,
+   "output": 637,
+   "cents": 0.861,
+   "usd": 0.008612,
+   "ms": 5712,
+   "at": "2026-09-07T11:50:21.453Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-1340503-en",
+   "model": "claude-sonnet-5",
+   "input": 1043,
+   "output": 250,
+   "cents": 0.459,
+   "usd": 0.004586,
+   "ms": 4521,
+   "at": "2026-09-07T11:50:25.042Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-7854318-de",
+   "model": "claude-sonnet-5",
+   "input": 1131,
+   "output": 360,
+   "cents": 0.586,
+   "usd": 0.005862,
+   "ms": 4607,
+   "at": "2026-09-07T11:50:26.070Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-7854318-en",
+   "model": "claude-sonnet-5",
+   "input": 1021,
+   "output": 226,
+   "cents": 0.43,
+   "usd": 0.004302,
+   "ms": 3644,
+   "at": "2026-09-07T11:50:30.107Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-1340503-en",
+   "model": "claude-sonnet-5",
+   "input": 1070,
+   "output": 503,
+   "cents": 0.717,
+   "usd": 0.00717,
+   "ms": 5513,
+   "at": "2026-09-07T11:50:30.559Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-7854318-de",
+   "model": "claude-sonnet-5",
+   "input": 1248,
+   "output": 522,
+   "cents": 0.772,
+   "usd": 0.007716,
+   "ms": 4560,
+   "at": "2026-09-07T11:50:30.633Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-6258028-en",
+   "model": "claude-sonnet-5",
+   "input": 1018,
+   "output": 209,
+   "cents": 0.413,
+   "usd": 0.004126,
+   "ms": 3057,
+   "at": "2026-09-07T11:50:33.697Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-7854318-en",
+   "model": "claude-sonnet-5",
+   "input": 1032,
+   "output": 402,
+   "cents": 0.608,
+   "usd": 0.006084,
+   "ms": 4274,
+   "at": "2026-09-07T11:50:34.384Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-6258028-de",
+   "model": "claude-sonnet-5",
+   "input": 1123,
+   "output": 249,
+   "cents": 0.474,
+   "usd": 0.004736,
+   "ms": 4207,
+   "at": "2026-09-07T11:50:34.776Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-6258028-en",
+   "model": "claude-sonnet-5",
+   "input": 1021,
+   "output": 327,
+   "cents": 0.531,
+   "usd": 0.005312,
+   "ms": 3029,
+   "at": "2026-09-07T11:50:36.728Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-4535827-de",
+   "model": "claude-sonnet-5",
+   "input": 1159,
+   "output": 278,
+   "cents": 0.51,
+   "usd": 0.005098,
+   "ms": 3864,
+   "at": "2026-09-07T11:50:38.260Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-4535827-en",
+   "model": "claude-sonnet-5",
+   "input": 1037,
+   "output": 211,
+   "cents": 0.418,
+   "usd": 0.004184,
+   "ms": 3376,
+   "at": "2026-09-07T11:50:40.115Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-6258028-de",
+   "model": "claude-sonnet-5",
+   "input": 1130,
+   "output": 459,
+   "cents": 0.685,
+   "usd": 0.00685,
+   "ms": 6696,
+   "at": "2026-09-07T11:50:41.475Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-4535827-de",
+   "model": "claude-sonnet-5",
+   "input": 1202,
+   "output": 461,
+   "cents": 0.701,
+   "usd": 0.007014,
+   "ms": 3551,
+   "at": "2026-09-07T11:50:41.814Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-4535827-en",
+   "model": "claude-sonnet-5",
+   "input": 1045,
+   "output": 399,
+   "cents": 0.608,
+   "usd": 0.00608,
+   "ms": 3678,
+   "at": "2026-09-07T11:50:43.797Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-1898286-en",
+   "model": "claude-sonnet-5",
+   "input": 1039,
+   "output": 242,
+   "cents": 0.45,
+   "usd": 0.004498,
+   "ms": 4235,
+   "at": "2026-09-07T11:50:46.059Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-1898286-de",
+   "model": "claude-sonnet-5",
+   "input": 1161,
+   "output": 330,
+   "cents": 0.562,
+   "usd": 0.005622,
+   "ms": 4930,
+   "at": "2026-09-07T11:50:46.417Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-1341976-de",
+   "model": "claude-sonnet-5",
+   "input": 1176,
+   "output": 275,
+   "cents": 0.51,
+   "usd": 0.005102,
+   "ms": 4762,
+   "at": "2026-09-07T11:50:48.561Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-1898286-en",
+   "model": "claude-sonnet-5",
+   "input": 1064,
+   "output": 521,
+   "cents": 0.734,
+   "usd": 0.007338,
+   "ms": 4686,
+   "at": "2026-09-07T11:50:50.749Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-1898286-de",
+   "model": "claude-sonnet-5",
+   "input": 1239,
+   "output": 548,
+   "cents": 0.796,
+   "usd": 0.007958,
+   "ms": 5283,
+   "at": "2026-09-07T11:50:51.704Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-1341976-en",
+   "model": "claude-sonnet-5",
+   "input": 1058,
+   "output": 240,
+   "cents": 0.452,
+   "usd": 0.004516,
+   "ms": 3805,
+   "at": "2026-09-07T11:50:54.559Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-1341976-de",
+   "model": "claude-sonnet-5",
+   "input": 1213,
+   "output": 494,
+   "cents": 0.737,
+   "usd": 0.007366,
+   "ms": 6799,
+   "at": "2026-09-07T11:50:55.362Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-5140214-de",
+   "model": "claude-sonnet-5",
+   "input": 1140,
+   "output": 316,
+   "cents": 0.544,
+   "usd": 0.00544,
+   "ms": 4887,
+   "at": "2026-09-07T11:50:56.597Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-5140214-en",
+   "model": "claude-sonnet-5",
+   "input": 1032,
+   "output": 222,
+   "cents": 0.428,
+   "usd": 0.004284,
+   "ms": 3675,
+   "at": "2026-09-07T11:50:59.042Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-1341976-en",
+   "model": "claude-sonnet-5",
+   "input": 1087,
+   "output": 549,
+   "cents": 0.766,
+   "usd": 0.007664,
+   "ms": 5729,
+   "at": "2026-09-07T11:51:00.291Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-5140214-de",
+   "model": "claude-sonnet-5",
+   "input": 1206,
+   "output": 511,
+   "cents": 0.752,
+   "usd": 0.007522,
+   "ms": 3992,
+   "at": "2026-09-07T11:51:00.590Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-5140214-en",
+   "model": "claude-sonnet-5",
+   "input": 1047,
+   "output": 418,
+   "cents": 0.627,
+   "usd": 0.006274,
+   "ms": 3867,
+   "at": "2026-09-07T11:51:02.911Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-1920496-en",
+   "model": "claude-sonnet-5",
+   "input": 1004,
+   "output": 203,
+   "cents": 0.404,
+   "usd": 0.004038,
+   "ms": 3536,
+   "at": "2026-09-07T11:51:04.132Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-1920496-de",
+   "model": "claude-sonnet-5",
+   "input": 1116,
+   "output": 268,
+   "cents": 0.491,
+   "usd": 0.004912,
+   "ms": 4359,
+   "at": "2026-09-07T11:51:04.656Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-1340405-de",
+   "model": "claude-sonnet-5",
+   "input": 1170,
+   "output": 342,
+   "cents": 0.576,
+   "usd": 0.00576,
+   "ms": 4698,
+   "at": "2026-09-07T11:51:07.615Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-1920496-de",
+   "model": "claude-sonnet-5",
+   "input": 1144,
+   "output": 439,
+   "cents": 0.668,
+   "usd": 0.006678,
+   "ms": 3959,
+   "at": "2026-09-07T11:51:08.617Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-1920496-en",
+   "model": "claude-sonnet-5",
+   "input": 1003,
+   "output": 360,
+   "cents": 0.561,
+   "usd": 0.005606,
+   "ms": 4869,
+   "at": "2026-09-07T11:51:09.003Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-1340405-de",
+   "model": "claude-sonnet-5",
+   "input": 1267,
+   "output": 506,
+   "cents": 0.759,
+   "usd": 0.007594,
+   "ms": 3872,
+   "at": "2026-09-07T11:51:11.490Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-1340405-en",
+   "model": "claude-sonnet-5",
+   "input": 1050,
+   "output": 190,
+   "cents": 0.4,
+   "usd": 0.004,
+   "ms": 3027,
+   "at": "2026-09-07T11:51:11.650Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-1920494-de",
+   "model": "claude-sonnet-5",
+   "input": 1145,
+   "output": 332,
+   "cents": 0.561,
+   "usd": 0.00561,
+   "ms": 4074,
+   "at": "2026-09-07T11:51:13.083Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-1340405-en",
+   "model": "claude-sonnet-5",
+   "input": 1037,
+   "output": 334,
+   "cents": 0.541,
+   "usd": 0.005414,
+   "ms": 2752,
+   "at": "2026-09-07T11:51:14.404Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-1920494-de",
+   "model": "claude-sonnet-5",
+   "input": 1243,
+   "output": 475,
+   "cents": 0.724,
+   "usd": 0.007236,
+   "ms": 4298,
+   "at": "2026-09-07T11:51:17.384Z"
+  },
+  {
+   "id": "draft-ECO-sonnet-1920494-en",
+   "model": "claude-sonnet-5",
+   "input": 1034,
+   "output": 214,
+   "cents": 0.421,
+   "usd": 0.004208,
+   "ms": 7707,
+   "at": "2026-09-07T11:51:19.203Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-1920494-en",
+   "model": "claude-sonnet-5",
+   "input": 1042,
+   "output": 481,
+   "cents": 0.689,
+   "usd": 0.006894,
+   "ms": 5108,
+   "at": "2026-09-07T11:51:24.312Z"
+  },
+  {
+   "id": "draft-V1-opus-2490719-en",
+   "model": "claude-opus-5",
+   "input": 1668,
+   "output": 356,
+   "cents": 1.813,
+   "usd": 0.01812875,
+   "ms": 5470,
+   "at": "2026-09-07T11:51:29.786Z"
+  },
+  {
+   "id": "draft-V1-opus-2490719-de",
+   "model": "claude-opus-5",
+   "input": 1863,
+   "output": 487,
+   "cents": 2.238,
+   "usd": 0.02237875,
+   "ms": 7022,
+   "at": "2026-09-07T11:51:31.339Z"
+  },
+  {
+   "id": "audit-V1-opus-2490719-en",
+   "model": "claude-sonnet-5",
+   "input": 1580,
+   "output": 797,
+   "cents": 1.113,
+   "usd": 0.01113,
+   "ms": 6416,
+   "at": "2026-09-07T11:51:36.203Z"
+  },
+  {
+   "id": "audit-V1-opus-2490719-de",
+   "model": "claude-sonnet-5",
+   "input": 1873,
+   "output": 944,
+   "cents": 1.319,
+   "usd": 0.013186,
+   "ms": 8057,
+   "at": "2026-09-07T11:51:39.397Z"
+  },
+  {
+   "id": "draft-V1-opus-8168319-de",
+   "model": "claude-opus-5",
+   "input": 1697,
+   "output": 388,
+   "cents": 1.499,
+   "usd": 0.0149855,
+   "ms": 6458,
+   "at": "2026-09-07T11:51:42.668Z"
+  },
+  {
+   "id": "draft-V1-opus-8168319-en",
+   "model": "claude-opus-5",
+   "input": 1565,
+   "output": 303,
+   "cents": 1.22,
+   "usd": 0.0122005,
+   "ms": 6198,
+   "at": "2026-09-07T11:51:45.605Z"
+  },
+  {
+   "id": "draft-V1-opus-2431776-de",
+   "model": "claude-opus-5",
+   "input": 1912,
+   "output": 501,
+   "cents": 1.889,
+   "usd": 0.0188855,
+   "ms": 7863,
+   "at": "2026-09-07T11:51:47.530Z"
+  },
+  {
+   "id": "audit-V1-opus-8168319-de",
+   "model": "claude-sonnet-5",
+   "input": 1618,
+   "output": 678,
+   "cents": 1.002,
+   "usd": 0.010016,
+   "ms": 6529,
+   "at": "2026-09-07T11:51:49.199Z"
+  },
+  {
+   "id": "audit-V1-opus-8168319-en",
+   "model": "claude-sonnet-5",
+   "input": 1429,
+   "output": 555,
+   "cents": 0.841,
+   "usd": 0.008408,
+   "ms": 4642,
+   "at": "2026-09-07T11:51:50.248Z"
+  },
+  {
+   "id": "audit-V1-opus-2431776-de",
+   "model": "claude-sonnet-5",
+   "input": 1938,
+   "output": 918,
+   "cents": 1.306,
+   "usd": 0.013056,
+   "ms": 8417,
+   "at": "2026-09-07T11:51:55.949Z"
+  },
+  {
+   "id": "draft-V1-opus-7960979-en",
+   "model": "claude-opus-5",
+   "input": 2011,
+   "output": 339,
+   "cents": 1.533,
+   "usd": 0.0153305,
+   "ms": 5607,
+   "at": "2026-09-07T11:52:00.583Z"
+  },
+  {
+   "id": "draft-V1-opus-2153287-de",
+   "model": "claude-opus-5",
+   "input": 1272,
+   "output": 342,
+   "cents": 1.171,
+   "usd": 0.0117105,
+   "ms": 5871,
+   "at": "2026-09-07T11:52:01.826Z"
+  },
+  {
+   "id": "audit-V1-opus-7960979-en",
+   "model": "claude-sonnet-5",
+   "input": 1895,
+   "output": 654,
+   "cents": 1.033,
+   "usd": 0.01033,
+   "ms": 5193,
+   "at": "2026-09-07T11:52:05.777Z"
+  },
+  {
+   "id": "audit-V1-opus-2153287-de",
+   "model": "claude-sonnet-5",
+   "input": 1142,
+   "output": 620,
+   "cents": 0.848,
+   "usd": 0.008484,
+   "ms": 6427,
+   "at": "2026-09-07T11:52:08.253Z"
+  },
+  {
+   "id": "draft-V1-opus-2153287-en",
+   "model": "claude-opus-5",
+   "input": 1166,
+   "output": 234,
+   "cents": 0.848,
+   "usd": 0.0084805,
+   "ms": 4645,
+   "at": "2026-09-07T11:52:10.427Z"
+  },
+  {
+   "id": "audit-V1-opus-2153287-en",
+   "model": "claude-sonnet-5",
+   "input": 966,
+   "output": 416,
+   "cents": 0.609,
+   "usd": 0.006092,
+   "ms": 4082,
+   "at": "2026-09-07T11:52:14.511Z"
+  },
+  {
+   "id": "draft-V1-opus-2474950-de",
+   "model": "claude-opus-5",
+   "input": 1680,
+   "output": 472,
+   "cents": 1.7,
+   "usd": 0.0170005,
+   "ms": 7247,
+   "at": "2026-09-07T11:52:15.507Z"
+  },
+  {
+   "id": "draft-V1-opus-2474950-en",
+   "model": "claude-opus-5",
+   "input": 1518,
+   "output": 351,
+   "cents": 1.317,
+   "usd": 0.0131655,
+   "ms": 5779,
+   "at": "2026-09-07T11:52:20.297Z"
+  },
+  {
+   "id": "audit-V1-opus-2474950-de",
+   "model": "claude-sonnet-5",
+   "input": 1684,
+   "output": 831,
+   "cents": 1.168,
+   "usd": 0.011678,
+   "ms": 8263,
+   "at": "2026-09-07T11:52:23.771Z"
+  },
+  {
+   "id": "audit-V1-opus-2474950-en",
+   "model": "claude-sonnet-5",
+   "input": 1428,
+   "output": 658,
+   "cents": 0.944,
+   "usd": 0.009436,
+   "ms": 5223,
+   "at": "2026-09-07T11:52:25.521Z"
+  },
+  {
+   "id": "draft-V1-opus-7960979-de",
+   "model": "claude-opus-5",
+   "input": 2186,
+   "output": 445,
+   "cents": 1.886,
+   "usd": 0.0188555,
+   "ms": 36434,
+   "at": "2026-09-07T11:52:26.685Z"
+  },
+  {
+   "id": "audit-V1-opus-7960979-de",
+   "model": "claude-sonnet-5",
+   "input": 2157,
+   "output": 929,
+   "cents": 1.36,
+   "usd": 0.013604,
+   "ms": 9036,
+   "at": "2026-09-07T11:52:35.723Z"
+  },
+  {
+   "id": "draft-V1-opus-2426805-en",
+   "model": "claude-opus-5",
+   "input": 1789,
+   "output": 419,
+   "cents": 1.622,
+   "usd": 0.0162205,
+   "ms": 6480,
+   "at": "2026-09-07T11:52:38.016Z"
+  },
+  {
+   "id": "draft-V1-opus-2426805-de",
+   "model": "claude-opus-5",
+   "input": 1970,
+   "output": 511,
+   "cents": 1.943,
+   "usd": 0.0194255,
+   "ms": 8677,
+   "at": "2026-09-07T11:52:39.174Z"
+  },
+  {
+   "id": "draft-V1-opus-2876213-de",
+   "model": "claude-opus-5",
+   "input": 1918,
+   "output": 452,
+   "cents": 1.769,
+   "usd": 0.0176905,
+   "ms": 7132,
+   "at": "2026-09-07T11:52:42.864Z"
+  },
+  {
+   "id": "audit-V1-opus-2426805-en",
+   "model": "claude-sonnet-5",
+   "input": 1749,
+   "output": 827,
+   "cents": 1.177,
+   "usd": 0.011768,
+   "ms": 6144,
+   "at": "2026-09-07T11:52:44.163Z"
+  },
+  {
+   "id": "audit-V1-opus-2426805-de",
+   "model": "claude-sonnet-5",
+   "input": 2000,
+   "output": 872,
+   "cents": 1.272,
+   "usd": 0.01272,
+   "ms": 7103,
+   "at": "2026-09-07T11:52:46.279Z"
+  },
+  {
+   "id": "audit-V1-opus-2876213-de",
+   "model": "claude-sonnet-5",
+   "input": 1893,
+   "output": 977,
+   "cents": 1.356,
+   "usd": 0.013556,
+   "ms": 9441,
+   "at": "2026-09-07T11:52:52.308Z"
+  },
+  {
+   "id": "draft-V1-opus-1340503-de",
+   "model": "claude-opus-5",
+   "input": 2052,
+   "output": 491,
+   "cents": 1.934,
+   "usd": 0.0193355,
+   "ms": 7442,
+   "at": "2026-09-07T11:52:53.728Z"
+  },
+  {
+   "id": "draft-V1-opus-1340503-en",
+   "model": "claude-opus-5",
+   "input": 1842,
+   "output": 354,
+   "cents": 1.486,
+   "usd": 0.0148605,
+   "ms": 5671,
+   "at": "2026-09-07T11:52:56.051Z"
+  },
+  {
+   "id": "draft-V1-opus-7854318-de",
+   "model": "claude-opus-5",
+   "input": 2267,
+   "output": 510,
+   "cents": 2.089,
+   "usd": 0.0208855,
+   "ms": 7676,
+   "at": "2026-09-07T11:52:59.992Z"
+  },
+  {
+   "id": "audit-V1-opus-1340503-de",
+   "model": "claude-sonnet-5",
+   "input": 2065,
+   "output": 846,
+   "cents": 1.259,
+   "usd": 0.01259,
+   "ms": 8946,
+   "at": "2026-09-07T11:53:02.676Z"
+  },
+  {
+   "id": "audit-V1-opus-1340503-en",
+   "model": "claude-sonnet-5",
+   "input": 1743,
+   "output": 703,
+   "cents": 1.052,
+   "usd": 0.010516,
+   "ms": 7372,
+   "at": "2026-09-07T11:53:03.424Z"
+  },
+  {
+   "id": "draft-V1-opus-7854318-en",
+   "model": "claude-opus-5",
+   "input": 2036,
+   "output": 405,
+   "cents": 1.711,
+   "usd": 0.0171055,
+   "ms": 6538,
+   "at": "2026-09-07T11:53:09.220Z"
+  },
+  {
+   "id": "audit-V1-opus-7854318-de",
+   "model": "claude-sonnet-5",
+   "input": 2304,
+   "output": 1025,
+   "cents": 1.486,
+   "usd": 0.014858,
+   "ms": 9823,
+   "at": "2026-09-07T11:53:09.819Z"
+  },
+  {
+   "id": "draft-V1-opus-6258028-de",
+   "model": "claude-opus-5",
+   "input": 1771,
+   "output": 394,
+   "cents": 1.551,
+   "usd": 0.0155055,
+   "ms": 6773,
+   "at": "2026-09-07T11:53:10.205Z"
+  },
+  {
+   "id": "draft-V1-opus-6258028-en",
+   "model": "claude-opus-5",
+   "input": 1632,
+   "output": 313,
+   "cents": 1.279,
+   "usd": 0.0127855,
+   "ms": 6009,
+   "at": "2026-09-07T11:53:15.835Z"
+  },
+  {
+   "id": "audit-V1-opus-7854318-en",
+   "model": "claude-sonnet-5",
+   "input": 1996,
+   "output": 978,
+   "cents": 1.377,
+   "usd": 0.013772,
+   "ms": 7942,
+   "at": "2026-09-07T11:53:17.164Z"
+  },
+  {
+   "id": "audit-V1-opus-6258028-de",
+   "model": "claude-sonnet-5",
+   "input": 1693,
+   "output": 659,
+   "cents": 0.998,
+   "usd": 0.009976,
+   "ms": 7497,
+   "at": "2026-09-07T11:53:17.704Z"
+  },
+  {
+   "id": "audit-V1-opus-6258028-en",
+   "model": "claude-sonnet-5",
+   "input": 1509,
+   "output": 601,
+   "cents": 0.903,
+   "usd": 0.009028,
+   "ms": 5111,
+   "at": "2026-09-07T11:53:20.948Z"
+  },
+  {
+   "id": "draft-V1-opus-4535827-en",
+   "model": "claude-opus-5",
+   "input": 2192,
+   "output": 392,
+   "cents": 1.756,
+   "usd": 0.0175605,
+   "ms": 6774,
+   "at": "2026-09-07T11:53:24.485Z"
+  },
+  {
+   "id": "draft-V1-opus-4535827-de",
+   "model": "claude-opus-5",
+   "input": 2436,
+   "output": 501,
+   "cents": 2.151,
+   "usd": 0.0215055,
+   "ms": 9203,
+   "at": "2026-09-07T11:53:26.377Z"
+  },
+  {
+   "id": "draft-V1-opus-1898286-de",
+   "model": "claude-opus-5",
+   "input": 2452,
+   "output": 583,
+   "cents": 2.364,
+   "usd": 0.0236355,
+   "ms": 8387,
+   "at": "2026-09-07T11:53:29.344Z"
+  },
+  {
+   "id": "audit-V1-opus-4535827-en",
+   "model": "claude-sonnet-5",
+   "input": 2143,
+   "output": 850,
+   "cents": 1.279,
+   "usd": 0.012786,
+   "ms": 6425,
+   "at": "2026-09-07T11:53:30.912Z"
+  },
+  {
+   "id": "draft-V1-opus-1898286-en",
+   "model": "claude-opus-5",
+   "input": 2185,
+   "output": 404,
+   "cents": 1.783,
+   "usd": 0.0178255,
+   "ms": 6031,
+   "at": "2026-09-07T11:53:36.948Z"
+  },
+  {
+   "id": "audit-V1-opus-4535827-de",
+   "model": "claude-sonnet-5",
+   "input": 2464,
+   "output": 1121,
+   "cents": 1.614,
+   "usd": 0.016138,
+   "ms": 11063,
+   "at": "2026-09-07T11:53:37.441Z"
+  },
+  {
+   "id": "audit-V1-opus-1898286-de",
+   "model": "claude-sonnet-5",
+   "input": 2547,
+   "output": 1218,
+   "cents": 1.727,
+   "usd": 0.017274,
+   "ms": 11458,
+   "at": "2026-09-07T11:53:40.805Z"
+  },
+  {
+   "id": "audit-V1-opus-1898286-en",
+   "model": "claude-sonnet-5",
+   "input": 2142,
+   "output": 904,
+   "cents": 1.332,
+   "usd": 0.013324,
+   "ms": 7678,
+   "at": "2026-09-07T11:53:44.629Z"
+  },
+  {
+   "id": "draft-V1-opus-1341976-de",
+   "model": "claude-opus-5",
+   "input": 2382,
+   "output": 486,
+   "cents": 2.086,
+   "usd": 0.0208605,
+   "ms": 7740,
+   "at": "2026-09-07T11:53:45.186Z"
+  },
+  {
+   "id": "draft-V1-opus-1341976-en",
+   "model": "claude-opus-5",
+   "input": 2112,
+   "output": 456,
+   "cents": 1.876,
+   "usd": 0.0187605,
+   "ms": 6383,
+   "at": "2026-09-07T11:53:47.196Z"
+  },
+  {
+   "id": "audit-V1-opus-1341976-en",
+   "model": "claude-sonnet-5",
+   "input": 2123,
+   "output": 708,
+   "cents": 1.133,
+   "usd": 0.011326,
+   "ms": 5694,
+   "at": "2026-09-07T11:53:52.892Z"
+  },
+  {
+   "id": "draft-V1-opus-5140214-de",
+   "model": "claude-opus-5",
+   "input": 2415,
+   "output": 535,
+   "cents": 2.225,
+   "usd": 0.0222505,
+   "ms": 8495,
+   "at": "2026-09-07T11:53:53.131Z"
+  },
+  {
+   "id": "audit-V1-opus-1341976-de",
+   "model": "claude-sonnet-5",
+   "input": 2392,
+   "output": 890,
+   "cents": 1.368,
+   "usd": 0.013684,
+   "ms": 8293,
+   "at": "2026-09-07T11:53:53.480Z"
+  },
+  {
+   "id": "draft-V1-opus-1920496-de",
+   "model": "claude-opus-5",
+   "input": 2294,
+   "output": 473,
+   "cents": 2.01,
+   "usd": 0.0200955,
+   "ms": 7157,
+   "at": "2026-09-07T11:54:00.644Z"
+  },
+  {
+   "id": "audit-V1-opus-5140214-de",
+   "model": "claude-sonnet-5",
+   "input": 2462,
+   "output": 1077,
+   "cents": 1.569,
+   "usd": 0.015694,
+   "ms": 9220,
+   "at": "2026-09-07T11:54:02.355Z"
+  },
+  {
+   "id": "draft-V1-opus-1920496-en",
+   "model": "claude-opus-5",
+   "input": 2063,
+   "output": 358,
+   "cents": 1.607,
+   "usd": 0.0160655,
+   "ms": 6297,
+   "at": "2026-09-07T11:54:05.709Z"
+  },
+  {
+   "id": "audit-V1-opus-1920496-de",
+   "model": "claude-sonnet-5",
+   "input": 2289,
+   "output": 798,
+   "cents": 1.256,
+   "usd": 0.012558,
+   "ms": 7482,
+   "at": "2026-09-07T11:54:08.127Z"
+  },
+  {
+   "id": "draft-V1-opus-1340405-de",
+   "model": "claude-opus-5",
+   "input": 2195,
+   "output": 479,
+   "cents": 1.975,
+   "usd": 0.0197505,
+   "ms": 7651,
+   "at": "2026-09-07T11:54:10.013Z"
+  },
+  {
+   "id": "audit-V1-opus-1920496-en",
+   "model": "claude-sonnet-5",
+   "input": 1979,
+   "output": 748,
+   "cents": 1.144,
+   "usd": 0.011438,
+   "ms": 6765,
+   "at": "2026-09-07T11:54:12.476Z"
+  },
+  {
+   "id": "audit-V1-opus-1340405-de",
+   "model": "claude-sonnet-5",
+   "input": 2199,
+   "output": 941,
+   "cents": 1.381,
+   "usd": 0.013808,
+   "ms": 8559,
+   "at": "2026-09-07T11:54:18.574Z"
+  },
+  {
+   "id": "draft-V1-opus-1920494-de",
+   "model": "claude-opus-5",
+   "input": 2148,
+   "output": 477,
+   "cents": 1.947,
+   "usd": 0.0194655,
+   "ms": 7550,
+   "at": "2026-09-07T11:54:20.033Z"
+  },
+  {
+   "id": "draft-V1-opus-1920494-en",
+   "model": "claude-opus-5",
+   "input": 1938,
+   "output": 368,
+   "cents": 1.569,
+   "usd": 0.0156905,
+   "ms": 6445,
+   "at": "2026-09-07T11:54:20.680Z"
+  },
+  {
+   "id": "draft-V1-haiku-2490719-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1413,
+   "output": 402,
+   "cents": 0.342,
+   "usd": 0.003423,
+   "ms": 4453,
+   "at": "2026-09-07T11:54:23.036Z"
+  },
+  {
+   "id": "audit-V1-opus-1920494-en",
+   "model": "claude-sonnet-5",
+   "input": 1862,
+   "output": 884,
+   "cents": 1.256,
+   "usd": 0.012564,
+   "ms": 7409,
+   "at": "2026-09-07T11:54:28.091Z"
+  },
+  {
+   "id": "audit-V1-opus-1920494-de",
+   "model": "claude-sonnet-5",
+   "input": 2153,
+   "output": 932,
+   "cents": 1.363,
+   "usd": 0.013626,
+   "ms": 8920,
+   "at": "2026-09-07T11:54:28.956Z"
+  },
+  {
+   "id": "audit-V1-haiku-2490719-de",
+   "model": "claude-sonnet-5",
+   "input": 1820,
+   "output": 871,
+   "cents": 1.235,
+   "usd": 0.01235,
+   "ms": 8111,
+   "at": "2026-09-07T11:54:31.148Z"
+  },
+  {
+   "id": "draft-V1-haiku-2490719-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1258,
+   "output": 319,
+   "cents": 0.285,
+   "usd": 0.002853,
+   "ms": 3564,
+   "at": "2026-09-07T11:54:31.661Z"
+  },
+  {
+   "id": "draft-V1-haiku-1929697-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1946,
+   "output": 409,
+   "cents": 0.399,
+   "usd": 0.003991,
+   "ms": 4887,
+   "at": "2026-09-07T11:54:33.851Z"
+  },
+  {
+   "id": "draft-V1-haiku-1929697-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1729,
+   "output": 312,
+   "cents": 0.329,
+   "usd": 0.003289,
+   "ms": 3913,
+   "at": "2026-09-07T11:54:35.069Z"
+  },
+  {
+   "id": "audit-V1-haiku-2490719-en",
+   "model": "claude-sonnet-5",
+   "input": 1542,
+   "output": 849,
+   "cents": 1.157,
+   "usd": 0.011574,
+   "ms": 7732,
+   "at": "2026-09-07T11:54:39.394Z"
+  },
+  {
+   "id": "draft-V1-haiku-8168319-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1291,
+   "output": 303,
+   "cents": 0.281,
+   "usd": 0.002806,
+   "ms": 3292,
+   "at": "2026-09-07T11:54:42.693Z"
+  },
+  {
+   "id": "audit-V1-haiku-1929697-en",
+   "model": "claude-sonnet-5",
+   "input": 2205,
+   "output": 951,
+   "cents": 1.392,
+   "usd": 0.01392,
+   "ms": 8381,
+   "at": "2026-09-07T11:54:43.451Z"
+  },
+  {
+   "id": "audit-V1-haiku-1929697-de",
+   "model": "claude-sonnet-5",
+   "input": 2571,
+   "output": 1116,
+   "cents": 1.63,
+   "usd": 0.016302,
+   "ms": 10069,
+   "at": "2026-09-07T11:54:43.923Z"
+  },
+  {
+   "id": "draft-V1-haiku-8168319-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1190,
+   "output": 282,
+   "cents": 0.26,
+   "usd": 0.0026,
+   "ms": 3151,
+   "at": "2026-09-07T11:54:46.616Z"
+  },
+  {
+   "id": "draft-V1-haiku-2431776-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1455,
+   "output": 388,
+   "cents": 0.34,
+   "usd": 0.003395,
+   "ms": 4019,
+   "at": "2026-09-07T11:54:47.950Z"
+  },
+  {
+   "id": "audit-V1-haiku-8168319-de",
+   "model": "claude-sonnet-5",
+   "input": 1552,
+   "output": 628,
+   "cents": 0.938,
+   "usd": 0.009384,
+   "ms": 6187,
+   "at": "2026-09-07T11:54:48.882Z"
+  },
+  {
+   "id": "audit-V1-haiku-8168319-en",
+   "model": "claude-sonnet-5",
+   "input": 1381,
+   "output": 524,
+   "cents": 0.8,
+   "usd": 0.008002,
+   "ms": 4703,
+   "at": "2026-09-07T11:54:51.322Z"
+  },
+  {
+   "id": "draft-V1-haiku-2431776-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1314,
+   "output": 322,
+   "cents": 0.292,
+   "usd": 0.002924,
+   "ms": 3750,
+   "at": "2026-09-07T11:54:52.640Z"
+  },
+  {
+   "id": "draft-V1-haiku-7960979-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1674,
+   "output": 337,
+   "cents": 0.336,
+   "usd": 0.003359,
+   "ms": 3754,
+   "at": "2026-09-07T11:54:55.084Z"
+  },
+  {
+   "id": "audit-V1-haiku-2431776-de",
+   "model": "claude-sonnet-5",
+   "input": 1847,
+   "output": 875,
+   "cents": 1.244,
+   "usd": 0.012444,
+   "ms": 7695,
+   "at": "2026-09-07T11:54:55.647Z"
+  },
+  {
+   "id": "draft-V1-haiku-7960979-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1540,
+   "output": 277,
+   "cents": 0.292,
+   "usd": 0.002925,
+   "ms": 2633,
+   "at": "2026-09-07T11:54:58.283Z"
+  },
+  {
+   "id": "audit-V1-haiku-7960979-en",
+   "model": "claude-sonnet-5",
+   "input": 1854,
+   "output": 468,
+   "cents": 0.839,
+   "usd": 0.008388,
+   "ms": 4185,
+   "at": "2026-09-07T11:55:02.469Z"
+  },
+  {
+   "id": "draft-V1-haiku-2153287-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 948,
+   "output": 196,
+   "cents": 0.193,
+   "usd": 0.001928,
+   "ms": 2559,
+   "at": "2026-09-07T11:55:04.215Z"
+  },
+  {
+   "id": "audit-V1-haiku-7960979-de",
+   "model": "claude-sonnet-5",
+   "input": 2065,
+   "output": 961,
+   "cents": 1.374,
+   "usd": 0.01374,
+   "ms": 9320,
+   "at": "2026-09-07T11:55:04.407Z"
+  },
+  {
+   "id": "draft-V1-haiku-2153287-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 872,
+   "output": 156,
+   "cents": 0.165,
+   "usd": 0.001652,
+   "ms": 2184,
+   "at": "2026-09-07T11:55:04.659Z"
+  },
+  {
+   "id": "audit-V1-haiku-2153287-de",
+   "model": "claude-sonnet-5",
+   "input": 1022,
+   "output": 260,
+   "cents": 0.464,
+   "usd": 0.004644,
+   "ms": 3734,
+   "at": "2026-09-07T11:55:07.951Z"
+  },
+  {
+   "id": "audit-V1-haiku-2153287-en",
+   "model": "claude-sonnet-5",
+   "input": 883,
+   "output": 218,
+   "cents": 0.395,
+   "usd": 0.003946,
+   "ms": 3490,
+   "at": "2026-09-07T11:55:08.151Z"
+  },
+  {
+   "id": "draft-V1-haiku-2474950-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1285,
+   "output": 404,
+   "cents": 0.331,
+   "usd": 0.003305,
+   "ms": 4096,
+   "at": "2026-09-07T11:55:08.510Z"
+  },
+  {
+   "id": "draft-V1-haiku-2474950-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1150,
+   "output": 308,
+   "cents": 0.269,
+   "usd": 0.00269,
+   "ms": 3596,
+   "at": "2026-09-07T11:55:11.552Z"
+  },
+  {
+   "id": "draft-V1-haiku-5743122-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1184,
+   "output": 299,
+   "cents": 0.268,
+   "usd": 0.002679,
+   "ms": 3423,
+   "at": "2026-09-07T11:55:11.577Z"
+  },
+  {
+   "id": "audit-V1-haiku-2474950-de",
+   "model": "claude-sonnet-5",
+   "input": 1633,
+   "output": 894,
+   "cents": 1.221,
+   "usd": 0.012206,
+   "ms": 8624,
+   "at": "2026-09-07T11:55:17.134Z"
+  },
+  {
+   "id": "audit-V1-haiku-2474950-en",
+   "model": "claude-sonnet-5",
+   "input": 1385,
+   "output": 636,
+   "cents": 0.913,
+   "usd": 0.00913,
+   "ms": 6509,
+   "at": "2026-09-07T11:55:18.063Z"
+  },
+  {
+   "id": "draft-V1-haiku-5743122-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1073,
+   "output": 222,
+   "cents": 0.218,
+   "usd": 0.002183,
+   "ms": 2569,
+   "at": "2026-09-07T11:55:19.707Z"
+  },
+  {
+   "id": "audit-V1-haiku-5743122-de",
+   "model": "claude-sonnet-5",
+   "input": 1415,
+   "output": 804,
+   "cents": 1.087,
+   "usd": 0.01087,
+   "ms": 9954,
+   "at": "2026-09-07T11:55:21.532Z"
+  },
+  {
+   "id": "draft-V1-haiku-2426805-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1493,
+   "output": 375,
+   "cents": 0.337,
+   "usd": 0.003368,
+   "ms": 4020,
+   "at": "2026-09-07T11:55:22.086Z"
+  },
+  {
+   "id": "audit-V1-haiku-5743122-en",
+   "model": "claude-sonnet-5",
+   "input": 1204,
+   "output": 399,
+   "cents": 0.64,
+   "usd": 0.006398,
+   "ms": 4092,
+   "at": "2026-09-07T11:55:23.800Z"
+  },
+  {
+   "id": "draft-V1-haiku-2426805-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1348,
+   "output": 310,
+   "cents": 0.29,
+   "usd": 0.002898,
+   "ms": 3356,
+   "at": "2026-09-07T11:55:24.896Z"
+  },
+  {
+   "id": "draft-V1-haiku-2876213-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1457,
+   "output": 426,
+   "cents": 0.359,
+   "usd": 0.003587,
+   "ms": 4587,
+   "at": "2026-09-07T11:55:28.394Z"
+  },
+  {
+   "id": "audit-V1-haiku-2426805-en",
+   "model": "claude-sonnet-5",
+   "input": 1648,
+   "output": 635,
+   "cents": 0.965,
+   "usd": 0.009646,
+   "ms": 4817,
+   "at": "2026-09-07T11:55:29.714Z"
+  },
+  {
+   "id": "audit-V1-haiku-2426805-de",
+   "model": "claude-sonnet-5",
+   "input": 1911,
+   "output": 888,
+   "cents": 1.27,
+   "usd": 0.012702,
+   "ms": 8121,
+   "at": "2026-09-07T11:55:30.210Z"
+  },
+  {
+   "id": "draft-V1-haiku-2876213-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1314,
+   "output": 294,
+   "cents": 0.278,
+   "usd": 0.002784,
+   "ms": 3323,
+   "at": "2026-09-07T11:55:33.040Z"
+  },
+  {
+   "id": "draft-V1-haiku-1340503-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1551,
+   "output": 342,
+   "cents": 0.326,
+   "usd": 0.003261,
+   "ms": 4041,
+   "at": "2026-09-07T11:55:34.258Z"
+  },
+  {
+   "id": "audit-V1-haiku-2876213-de",
+   "model": "claude-sonnet-5",
+   "input": 1903,
+   "output": 1009,
+   "cents": 1.39,
+   "usd": 0.013896,
+   "ms": 9009,
+   "at": "2026-09-07T11:55:37.403Z"
+  },
+  {
+   "id": "audit-V1-haiku-2876213-en",
+   "model": "claude-sonnet-5",
+   "input": 1606,
+   "output": 560,
+   "cents": 0.881,
+   "usd": 0.008812,
+   "ms": 4992,
+   "at": "2026-09-07T11:55:38.036Z"
+  },
+  {
+   "id": "draft-V1-haiku-1340503-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1372,
+   "output": 316,
+   "cents": 0.295,
+   "usd": 0.002952,
+   "ms": 3449,
+   "at": "2026-09-07T11:55:40.858Z"
+  },
+  {
+   "id": "draft-V1-haiku-7854318-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1737,
+   "output": 385,
+   "cents": 0.366,
+   "usd": 0.003662,
+   "ms": 4371,
+   "at": "2026-09-07T11:55:42.418Z"
+  },
+  {
+   "id": "audit-V1-haiku-1340503-de",
+   "model": "claude-sonnet-5",
+   "input": 1962,
+   "output": 1006,
+   "cents": 1.398,
+   "usd": 0.013984,
+   "ms": 9431,
+   "at": "2026-09-07T11:55:43.694Z"
+  },
+  {
+   "id": "audit-V1-haiku-1340503-en",
+   "model": "claude-sonnet-5",
+   "input": 1732,
+   "output": 818,
+   "cents": 1.164,
+   "usd": 0.011644,
+   "ms": 7299,
+   "at": "2026-09-07T11:55:48.159Z"
+  },
+  {
+   "id": "draft-V1-haiku-7854318-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1549,
+   "output": 419,
+   "cents": 0.364,
+   "usd": 0.003644,
+   "ms": 4487,
+   "at": "2026-09-07T11:55:48.186Z"
+  },
+  {
+   "id": "draft-V1-haiku-6258028-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1349,
+   "output": 312,
+   "cents": 0.291,
+   "usd": 0.002909,
+   "ms": 3501,
+   "at": "2026-09-07T11:55:51.664Z"
+  },
+  {
+   "id": "draft-V1-haiku-6258028-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1232,
+   "output": 300,
+   "cents": 0.273,
+   "usd": 0.002732,
+   "ms": 3405,
+   "at": "2026-09-07T11:55:54.963Z"
+  },
+  {
+   "id": "audit-V1-haiku-6258028-de",
+   "model": "claude-sonnet-5",
+   "input": 1628,
+   "output": 594,
+   "cents": 0.92,
+   "usd": 0.009196,
+   "ms": 5684,
+   "at": "2026-09-07T11:55:57.351Z"
+  },
+  {
+   "id": "audit-V1-haiku-7854318-en",
+   "model": "claude-sonnet-5",
+   "input": 2034,
+   "output": 1055,
+   "cents": 1.462,
+   "usd": 0.014618,
+   "ms": 9725,
+   "at": "2026-09-07T11:55:57.914Z"
+  },
+  {
+   "id": "draft-V1-haiku-4535827-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1651,
+   "output": 351,
+   "cents": 0.341,
+   "usd": 0.003406,
+   "ms": 2878,
+   "at": "2026-09-07T11:56:00.800Z"
+  },
+  {
+   "id": "draft-V1-haiku-4535827-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1851,
+   "output": 330,
+   "cents": 0.35,
+   "usd": 0.003501,
+   "ms": 4166,
+   "at": "2026-09-07T11:56:01.524Z"
+  },
+  {
+   "id": "audit-V1-haiku-6258028-en",
+   "model": "claude-sonnet-5",
+   "input": 1507,
+   "output": 659,
+   "cents": 0.96,
+   "usd": 0.009604,
+   "ms": 7423,
+   "at": "2026-09-07T11:56:02.388Z"
+  },
+  {
+   "id": "draft-V1-haiku-1898286-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1847,
+   "output": 313,
+   "cents": 0.341,
+   "usd": 0.003412,
+   "ms": 3883,
+   "at": "2026-09-07T11:56:06.278Z"
+  },
+  {
+   "id": "audit-V1-haiku-4535827-de",
+   "model": "claude-sonnet-5",
+   "input": 2327,
+   "output": 735,
+   "cents": 1.2,
+   "usd": 0.012004,
+   "ms": 6648,
+   "at": "2026-09-07T11:56:08.175Z"
+  },
+  {
+   "id": "audit-V1-haiku-4535827-en",
+   "model": "claude-sonnet-5",
+   "input": 2139,
+   "output": 1020,
+   "cents": 1.448,
+   "usd": 0.014478,
+   "ms": 7814,
+   "at": "2026-09-07T11:56:08.615Z"
+  },
+  {
+   "id": "draft-V1-haiku-1898286-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1630,
+   "output": 344,
+   "cents": 0.335,
+   "usd": 0.00335,
+   "ms": 3972,
+   "at": "2026-09-07T11:56:12.156Z"
+  },
+  {
+   "id": "draft-V1-haiku-1341976-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1815,
+   "output": 367,
+   "cents": 0.365,
+   "usd": 0.00365,
+   "ms": 4378,
+   "at": "2026-09-07T11:56:12.999Z"
+  },
+  {
+   "id": "audit-V1-haiku-1898286-de",
+   "model": "claude-sonnet-5",
+   "input": 2332,
+   "output": 940,
+   "cents": 1.406,
+   "usd": 0.014064,
+   "ms": 9544,
+   "at": "2026-09-07T11:56:15.822Z"
+  },
+  {
+   "id": "draft-V1-haiku-1341976-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1584,
+   "output": 321,
+   "cents": 0.319,
+   "usd": 0.003189,
+   "ms": 3613,
+   "at": "2026-09-07T11:56:19.439Z"
+  },
+  {
+   "id": "audit-V1-haiku-1898286-en",
+   "model": "claude-sonnet-5",
+   "input": 2106,
+   "output": 939,
+   "cents": 1.36,
+   "usd": 0.013602,
+   "ms": 7495,
+   "at": "2026-09-07T11:56:19.654Z"
+  },
+  {
+   "id": "audit-V1-haiku-1341976-de",
+   "model": "claude-sonnet-5",
+   "input": 2304,
+   "output": 1136,
+   "cents": 1.597,
+   "usd": 0.015968,
+   "ms": 10660,
+   "at": "2026-09-07T11:56:23.663Z"
+  },
+  {
+   "id": "draft-V1-haiku-5140214-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1847,
+   "output": 388,
+   "cents": 0.379,
+   "usd": 0.003787,
+   "ms": 4357,
+   "at": "2026-09-07T11:56:24.019Z"
+  },
+  {
+   "id": "draft-V1-haiku-5140214-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1630,
+   "output": 286,
+   "cents": 0.306,
+   "usd": 0.00306,
+   "ms": 3199,
+   "at": "2026-09-07T11:56:26.866Z"
+  },
+  {
+   "id": "audit-V1-haiku-1341976-en",
+   "model": "claude-sonnet-5",
+   "input": 2011,
+   "output": 836,
+   "cents": 1.238,
+   "usd": 0.012382,
+   "ms": 7715,
+   "at": "2026-09-07T11:56:27.156Z"
+  },
+  {
+   "id": "draft-V1-haiku-1920496-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1728,
+   "output": 368,
+   "cents": 0.357,
+   "usd": 0.003568,
+   "ms": 4237,
+   "at": "2026-09-07T11:56:31.399Z"
+  },
+  {
+   "id": "audit-V1-haiku-5140214-de",
+   "model": "claude-sonnet-5",
+   "input": 2336,
+   "output": 764,
+   "cents": 1.231,
+   "usd": 0.012312,
+   "ms": 7609,
+   "at": "2026-09-07T11:56:31.629Z"
+  },
+  {
+   "id": "audit-V1-haiku-5140214-en",
+   "model": "claude-sonnet-5",
+   "input": 1997,
+   "output": 849,
+   "cents": 1.248,
+   "usd": 0.012484,
+   "ms": 7354,
+   "at": "2026-09-07T11:56:34.221Z"
+  },
+  {
+   "id": "draft-V1-haiku-1920496-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1535,
+   "output": 312,
+   "cents": 0.309,
+   "usd": 0.003095,
+   "ms": 2889,
+   "at": "2026-09-07T11:56:34.523Z"
+  },
+  {
+   "id": "draft-V1-haiku-1340405-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1683,
+   "output": 306,
+   "cents": 0.321,
+   "usd": 0.003213,
+   "ms": 3549,
+   "at": "2026-09-07T11:56:37.774Z"
+  },
+  {
+   "id": "audit-V1-haiku-1920496-de",
+   "model": "claude-sonnet-5",
+   "input": 2208,
+   "output": 910,
+   "cents": 1.352,
+   "usd": 0.013516,
+   "ms": 8463,
+   "at": "2026-09-07T11:56:39.863Z"
+  },
+  {
+   "id": "audit-V1-haiku-1920496-en",
+   "model": "claude-sonnet-5",
+   "input": 1963,
+   "output": 948,
+   "cents": 1.341,
+   "usd": 0.013406,
+   "ms": 8712,
+   "at": "2026-09-07T11:56:43.237Z"
+  },
+  {
+   "id": "draft-V1-haiku-1340405-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1483,
+   "output": 298,
+   "cents": 0.297,
+   "usd": 0.002973,
+   "ms": 3406,
+   "at": "2026-09-07T11:56:43.276Z"
+  },
+  {
+   "id": "audit-V1-haiku-1340405-de",
+   "model": "claude-sonnet-5",
+   "input": 2056,
+   "output": 626,
+   "cents": 1.037,
+   "usd": 0.010372,
+   "ms": 6407,
+   "at": "2026-09-07T11:56:44.182Z"
+  },
+  {
+   "id": "draft-V1-haiku-1920494-de",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1632,
+   "output": 401,
+   "cents": 0.364,
+   "usd": 0.003637,
+   "ms": 4309,
+   "at": "2026-09-07T11:56:47.550Z"
+  },
+  {
+   "id": "draft-V1-haiku-1920494-en",
+   "model": "claude-haiku-4-5-20251001",
+   "input": 1464,
+   "output": 339,
+   "cents": 0.316,
+   "usd": 0.003159,
+   "ms": 3486,
+   "at": "2026-09-07T11:56:47.677Z"
+  },
+  {
+   "id": "audit-V1-haiku-1340405-en",
+   "model": "claude-sonnet-5",
+   "input": 1819,
+   "output": 891,
+   "cents": 1.255,
+   "usd": 0.012548,
+   "ms": 7921,
+   "at": "2026-09-07T11:56:51.200Z"
+  },
+  {
+   "id": "audit-V1-haiku-1920494-en",
+   "model": "claude-sonnet-5",
+   "input": 1841,
+   "output": 809,
+   "cents": 1.177,
+   "usd": 0.011772,
+   "ms": 6895,
+   "at": "2026-09-07T11:56:54.574Z"
+  },
+  {
+   "id": "audit-V1-haiku-1920494-de",
+   "model": "claude-sonnet-5",
+   "input": 2106,
+   "output": 1295,
+   "cents": 1.716,
+   "usd": 0.017162,
+   "ms": 12675,
+   "at": "2026-09-07T11:57:00.226Z"
+  },
+  {
+   "id": "audit-V0-sonnet-1340405-en",
+   "model": "claude-sonnet-5",
+   "input": 1894,
+   "output": 1097,
+   "cents": 1.476,
+   "usd": 0.014758,
+   "ms": 9642,
+   "at": "2026-09-07T11:57:27.557Z"
+  },
+  {
+   "id": "audit-V0-sonnet-1920494-en",
+   "model": "claude-sonnet-5",
+   "input": 1949,
+   "output": 1260,
+   "cents": 1.65,
+   "usd": 0.016498,
+   "ms": 10235,
+   "at": "2026-09-07T11:57:28.154Z"
+  },
+  {
+   "id": "audit-V0-sonnet-5140214-de",
+   "model": "claude-sonnet-5",
+   "input": 2478,
+   "output": 1172,
+   "cents": 1.668,
+   "usd": 0.016676,
+   "ms": 10472,
+   "at": "2026-09-07T11:57:28.348Z"
+  },
+  {
+   "id": "audit-V1-sonnet-2431776-en",
+   "model": "claude-sonnet-5",
+   "input": 1635,
+   "output": 784,
+   "cents": 1.111,
+   "usd": 0.01111,
+   "ms": 6377,
+   "at": "2026-09-07T11:57:33.966Z"
+  },
+  {
+   "id": "audit-V1-sonnet-1340503-de",
+   "model": "claude-sonnet-5",
+   "input": 1965,
+   "output": 709,
+   "cents": 1.102,
+   "usd": 0.01102,
+   "ms": 6716,
+   "at": "2026-09-07T11:57:35.118Z"
+  },
+  {
+   "id": "audit-V1-sonnet-7960979-de",
+   "model": "claude-sonnet-5",
+   "input": 2211,
+   "output": 1013,
+   "cents": 1.455,
+   "usd": 0.014552,
+   "ms": 8949,
+   "at": "2026-09-07T11:57:37.112Z"
+  },
+  {
+   "id": "audit-V1-sonnet-7854318-en",
+   "model": "claude-sonnet-5",
+   "input": 1922,
+   "output": 707,
+   "cents": 1.091,
+   "usd": 0.010914,
+   "ms": 5623,
+   "at": "2026-09-07T11:57:39.606Z"
+  },
+  {
+   "id": "audit-V1-sonnet-6258028-de",
+   "model": "claude-sonnet-5",
+   "input": 1653,
+   "output": 536,
+   "cents": 0.867,
+   "usd": 0.008666,
+   "ms": 6556,
+   "at": "2026-09-07T11:57:41.678Z"
+  },
+  {
+   "id": "audit-V1-sonnet-1898286-en",
+   "model": "claude-sonnet-5",
+   "input": 2078,
+   "output": 683,
+   "cents": 1.099,
+   "usd": 0.010986,
+   "ms": 7525,
+   "at": "2026-09-07T11:57:44.663Z"
+  },
+  {
+   "id": "audit-V1-sonnet-5140214-de",
+   "model": "claude-sonnet-5",
+   "input": 2377,
+   "output": 1098,
+   "cents": 1.573,
+   "usd": 0.015734,
+   "ms": 10121,
+   "at": "2026-09-07T11:57:49.739Z"
+  },
+  {
+   "id": "audit-V1-sonnet-1340405-de",
+   "model": "claude-sonnet-5",
+   "input": 2140,
+   "output": 748,
+   "cents": 1.176,
+   "usd": 0.01176,
+   "ms": 8229,
+   "at": "2026-09-07T11:57:49.922Z"
+  },
+  {
+   "id": "audit-V1-sonnet-1920494-en",
+   "model": "claude-sonnet-5",
+   "input": 1783,
+   "output": 850,
+   "cents": 1.207,
+   "usd": 0.012066,
+   "ms": 7542,
+   "at": "2026-09-07T11:57:52.217Z"
+  },
+  {
+   "id": "audit-V2-sonnet-2153287-en",
+   "model": "claude-sonnet-5",
+   "input": 967,
+   "output": 466,
+   "cents": 0.659,
+   "usd": 0.006594,
+   "ms": 3888,
+   "at": "2026-09-07T11:57:53.663Z"
+  },
+  {
+   "id": "audit-V2-sonnet-5743122-de",
+   "model": "claude-sonnet-5",
+   "input": 1475,
+   "output": 699,
+   "cents": 0.994,
+   "usd": 0.00994,
+   "ms": 6127,
+   "at": "2026-09-07T11:57:56.065Z"
+  },
+  {
+   "id": "audit-V2-sonnet-2876213-en",
+   "model": "claude-sonnet-5",
+   "input": 1710,
+   "output": 1224,
+   "cents": 1.566,
+   "usd": 0.01566,
+   "ms": 10403,
+   "at": "2026-09-07T11:58:02.640Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-2490719-en",
+   "model": "claude-sonnet-5",
+   "input": 1082,
+   "output": 451,
+   "cents": 0.667,
+   "usd": 0.006674,
+   "ms": 3745,
+   "at": "2026-09-07T11:58:06.395Z"
+  },
+  {
+   "id": "audit-ECO-sonnet-1340503-de",
+   "model": "claude-sonnet-5",
+   "input": 1249,
+   "output": 746,
+   "cents": 0.996,
+   "usd": 0.009958,
+   "ms": 6617,
+   "at": "2026-09-07T11:58:09.329Z"
+  },
+  {
+   "id": "draft-V1-opus-2431776-en",
+   "model": "claude-opus-5",
+   "input": 1747,
+   "output": 382,
+   "cents": 1.509,
+   "usd": 0.0150855,
+   "ms": 6068,
+   "at": "2026-09-07T11:58:15.431Z"
+  },
+  {
+   "id": "draft-V1-opus-1929697-en",
+   "model": "claude-opus-5",
+   "input": 2320,
+   "output": 401,
+   "cents": 1.843,
+   "usd": 0.0184255,
+   "ms": 6768,
+   "at": "2026-09-07T11:58:16.110Z"
+  },
+  {
+   "id": "draft-V1-opus-1929697-de",
+   "model": "claude-opus-5",
+   "input": 2575,
+   "output": 577,
+   "cents": 2.41,
+   "usd": 0.0241005,
+   "ms": 8401,
+   "at": "2026-09-07T11:58:17.739Z"
+  },
+  {
+   "id": "audit-V1-opus-2431776-en",
+   "model": "claude-sonnet-5",
+   "input": 1674,
+   "output": 825,
+   "cents": 1.16,
+   "usd": 0.011598,
+   "ms": 6834,
+   "at": "2026-09-07T11:58:22.271Z"
+  },
+  {
+   "id": "draft-V1-opus-5743122-de",
+   "model": "claude-opus-5",
+   "input": 1578,
+   "output": 395,
+   "cents": 1.457,
+   "usd": 0.0145655,
+   "ms": 6368,
+   "at": "2026-09-07T11:58:22.507Z"
+  },
+  {
+   "id": "audit-V1-opus-1929697-de",
+   "model": "claude-sonnet-5",
+   "input": 2663,
+   "output": 899,
+   "cents": 1.432,
+   "usd": 0.014316,
+   "ms": 7332,
+   "at": "2026-09-07T11:58:25.072Z"
+  },
+  {
+   "id": "draft-V1-opus-5743122-en",
+   "model": "claude-opus-5",
+   "input": 1432,
+   "output": 335,
+   "cents": 1.234,
+   "usd": 0.0123355,
+   "ms": 5952,
+   "at": "2026-09-07T11:58:28.231Z"
+  },
+  {
+   "id": "draft-V1-opus-2876213-en",
+   "model": "claude-opus-5",
+   "input": 1748,
+   "output": 346,
+   "cents": 1.419,
+   "usd": 0.0141905,
+   "ms": 6384,
+   "at": "2026-09-07T11:58:28.905Z"
+  },
+  {
+   "id": "draft-V1-opus-5140214-en",
+   "model": "claude-opus-5",
+   "input": 2148,
+   "output": 392,
+   "cents": 1.734,
+   "usd": 0.0173405,
+   "ms": 6141,
+   "at": "2026-09-07T11:58:31.276Z"
+  },
+  {
+   "id": "audit-V1-opus-5743122-en",
+   "model": "claude-sonnet-5",
+   "input": 1328,
+   "output": 738,
+   "cents": 1.004,
+   "usd": 0.010036,
+   "ms": 6695,
+   "at": "2026-09-07T11:58:34.930Z"
+  },
+  {
+   "id": "draft-V1-opus-1340405-en",
+   "model": "claude-opus-5",
+   "input": 1958,
+   "output": 366,
+   "cents": 1.574,
+   "usd": 0.0157405,
+   "ms": 6383,
+   "at": "2026-09-07T11:58:35.312Z"
+  },
+  {
+   "id": "audit-V1-opus-5140214-en",
+   "model": "claude-sonnet-5",
+   "input": 2095,
+   "output": 777,
+   "cents": 1.196,
+   "usd": 0.01196,
+   "ms": 5652,
+   "at": "2026-09-07T11:58:36.930Z"
+  },
+  {
+   "id": "audit-V1-opus-1340405-en",
+   "model": "claude-sonnet-5",
+   "input": 1875,
+   "output": 726,
+   "cents": 1.101,
+   "usd": 0.01101,
+   "ms": 7096,
+   "at": "2026-09-07T11:58:42.410Z"
+  },
+  {
+   "id": "audit-V1-haiku-7854318-de",
+   "model": "claude-sonnet-5",
+   "input": 2229,
+   "output": 1254,
+   "cents": 1.7,
+   "usd": 0.016998,
+   "ms": 11228,
+   "at": "2026-09-07T11:58:48.212Z"
+  },
+  {
+   "id": "audit-V1-haiku-2431776-en",
+   "model": "claude-sonnet-5",
+   "input": 1669,
+   "output": 740,
+   "cents": 1.074,
+   "usd": 0.010738,
+   "ms": 16117,
+   "at": "2026-09-07T11:58:51.089Z"
+  },
+  {
+   "id": "audit-V1-opus-2876213-en",
+   "model": "claude-sonnet-5",
+   "input": 1649,
+   "output": 662,
+   "cents": 0.992,
+   "usd": 0.009918,
+   "ms": 5465,
+   "at": "2026-09-07T12:00:41.840Z"
+  },
+  {
+   "id": "audit-V1-opus-5743122-de",
+   "model": "claude-sonnet-5",
+   "input": 1507,
+   "output": 757,
+   "cents": 1.058,
+   "usd": 0.010584,
+   "ms": 7632,
+   "at": "2026-09-07T12:00:43.995Z"
+  },
+  {
+   "id": "audit-V1-opus-1929697-en",
+   "model": "claude-sonnet-5",
+   "input": 2275,
+   "output": 1050,
+   "cents": 1.505,
+   "usd": 0.01505,
+   "ms": 9211,
+   "at": "2026-09-07T12:00:45.524Z"
+  }
+ ]
+}
