@@ -47,7 +47,7 @@ export function OfflineBanner() {
 
   if (!off) return null
   return (
-    <div role="status" data-testid="offline-banner" className="fixed inset-x-0 top-0 z-30 flex justify-center bg-amber-soft text-amber" style={{ height: 'var(--offline-h, 36px)', paddingTop: 'env(safe-area-inset-top)' }}>
+    <div role="status" data-testid="offline-banner" className="fixed inset-x-0 top-0 z-30 flex justify-center bg-amber-soft text-amber-deep" style={{ height: 'var(--offline-h, 36px)', paddingTop: 'env(safe-area-inset-top)' }}>
       <p className="mx-auto flex w-full max-w-[520px] items-center gap-2 truncate px-4 text-[13px] font-semibold"><span aria-hidden>📴</span><span className="truncate">{t('banner')}</span></p>
     </div>
   )

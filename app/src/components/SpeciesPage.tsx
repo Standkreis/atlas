@@ -197,7 +197,7 @@ export function SpeciesPage() {
             {isSeen ? <SeenMark size={22} title={t('state.seen')} /> : <Grey><span className="h-2 w-2 rounded-full border border-current" /></Grey>}
             {isSeen ? seenLabel : t('state.notSeen')}
           </span>
-          <span className={`flex items-center gap-2 ${isStudied ? 'font-semibold text-amber' : 'text-ink-faint'}`} data-testid="state-studied">
+          <span className={`flex items-center gap-2 ${isStudied ? 'font-semibold text-amber-deep' : 'text-ink-faint'}`} data-testid="state-studied">
             {isStudied ? <StudiedMark size={22} title={t('state.studied')} /> : <Grey><Icon name="book" size={13} /></Grey>}
             {isStudied ? t('state.studied') : t('state.notStudied')}
           </span>
@@ -304,7 +304,7 @@ export function SpeciesPage() {
           </button>
           <button type="button" disabled={busy || !progress.data} aria-pressed={isStudied} data-testid="study"
             onClick={() => (isStudied ? unmark.mutate({ taxonId: s.id }) : void mark({ id: s.id, gbifKey: s.gbifKey, sciName: s.sciName, names: s.names, tile: s.tile, lead: images[0] ? { url: images[0].url, author: images[0].author, licence: images[0].licence, licenceUrl: images[0].licenceUrl, sourceUrl: images[0].sourceUrl, origin: images[0].origin } : null }))}
-            className={`flex h-13 flex-1 items-center justify-center gap-2 rounded-full text-[17px] font-bold shadow-md transition-colors disabled:opacity-60 ${isStudied ? 'bg-amber-soft text-amber' : 'bg-amber text-white'}`}>
+            className={`flex h-13 flex-1 items-center justify-center gap-2 rounded-full text-[17px] font-bold shadow-md transition-colors disabled:opacity-60 ${isStudied ? 'bg-amber-soft text-amber-deep' : 'bg-amber text-white'}`}>
             <Icon name="book" size={20} /> {isStudied ? t('study.marked') : t('study.mark')}
           </button>
         </div>

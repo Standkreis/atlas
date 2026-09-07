@@ -96,7 +96,7 @@ export function Journal({ title }: { title: string }) {
             </button>
           )}
           {days.isLoading && <p className="mt-3 text-[15px] text-ink-soft">{tc('working')}</p>}
-          {days.isError && !days.data && all.length === 0 && <p className="mt-3 text-[15px] text-amber">{tc('error')}</p>}
+          {days.isError && !days.data && all.length === 0 && <p className="mt-3 text-[15px] text-amber-deep">{tc('error')}</p>}
           {all.length > 0 && <p className="mt-5 text-[12px] text-ink-faint">{t('footer')}</p>}
         </>
       )}
@@ -151,7 +151,7 @@ export function JournalRow({ row, state, onOpen, onOpenScan }: { row: Row; state
   const format = useFormatter()
   const name = useName()
   const pathname = usePathname()
-  const chip = row.kind === 'study' ? { text: t('studiedChip'), cls: 'bg-amber-soft text-amber' } : row.first ? { text: t('newlySeen'), cls: 'bg-moss-soft text-moss-deep' } : null
+  const chip = row.kind === 'study' ? { text: t('studiedChip'), cls: 'bg-amber-soft text-amber-deep' } : row.first ? { text: t('newlySeen'), cls: 'bg-moss-soft text-moss-deep' } : null
   // The queue chip (handoff 0009 Track B): grey while the row waits for the signal; amber with "erneut" when the server refused it.
   // The scan badge (0016 B5): grey while the answer waits for the signal, moss once the ladder is on the row, until opened.
   const scan = row.scan
@@ -162,7 +162,7 @@ export function JournalRow({ row, state, onOpen, onOpenScan }: { row: Row; state
     ? <span className="motion-badge shrink-0 rounded-full bg-moss-soft px-2 py-0.5 text-[12px] font-semibold text-moss-deep" data-testid="chip-scan" data-state="answered">{tsc('badgeAnswered')}</span>
     : scan?.state === 'pending' ? <span className="shrink-0 rounded-full bg-tile px-2 py-0.5 text-[12px] font-semibold text-ink-soft" data-testid="chip-scan" data-state="pending">{tsc('badgePending')}</span> : null
   const queued = scan && scan.state !== 'dead' ? null : row.queued === 'dead'
-    ? <button type="button" onClick={() => retry(row.id)} className="shrink-0 rounded-full bg-amber-soft px-2 py-0.5 text-[12px] font-semibold text-amber" data-testid="chip-queued" data-state="dead">{tq('failed')} · {tq('retry')}</button>
+    ? <button type="button" onClick={() => retry(row.id)} className="shrink-0 rounded-full bg-amber-soft px-2 py-0.5 text-[12px] font-semibold text-amber-deep" data-testid="chip-queued" data-state="dead">{tq('failed')} · {tq('retry')}</button>
     : row.queued ? <span className="shrink-0 rounded-full bg-tile px-2 py-0.5 text-[12px] font-semibold text-ink-soft" data-testid="chip-queued" data-state="waiting">{tq('waiting')}</span> : null
   const meta: React.ReactNode[] = [format.dateTime(row.at, { hour: '2-digit', minute: '2-digit' })]
   if (row.place) meta.push(row.place)

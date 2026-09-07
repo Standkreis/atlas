@@ -47,7 +47,7 @@ function DeleteBody({ onDeleted }: { onDeleted: () => void }) {
         {prepared ? t('deleteSummary', { devices: prepared.devices, sightings: prepared.sightings }) : tc('working')}
       </p>
       <p className="mt-2 text-[15px] text-ink-soft">{t('deleteBody')}</p>
-      {del.isError && <p className="mt-2 text-[13px] text-amber">{tc('error')}</p>}
+      {del.isError && <p className="mt-2 text-[13px] text-amber-deep">{tc('error')}</p>}
       <div className="mt-5 flex flex-col gap-2">
         <button type="button" disabled={!prepared || del.isPending} onClick={() => prepared && del.mutate({ token: prepared.token })} data-testid="delete-confirm" className="rounded-2xl bg-ink px-4 py-3 text-[17px] font-bold text-paper disabled:opacity-50">
           {t('deleteConfirm')}

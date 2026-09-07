@@ -77,7 +77,7 @@ export function AvatarButton({ name, initials, avatarUrl }: { name: string | nul
         </span>
       </button>
       <input ref={input} type="file" accept="image/*" onChange={change} className="hidden" data-testid="avatar-input" tabIndex={-1} aria-hidden />
-      {state !== 'idle' && <span className={`text-[11px] ${state === 'error' ? 'text-amber' : 'text-ink-soft'}`} data-testid="avatar-state">{t(state === 'busy' ? 'avatarBusy' : 'avatarError')}</span>}
+      {state !== 'idle' && <span className={`text-[11px] ${state === 'error' ? 'text-amber-deep' : 'text-ink-soft'}`} data-testid="avatar-state">{t(state === 'busy' ? 'avatarBusy' : 'avatarError')}</span>}
     </div>
   )
 }

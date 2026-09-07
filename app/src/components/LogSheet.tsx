@@ -80,7 +80,7 @@ function LogTiles() {
       {state === 'busy' ? (
         <p className="mt-4 text-[13px] leading-snug text-ink-soft" data-testid="chooser-note">{t('photoUploading')}</p>
       ) : state === 'error' ? (
-        <p className="mt-4 text-[13px] leading-snug text-amber" data-testid="chooser-note">{tc('error')}</p>
+        <p className="mt-4 text-[13px] leading-snug text-amber-deep" data-testid="chooser-note">{tc('error')}</p>
       ) : !noted ? (
         <p className="mt-4 flex items-start gap-1 text-[13px] leading-snug text-ink-soft" data-testid="chooser-note" data-first="1">
           <span>{ts('terms')}</span>

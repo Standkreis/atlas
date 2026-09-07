@@ -211,7 +211,7 @@ export function AtlasGrid({ title }: { title: string }) {
           <div className="mt-3 flex items-center gap-3">
             <CountersBar counters={counters} className="min-w-8 flex-1" />
             <p className="shrink-0 text-[15px]" data-testid="counters">
-              <span className="font-bold text-amber">{t('studied', { n: counters.studied })}</span>
+              <span className="font-bold text-amber-deep">{t('studied', { n: counters.studied })}</span>
               <span className="text-ink-soft"> · </span>
               <span className={`inline-block font-bold text-moss-deep ${tick ? 'animate-[fill-tick_500ms_ease-out] rounded-md bg-moss-soft px-1' : ''}`} data-testid="seen-count">{t('seen', { n: counters.seen })}</span>
               {tick && <span className="ml-1 inline-block rounded-full bg-moss px-1.5 text-[12px] font-bold text-white" data-testid="plus-one">{tf('plusOne')}</span>}

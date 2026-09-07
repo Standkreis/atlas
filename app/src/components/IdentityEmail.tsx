@@ -94,7 +94,7 @@ export function EmailForm({ onVerified, onCancel }: { onVerified: (r: EmailVerif
           {onCancel && <button type="button" onClick={onCancel} className="text-[13px] text-ink-soft underline" data-testid="email-cancel">{t('cancel')}</button>}
         </>
       )}
-      {line && <p className="text-[13px] text-amber" role="alert" data-testid="email-error">{line}</p>}
+      {line && <p className="text-[13px] text-amber-deep" role="alert" data-testid="email-error">{line}</p>}
     </div>
   )
 }

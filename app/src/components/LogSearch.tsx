@@ -95,7 +95,7 @@ export function LogSearch({ photoId, scan = false, initialQuery = '' }: { photoI
       ) : (
         <button type="button" onClick={() => picker.current?.click()} disabled={photoState === 'busy'} className="mt-3 flex w-full items-center gap-2 rounded-2xl border border-dashed border-ink-faint/60 px-4 py-3 text-left text-[15px] text-ink-soft disabled:opacity-60" data-testid="log-photo-strip">
           <span aria-hidden>📷</span>
-          {photoState === 'busy' ? <span>{t('photoUploading')}</span> : photoState === 'error' ? <span className="text-amber">{tc('error')}</span> : <span>{t('noPhoto')} · <span className="font-semibold text-moss-deep underline">{t('addPhoto')}</span></span>}
+          {photoState === 'busy' ? <span>{t('photoUploading')}</span> : photoState === 'error' ? <span className="text-amber-deep">{tc('error')}</span> : <span>{t('noPhoto')} · <span className="font-semibold text-moss-deep underline">{t('addPhoto')}</span></span>}
         </button>
       )}
       <PhotoInput ref={picker} source="gallery" onPhoto={(p) => scanned(p.id)} onState={setPhotoState} testId="photo-input" />
@@ -124,7 +124,7 @@ export function LogSearch({ photoId, scan = false, initialQuery = '' }: { photoI
                     <Row key={s.taxonId} onClick={() => pick(s.gbifKey)} testId="log-row"
                       thumb={<Thumb card={{ id: s.taxonId, gbifKey: s.gbifKey, sciName: s.sciName, names: s.names, tile: s.tile, lead: s.lead?.url ?? null }} state={state} size={56} />}
                       title={name(s)} sub={<><i>{s.sciName}</i> · {ts(`tile.${s.tile}`)}{!typed && <> · {month}</>}</>}
-                      right={state === 'seen' ? <span className="text-[15px] font-semibold text-moss-deep">{t('seen')}</span> : state === 'studied' ? <span className="text-[15px] font-semibold text-amber">{t('studied')}</span> : null} />
+                      right={state === 'seen' ? <span className="text-[15px] font-semibold text-moss-deep">{t('seen')}</span> : state === 'studied' ? <span className="text-[15px] font-semibold text-amber-deep">{t('studied')}</span> : null} />
                   )
                 })}
               </ul>

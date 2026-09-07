@@ -73,7 +73,7 @@ export function FillSheet({ s, onClose, onPhoto, photoState }: { s: Fill; onClos
         )}
         <div className="mt-4 flex gap-3">
           {!s.photo && !s.pending && (
-            <button type="button" onClick={() => picker.current?.click()} disabled={busy} className={`flex h-13 flex-1 items-center justify-center gap-2 rounded-full bg-tile text-[17px] font-bold disabled:opacity-60 ${failed ? 'text-amber' : ''}`} data-testid="fill-photo">
+            <button type="button" onClick={() => picker.current?.click()} disabled={busy} className={`flex h-13 flex-1 items-center justify-center gap-2 rounded-full bg-tile text-[17px] font-bold disabled:opacity-60 ${failed ? 'text-amber-deep' : ''}`} data-testid="fill-photo">
               <span aria-hidden>📷</span> {busy ? tc('working') : failed ? tc('error') : t('photo')}
             </button>
           )}

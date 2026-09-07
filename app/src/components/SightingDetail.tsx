@@ -138,7 +138,7 @@ export function SightingDetail({ id, mode, origin, onGone }: { id: string; mode:
         {image?.info && <SourceInfo title={ts('attribution.title')} sources={[imageSource(image.info)]} tone="card" size={32} className="absolute right-3 bottom-3" testId="hero-info" />}
         <input ref={picker} type="file" accept="image/*" onChange={addPhoto} className="hidden" data-testid="photo-input" />
       </figure>
-      {photoState === 'error' && <p className="mt-2 text-[13px] text-amber">{tc('error')}</p>}
+      {photoState === 'error' && <p className="mt-2 text-[13px] text-amber-deep">{tc('error')}</p>}
 
       <div className="mt-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -194,7 +194,7 @@ export function SightingDetail({ id, mode, origin, onGone }: { id: string; mode:
         <p className="mt-2 text-[13px] text-ink-faint">{t('wildnessHint')}</p>
       </Section>
 
-      {update.isError && <p className="mt-4 text-[13px] text-amber">{tc('error')}</p>}
+      {update.isError && <p className="mt-4 text-[13px] text-amber-deep">{tc('error')}</p>}
       {update.isSuccess && !dirty && <p className="mt-4 text-[13px] text-moss-deep" data-testid="saved">{t('saved')}</p>}
 
       <div className="mt-8 border-t border-tile pt-4">
@@ -205,7 +205,7 @@ export function SightingDetail({ id, mode, origin, onGone }: { id: string; mode:
               <button type="button" disabled={remove.isPending} onClick={() => remove.mutate({ id })} data-testid="delete-yes" className="flex-1 rounded-2xl bg-ink px-4 py-3 text-[15px] font-bold text-paper disabled:opacity-60">{t('deleteYes')}</button>
               <button type="button" onClick={() => setConfirm(false)} className="flex-1 rounded-2xl bg-tile px-4 py-3 text-[15px] font-semibold">{t('deleteNo')}</button>
             </div>
-            {remove.isError && <p className="mt-2 text-[13px] text-amber">{tc('error')}</p>}
+            {remove.isError && <p className="mt-2 text-[13px] text-amber-deep">{tc('error')}</p>}
           </div>
         ) : (
           <button type="button" onClick={() => setConfirm(true)} data-testid="delete" className="text-[15px] font-semibold text-ink-soft">{t('delete')}</button>

@@ -119,7 +119,7 @@ function Body({ state, region, commonName, onTake, onSearch, onAgain, onJournal 
     const line = code === 'UNSUPPORTED_MEDIA_TYPE' ? t('errorImage') : code === 'TOO_MANY_REQUESTS' ? t('errorBusy') : code === 'TIMEOUT' ? t('errorTimeout') : t('error')
     return (
       <>
-        <p className="pt-1 text-[17px] leading-snug font-semibold text-amber" data-testid="ladder-sentence">{line}</p>
+        <p className="pt-1 text-[17px] leading-snug font-semibold text-amber-deep" data-testid="ladder-sentence">{line}</p>
         <div className="mt-4 flex gap-2">{searchButton('', primary)}</div>
         {again}
       </>
@@ -173,9 +173,9 @@ function Body({ state, region, commonName, onTake, onSearch, onAgain, onJournal 
         <Evidence lines={r.evidence} />
       )}
       {!r.answer && (
-        <div className="mt-3 rounded-2xl bg-amber-soft px-3 py-2.5 text-[14px] leading-snug text-amber" data-testid="ladder-hint">
+        <div className="mt-3 rounded-2xl bg-amber-soft px-3 py-2.5 text-[14px] leading-snug text-amber-deep" data-testid="ladder-hint">
           {t('hint')}
-          {r.hint && <span className="mt-1 block text-[13px] text-amber/80">{r.hint}</span>}
+          {r.hint && <span className="mt-1 block text-[13px] text-amber-deep/80">{r.hint}</span>}
         </div>
       )}
       <div className="mt-4 flex gap-2">

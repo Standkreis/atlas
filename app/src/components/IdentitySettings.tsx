@@ -148,13 +148,13 @@ export function IdentitySettings({ version }: { version: string }) {
               <div className="flex items-center gap-3">
                 <span aria-hidden>✉️</span>
                 <div className="min-w-0 flex-1 truncate text-[15px]" data-testid="email-value">{email}</div>
-                <button type="button" onClick={removeEmail} disabled={emailRemove.isPending} data-testid="email-remove" className="text-[13px] font-semibold text-amber disabled:opacity-50">{t('email.remove')}</button>
+                <button type="button" onClick={removeEmail} disabled={emailRemove.isPending} data-testid="email-remove" className="text-[13px] font-semibold text-amber-deep disabled:opacity-50">{t('email.remove')}</button>
               </div>
               {removingEmail && (
                 <div className="mt-2 rounded-2xl bg-paper px-3 py-2.5 text-[13px]" data-testid="email-remove-warning">
-                  <p className="text-amber">{t('email.removeLast')}</p>
+                  <p className="text-amber-deep">{t('email.removeLast')}</p>
                   <div className="mt-2 flex gap-3">
-                    <button type="button" onClick={removeEmail} data-testid="email-remove-confirm" className="font-semibold text-amber">{t('email.removeConfirm')}</button>
+                    <button type="button" onClick={removeEmail} data-testid="email-remove-confirm" className="font-semibold text-amber-deep">{t('email.removeConfirm')}</button>
                     <button type="button" onClick={() => setRemovingEmail(false)} className="text-ink-soft">{t('email.cancel')}</button>
                   </div>
                 </div>
@@ -181,13 +181,13 @@ export function IdentitySettings({ version }: { version: string }) {
                   <div className="text-[15px]">{d.deviceName ?? t('identity.unnamedDevice')}</div>
                   <div className="text-[12px] text-ink-soft">{fmt.dateTime(d.createdAt, { dateStyle: 'medium' })}</div>
                 </div>
-                <button type="button" onClick={() => remove.mutate({ id: d.id })} className="text-[13px] font-semibold text-amber">{t('identity.remove')}</button>
+                <button type="button" onClick={() => remove.mutate({ id: d.id })} className="text-[13px] font-semibold text-amber-deep">{t('identity.remove')}</button>
               </li>
             ))}
           </ul>
         )}
         {notice && <p className="mt-3 text-[13px] text-moss-deep" data-testid="notice">{notice}</p>}
-        {error && <p className="mt-3 text-[13px] text-amber" role="alert">{error}</p>}
+        {error && <p className="mt-3 text-[13px] text-amber-deep" role="alert">{error}</p>}
       </section>
 
       <Group title={t('data.title')}>

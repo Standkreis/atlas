@@ -202,7 +202,7 @@ export function LogSave({ gbifKey, photoId, fromSpecies }: { gbifKey: number; ph
               <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-dashed border-ink-faint/60 text-[24px]" aria-hidden>📷</span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[17px] font-bold">{t('noPhotoTitle')}</span>
-                <span className={`block text-[15px] leading-snug ${photoState === 'error' ? 'text-amber' : 'text-ink-soft'}`}>{photoState === 'busy' ? t('photoUploading') : photoState === 'error' ? tc('error') : t('noPhotoSub')}</span>
+                <span className={`block text-[15px] leading-snug ${photoState === 'error' ? 'text-amber-deep' : 'text-ink-soft'}`}>{photoState === 'busy' ? t('photoUploading') : photoState === 'error' ? tc('error') : t('noPhotoSub')}</span>
               </span>
               {photoState !== 'busy' && <span className="shrink-0 text-[15px] font-semibold text-moss-deep">{t('addPhoto')}</span>}
             </button>
@@ -228,7 +228,7 @@ export function LogSave({ gbifKey, photoId, fromSpecies }: { gbifKey: number; ph
             </button>
           </div>
           <p className="mt-3 text-center text-[13px] leading-snug text-ink-faint">{t('captiveHint')}</p>
-          {problem && <p className="mt-2 text-center text-[13px] text-amber" data-testid="save-problem">{problem === 'full' ? tq('full') : tc('error')}</p>}
+          {problem && <p className="mt-2 text-center text-[13px] text-amber-deep" data-testid="save-problem">{problem === 'full' ? tq('full') : tc('error')}</p>}
         </>
       )}
     </main>

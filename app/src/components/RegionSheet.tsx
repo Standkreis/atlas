@@ -133,7 +133,7 @@ function Body() {
                   <span className={`block truncate text-[18px] leading-tight font-bold ${active ? 'text-sky-deep' : ''}`} data-testid="region-row-name">{r.name}</span>
                   <span className="mt-0.5 block truncate text-[13px] text-ink-soft">{r.higher}</span>
                   <span className="block text-[13px] text-ink-soft" data-testid="region-row-counts">{t('species', { n: r.setSize })} · {t('now', { n: r.nowCount })}</span>
-                  {waits && <span className="mt-0.5 block text-[13px] font-semibold text-amber" data-testid="region-waits">{t('onlineFirst')}</span>}
+                  {waits && <span className="mt-0.5 block text-[13px] font-semibold text-amber-deep" data-testid="region-waits">{t('onlineFirst')}</span>}
                 </span>
               </button>
               <button type="button" role="checkbox" aria-checked={inList} aria-label={t('inList', { region: r.name })} disabled={setFilter.isPending} onClick={() => (inList ? remove(r) : add(r, false))} data-testid="region-check"
@@ -144,7 +144,7 @@ function Body() {
           )
         })}
       </ul>
-      {line && <p className="mt-3 text-[14px] text-amber" data-testid="region-line" role="status">{line}</p>}
+      {line && <p className="mt-3 text-[14px] text-amber-deep" data-testid="region-line" role="status">{line}</p>}
       <p className="mt-4 text-[12px] text-ink-faint">{t('hint')}</p>
     </div>
   )
