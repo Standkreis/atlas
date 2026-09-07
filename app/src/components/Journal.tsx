@@ -67,7 +67,7 @@ export function Journal({ title }: { title: string }) {
   const openScan = useCallback((id: string) => { setScanOpen(id); void update(id, (r) => (r.kind === 'scan' ? { ...r, payload: { ...r.payload, opened: true } } : r)) }, [])
 
   return (
-    <main className="mx-auto min-h-full max-w-[520px] px-4 pt-3 pb-24">
+    <main className="safe-top mx-auto min-h-full max-w-[520px] px-4 pt-3 pb-24">
       <div className="flex h-10 items-center">
         <h1 className="text-[28px] leading-none font-bold tracking-tight">{title}</h1>
       </div>

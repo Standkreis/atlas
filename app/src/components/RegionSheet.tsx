@@ -99,7 +99,7 @@ function Body() {
   const cached = (id: string) => qc.getQueryState(trpc.dex.set.queryKey({ regionId: id, tiles: allTiles, nowOnly: false }))?.data !== undefined
 
   const activate = (r: RegionRow) => {
-    if (off && !cached(r.id)) return setLine(t('onlineFirst'))
+    if (off && !cached(r.id)) return setLine(mine.includes(r.id) ? null : t('onlineFirst')) // 0025 B11: a listed row carries the marker already, one message per tap
     switchTo(r.id)
     close()
   }

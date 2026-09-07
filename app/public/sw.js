@@ -22,6 +22,8 @@ const IMAGE_HOSTS = ['inaturalist-open-data.s3.amazonaws.com', 'thumb.wikimedia.
 // a sighting page never opened online, and the page reads the id from the URL (SightingPage) and `journal.get` from the store.
 const PAGES = ['/', '/de', '/en', '/de/log', '/de/journal', '/de/you', '/de/sighting/_', '/en/log', '/en/journal', '/en/you', '/en/sighting/_']
 const ASSETS = ['/manifest.webmanifest', '/icon.svg']
+// 0025 B10: the onboarding's splash (618 + 194 KB) lives in the version-free image cache, fetched once, not per build.
+const SPLASH = ['/splash.jpg', '/splash-720.jpg']
 // Every client file of this build, written by scripts/m8a/sw-manifest.mjs after `next build`. Missing in `next dev`.
 const MANIFEST = `/_next/static/${VERSION}/sw-manifest.json`
 
@@ -51,7 +53,7 @@ self.addEventListener('fetch', (event) => {
   else if (own && req.headers.get('RSC') === '1' && !req.headers.get('Next-Router-Prefetch') && isPagePath(url.pathname)) event.waitUntil(rememberPage(url))
 })
 
-const isImage = (url, own) => IMAGE_HOSTS.includes(url.hostname) || (own && ((url.pathname.startsWith('/api/photo/') && !url.pathname.endsWith('.mp3')) || url.pathname.startsWith('/api/tiles/')))
+const isImage = (url, own) => IMAGE_HOSTS.includes(url.hostname) || (own && ((url.pathname.startsWith('/api/photo/') && !url.pathname.endsWith('.mp3')) || url.pathname.startsWith('/api/tiles/') || SPLASH.includes(url.pathname)))
 const isPagePath = (p) => !p.startsWith('/_next/') && !p.startsWith('/api/') && !p.includes('.')
 const pageKey = (url) => `${url.origin}${url.pathname}`
 
@@ -75,6 +77,8 @@ async function precache() {
     if (p !== '/') await putPage(shell, `${p}/`, html)
   }
   await Promise.all(ASSETS.map((a) => fetch(a, { cache: 'no-cache' }).then((r) => (r.ok ? shell.put(a, r) : null)).catch(() => null)))
+  const images = await caches.open(IMAGES)
+  await Promise.all(SPLASH.map((s) => images.match(`${self.location.origin}${s}`).then((hit) => hit ? null : fetch(s).then((r) => (r.ok ? images.put(`${self.location.origin}${s}`, r) : null))).catch(() => null)))
   // Chunks in batches of 8: Safari drops parallel fetches from an installing worker when there are too many.
   const list = [...refs]
   for (let i = 0; i < list.length; i += 8) {

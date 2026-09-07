@@ -186,7 +186,7 @@ export function AtlasGrid({ title }: { title: string }) {
   const reset = () => { setParams({ show: null, sort: null, group: null, now: null, q: null }); if (tilesShown.length > tilesOn.size) writeTiles(allTiles) }
 
   return (
-    <main className="mx-auto min-h-full max-w-[520px] px-4 pt-3 pb-24">
+    <main className="safe-top mx-auto min-h-full max-w-[520px] px-4 pt-3 pb-24">
       <div className="flex h-10 items-center justify-between gap-3">
         <h1 className="text-[28px] leading-none font-bold tracking-tight">{title}</h1>
         {region && (
@@ -229,12 +229,13 @@ export function AtlasGrid({ title }: { title: string }) {
           {visible.length === 0 ? (
             <p className="mt-6 text-center text-[15px] text-ink-soft" data-testid="empty">{query.trim() ? t('noMatch', { q: query.trim() }) : t('empty')}</p>
           ) : (
-            <ul className="mt-4 grid grid-cols-3 gap-2" data-testid="grid" data-group={group}>
+            <ul className="mt-4 grid grid-cols-3 gap-2" data-testid="grid" data-group={group} aria-label={t('gridLabel', { n: visible.length })}>
               {sections.map((sec) => (
                 <Fragment key={sec.key}>
                   {sec.title !== null && (
                     // G5: one full-width row, sticky at the top while its section scrolls; no animation on a regroup (G9).
-                    <li className="atlas-group col-span-full" data-testid={`group-${sec.key}`} data-count={sec.rows.length}>
+                    // 0025 B2: `role="presentation"` keeps the header out of the list's item count; the h2 stays a heading.
+                    <li role="presentation" className="atlas-group col-span-full" data-testid={`group-${sec.key}`} data-count={sec.rows.length}>
                       <h2 className="text-[13px] font-bold tracking-wide text-ink-soft uppercase">{sec.title}<span className="font-normal"> · {format.number(sec.rows.length)}</span></h2>
                     </li>
                   )}

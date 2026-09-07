@@ -34,7 +34,7 @@ export function IdentityProfile() {
   const initials = initialsOf(name)
 
   return (
-    <main className="mx-auto min-h-full max-w-[520px] px-4 pt-3 pb-24">
+    <main className="safe-top mx-auto min-h-full max-w-[520px] px-4 pt-3 pb-24">
       <div className="flex h-10 items-center justify-between">
         <h1 className="text-[28px] leading-none font-bold tracking-tight">{t('title')}</h1>
         <Link href="/settings" aria-label={t('settings')} className="flex h-9 w-9 items-center justify-center rounded-full bg-tile text-ink-soft">
