@@ -71,9 +71,9 @@ Stacked (thumb, then name, then count) so the German names never truncate at 360
 | 1 | `notAvailableHere` ends in "Gib einen anderen Ort ein" and `noLocation` in "Gib den Ort ein", with no place to type | Owner's copy pass (O3): "Tipp auf einen Landkreis oben" or drop the second sentence |
 | 2 | `readyBody` got "`{total}` im ganzen Jahr" / "over the whole year" from me so both numbers have a slot | O9b rewrites the sentence; the slots are `{n}` (month) and `{total}` (set) |
 | 3 | The tile thumbs and the ready screen's nine show CC BY photos without a caption, like the grid cells | Spec §⚖️ allows it per cell; if the owner wants the long-press ⓘ here too it goes with M9b |
-| 4 | The thumb of a tile is its first "jetzt wahrscheinlich" species, so it changes with the month | Stable alternative: the tile's most observed species (`obs`); one line in `TilesScreen` |
+| 4 | The thumb of a tile is its first "jetzt wahrscheinlich" species, so it changes with the month | Stable alternative: the tile's most observed species (`obs`); one line in `TilesScreen` → accepted in 0025: unchanged, it tells the month's story |
 | 5 | The dev DB has two ready regions (Kyoto from 0007), production has one; the search button is visible locally | Leave Kyoto, or set it `failed` for good if the dev DB should mirror Neon |
-| 6 | The `splash.jpg` is not in the worker's precache; the onboarding needs the DB anyway | Leave |
+| 6 | ~~The `splash.jpg` is not in the worker's precache; the onboarding needs the DB anyway~~ → fixed in 0025 (`splash.jpg` and `splash-720.jpg` cached at install in `dex-images`) | Leave |
 | 7 | Safari tints from the bottom-most fixed element: any future fixed footer on `/onboarding` brings the wrong colour back | Keep the Shell rule; C7 in every onboarding handoff |
 
 ## 🔀 For the merge

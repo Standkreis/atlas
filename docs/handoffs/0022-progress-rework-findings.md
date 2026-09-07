@@ -105,12 +105,12 @@ Typecheck, lint (0 errors, 5 pre-existing warnings), **50 tests** in 8 files, ex
 
 ## ❓ Doubts for the owner
 
-1. **`setCounts` carries ids** (~40 KB per region), not just numbers. The alternative, counting the intersection on the server, puts the identity into a dex query and its cache entry; I kept the router pure. If the payload matters on the phone, `identity.progress` could grow a `byRegion` map instead — a contract change the handoff ruled out.
-2. **Rows follow the filter tiles.** An identity that switched fungi off in the atlas sees no Pilze row on the profile and a smaller "von n". Consistent with the counter; the old groups card showed every tile. Say if the profile should ignore the filter.
-3. **The folded body is not `display: none`**: its rows stay in the accessibility tree while hidden at 0 fr. `aria-expanded` is right; a screen reader may still read the folded rows. `inert` on the body when closed would fix that in one attribute.
-4. **The chevron on the region header points up when open** (rotated 180°), the same glyph as "n weitere Gruppen". Two chevrons per open card: fine at a glance in the shots, tell me if it is one too many.
+1. ~~**`setCounts` carries ids** (~40 KB per region), not just numbers. The alternative, counting the intersection on the server, puts the identity into a dex query and its cache entry; I kept the router pure. If the payload matters on the phone, `identity.progress` could grow a `byRegion` map instead — a contract change the handoff ruled out.~~ → fixed in 0025 (`setCounts` returns `{ region, total, byTile, seen, studied }`, computed on the server, no ids: 832 bytes for two regions instead of ~40 KB per region)
+2. **Rows follow the filter tiles.** An identity that switched fungi off in the atlas sees no Pilze row on the profile and a smaller "von n". Consistent with the counter; the old groups card showed every tile. Say if the profile should ignore the filter. → accepted in 0025: unchanged, one truth for both counters, consistency beats completeness
+3. ~~**The folded body is not `display: none`**: its rows stay in the accessibility tree while hidden at 0 fr. `aria-expanded` is right; a screen reader may still read the folded rows. `inert` on the body when closed would fix that in one attribute.~~ → fixed in 0025 (`inert` on the region body and the folded-rows fold)
+4. ~~**The chevron on the region header points up when open** (rotated 180°), the same glyph as "n weitere Gruppen". Two chevrons per open card: fine at a glance in the shots, tell me if it is one too many.~~ → fixed in 0025 (the "n weitere Gruppen" row lost its chevron and became a text button)
 5. **Schagen shows 8 groups** (it has 11 fish) while Mainz-Bingen shows 7: the fish rule per region works, but the number in "n Gruppen" differs between cards. Expected, noting it.
-6. **The offline banner was absent in C5** (`[data-testid=offline-banner]` null) although the page was offline. Not this build's business (0009/0012 own the banner); mentioned because the m18 script saw it.
+6. ~~**The offline banner was absent in C5** (`[data-testid=offline-banner]` null) although the page was offline. Not this build's business (0009/0012 own the banner); mentioned because the m18 script saw it.~~ → fixed in 0025 (the worker now posts an offline signal to every window on a cached navigation; the banner also listens for it)
 
 ## 🔀 For the merge
 

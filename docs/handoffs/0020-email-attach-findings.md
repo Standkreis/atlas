@@ -132,9 +132,9 @@ Copy: `pg_dump dex | psql dex_copy` in the container, then `DROP TABLE "EmailCod
 5. **`Identity.email` is unique**: `emailVerify` clears the address from a row that carries it unverified before setting it here. No such row can exist today; the branch is a guard.
 6. **`anonymous` changed meaning** (`devices === 0 && !email`). Only the settings card reads it; anything persisted in `dex.queries` from before shows "local" until `me` refetches (60 s or focus).
 7. **Throttle in the UI**: after three codes the user reads "Versuch es in einer Stunde noch einmal." The counter only comes from the server's refusal; the 60-second "Neuer Code" wait is client-side and shorter than the real budget.
-8. **The dev log line prints the address** (`[mail] code for <address>: ……`), guarded by `!isProduction` as the handoff asks. On the Mac only.
-9. **No cleanup of `EmailCode` rows**: used and expired rows stay (a few per attach). The sweep could delete rows older than a day; not built, the table stays small.
-10. **The passkey path's `identity.adopted` notice** is reused word for word; it names sightings only, not studies (`studiesMerged` is in the payload).
+8. ~~**The dev log line prints the address** (`[mail] code for <address>: ……`), guarded by `!isProduction` as the handoff asks. On the Mac only.~~ → fixed in 0025 (`maskEmail`: masked to `a…@domain` in the `[mail]` line)
+9. ~~**No cleanup of `EmailCode` rows**: used and expired rows stay (a few per attach). The sweep could delete rows older than a day; not built, the table stays small.~~ → fixed in 0025 (the hourly sweep deletes rows with `expiresAt < now − 1 day`, used or not, and logs the count)
+10. ~~**The passkey path's `identity.adopted` notice** is reused word for word; it names sightings only, not studies (`studiesMerged` is in the payload).~~ → fixed in 0025 (a second key names studied species when `studiesMerged > 0`)
 
 ## 🔀 For the merge
 

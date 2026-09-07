@@ -237,11 +237,11 @@ Prose is the only line with a real price and it is one-off: **37 $ once, ~6 $ pe
 | --- | --- |
 | 1 | **GIFT's licence is unstated.** The API is open and the traits are literature values, but the project has no licence line. If the mail goes unanswered, the fallback for Blütezeit is nothing; FloraWeb has no API, BiolFlor is offline since 2024, TRY needs approval per request |
 | 2 | **GloBI noise becomes prose.** "Amsel frisst Klatschmohn" and "Hirschkäfer frisst Rotbuche" are edges the page already shows as chips; in a sentence they read as claims. Prose from GloBI needs the E9 kinds pruned harder (only in-set partners with a German name) |
-| 3 | **PanTHERIA's licence** is "ESA data paper" on the archive and CC BY 4.0 on figshare's wrapper. Elton and AVONET are clean; if in doubt, drop PanTHERIA: Elton + AnAge cover the 24 mammals' mass, diet and lifespan |
+| 3 | **PanTHERIA's licence** is "ESA data paper" on the archive and CC BY 4.0 on figshare's wrapper. Elton and AVONET are clean; if in doubt, drop PanTHERIA: Elton + AnAge cover the 24 mammals' mass, diet and lifespan → accepted in 0025: kept as CC BY 4.0 with the attribution every fact carries; if the project goes public, ask ESA or drop the file (only `length` on 19 mammals is lost) |
 | 4 | **Wikidata quantities need units.** The probe's `wdt:` values are bare numbers; the build must read `psv:` with `wikibase:quantityUnit`. Until then, no Wikidata number on a page |
 | 5 | **The judge is Sonnet judging Sonnet.** Its verdicts matched my reading on the 15 unsupported, but it also reversed itself mid-sentence twice (Amsel s5). A human reads the ten before any prose ships |
 | 6 | The handoff said three regions plus Kyoto; the dev DB has **four European sets** (Schagen is new since 0012). The numbers above include it |
-| 7 | **Insects are 47 % of the set and get nothing.** If the owner wants a Steckbrief for the butterfly on the path, the Dryad download is a one-time manual step (CC0); everything else (Orthoptera, beetles, bugs, spiders) has no open trait source at all. The month profile and GloBI are the insect Steckbrief |
+| 7 | **Insects are 47 % of the set and get nothing.** If the owner wants a Steckbrief for the butterfly on the path, the Dryad download is a one-time manual step (CC0); everything else (Orthoptera, beetles, bugs, spiders) has no open trait source at all. The month profile and GloBI are the insect Steckbrief → accepted in 0025: no open dataset for the rest; the intro, month profile and GloBI edges are the insect Steckbrief, the section hides itself when empty |
 
 ## 🔀 For the merge
 

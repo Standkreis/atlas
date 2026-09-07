@@ -139,11 +139,11 @@ Headless Chrome drops `Network.emulateNetworkConditions` on the hard navigation 
 | A | ~~**Fliegenpilz "Heilpilz"**: Wikidata P789 holds `medicinal mushrooms` next to poisonous and psychoactive~~ → closed in 0024: `medicinal` sat on 35 of 110 fungi, the Knollenblätterpilz among them ("medicinal, deadly"). The ETL no longer maps it and orders the codes worst first; the page drops and sorts old values the same way, so Neon needs no run |
 | B | ~~AnAge values are still English on the German page (`21.8 years (wild)`, `mature at 365 days`)~~ → fixed in 0024 |
 | C | ~~GIFT `height` is the **maximum** (`1.6.2`): Brennnessel 3 m, Stieleiche 50 m. Correct but tall~~ → fixed with 0024: the cell reads **"bis 3 m"** / "up to 3 m" (`species.facts.values.height.max`) |
-| D | Bird `habitat` from AVONET is one word (`Wald` for the Amsel, `Gebüsch` for the Schwarzkehlchen); AVONET's `Habitat` is the primary class only |
-| E | 5 of 89 Mainz-Bingen taxa have no clip: 3 with ND-only recordings, 4 grasshoppers whose A recordings are WAV only. Cropping or transcoding would need ffmpeg in the ETL; left out |
-| F | Sounds are all NC (`CC BY-NC-SA`, one `CC BY-NC`): fine for this app, a blocker for anything sold later |
+| D | ~~Bird `habitat` from AVONET is one word (`Wald` for the Amsel, `Gebüsch` for the Schwarzkehlchen); AVONET's `Habitat` is the primary class only~~ → fixed in 0025 (EltonTraits' foraging stratum adds a second word when it says something the primary class does not, e.g. "Wald, Boden") |
+| E | ~~5 of 89 Mainz-Bingen taxa have no clip: 3 with ND-only recordings, 4 grasshoppers whose A recordings are WAV only. Cropping or transcoding would need ffmpeg in the ETL; left out~~ → fixed in 0025 (WAV transcoded to MP3 with `ffmpeg-static`; a GBIF-synonym search found the "3 ND-only" were mostly a taxonomy miss; 2 grasshoppers stay without a clip, true ND) |
+| F | Sounds are all NC (`CC BY-NC-SA`, one `CC BY-NC`): fine for this app, a blocker for anything sold later → accepted in 0025: personal project; the ETL README notes where a `licensed.some` filter goes if this ever needs selling |
 | G | ~~The shortest-clip rule picks 5–8 s snippets (Rotkehlchen 8 s, Pica pica 5 s); some are a single phrase~~ → fixed 2026-09-07 (9b92673): the pick prefers the 10–30 s band |
-| H | PanTHERIA's licence is unstated in the archive (decision 8) |
+| H | PanTHERIA's licence is unstated in the archive (decision 8) → accepted in 0025: kept as CC BY 4.0 with the attribution every fact carries, written in `data/README.md` |
 | I | ~~Blob holds the dev clips now (25 MB, `sounds/`); nothing on Neon references them until the set tables are dumped~~ → Neon filled 2026-09-07, clips play live |
 
 ## 🔀 For the merge

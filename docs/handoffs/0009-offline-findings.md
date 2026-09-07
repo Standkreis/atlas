@@ -122,7 +122,7 @@ The run also showed 36 opaque entries after the swap: a Wikimedia 429 on the COR
 | A1 | **`Journal.tsx` shows "Das hat nicht geklappt." under the day cards offline**: it renders `days.isError` even when `days.data` exists. Frozen file | One line: `{days.isError && !days.data && …}`. Same for the `working` line if wanted |
 | A2 | **Never-visited species page has no name** — the worker cannot read the set. The handoff wanted "with the name from the set" | Keep the worker page as the floor; in `SpeciesPage.tsx` (frozen) read `dex.set` from the query cache when `taxon.page` fails with a network error and show name + "wartet aufs Netz" |
 | A3 | `dex.set` is 858 KB of the 930 KB store, written on every change of any persisted query (a few ms in Chrome, unmeasured on an old phone) | Slim the set's rows for the cache, or persist it under its own key |
-| A4 | **Track B's outbox on IndexedDB**: the Simulator's IndexedDB hang was reproducible; an outbox that never resolves is a sighting never sent | Time out every IDB call (or write blobs to the Cache API, rows to localStorage) and prove the flush in the Simulator, not only Chrome |
+| A4 | ~~**Track B's outbox on IndexedDB**: the Simulator's IndexedDB hang was reproducible; an outbox that never resolves is a sighting never sent~~ → fixed in 0025 (every IDB call in `Queue.ts` races a 5 s timeout, falls back to `localStorage` on a hang, merges back once IDB answers) | Time out every IDB call (or write blobs to the Cache API, rows to localStorage) and prove the flush in the Simulator, not only Chrome |
 | A5 | Wikimedia 429 on bulk downloads from a phone are possible with 4 parallel fetches (Chrome got 923 / 926) | If it bites: 2 parallel for `wikimedia.org`, "Auffrischen" fetches the missing ones anyway |
 | A6 | `dynamicParams = false` removed from the locale layout: one-line behaviour change outside Track A's file list | Keep it; `notFound()` still guards the locale. Without it there is no species page on a server build |
 | A7 | The banner keys on failures, not on `navigator.onLine` alone: a phone offline with fresh data shows no banner until something is fetched | Fine by the spec ("nothing blocks, nothing spins"); mention in the guide |
@@ -310,6 +310,6 @@ Not checkable here: the Browser pane of the desktop app refuses every service wo
 | # | Doubt |
 | --- | --- |
 | M1 | Cache estimate 27 MB, not the handoff's 14 (30 KB per image measured) — fine, or slim the variant further? |
-| M2 | Out-of-set finds fill the cell but do not count (0008 A1) — still undecided; the ladybird from C9 sits in the diary as "Neu entdeckt" with the atlas at 1 entdeckt |
+| M2 | Out-of-set finds fill the cell but do not count (0008 A1) — still undecided; the ladybird from C9 sits in the diary as "Neu entdeckt" with the atlas at 1 entdeckt → accepted in 0025: the set is the game; the counter over it must stay true |
 | M3 | Outbox on IndexedDB in Safari (A4): proven once, not on a real phone. M9's walk is the real test |
 | M4 | Hosting for M9: LAN https from the MacBook works for the phone (`dev:lan:https`, the root CA on the phone); a deploy row for M8b is still an open proposal in the handoff |
