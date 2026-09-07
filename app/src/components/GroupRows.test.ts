@@ -29,6 +29,11 @@ describe('groupsOf', () => {
 // the region line sums the tiles on; a bar from 5 %; rows at 0 on both axes fold.
 describe('progress card', () => {
   const order = ['bird', 'fish', 'insect', 'plant']
+  it('rowsOf treats the pre-0025 persisted shape (ids, no seen/studied) as not loaded', () => {
+    const stale = { region: 'r', total: 3, byTile: { bird: 3 }, ids: ['a', 'b', 'c'] } as unknown as Parameters<typeof rowsOf>[0]
+    expect(rowsOf(stale, ['bird'])).toBeNull()
+  })
+
   it('rowsOf keeps the enum order, drops tiles without members and equals groupsOf on the same set', () => {
     const counts = { byTile: { plant: 1, bird: 2, fish: 0 }, seen: { bird: 1, plant: 0 }, studied: { plant: 1 } }
     const rows = rowsOf(counts, order)

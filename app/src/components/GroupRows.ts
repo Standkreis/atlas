@@ -22,7 +22,9 @@ export type Counts<T extends string = string> = { byTile: Partial<Record<T, numb
 
 /** `dex.setCounts` → the same rows `groupsOf` makes from `dex.set`, tiles in `order` (the Tile enum), tiles without members dropped. */
 export function rowsOf<T extends string>(counts: Counts<T> | null | undefined, order: T[]): GroupRow<T>[] | null {
-  if (!counts) return null
+  // The persisted store may still hold the shape before 0025 B5 (`ids`, no `seen`/`studied`) on the first render after
+  // an update; that entry is "not loaded yet" (the card refetches on mount), never a crash of the profile.
+  if (!counts || !counts.seen || !counts.studied || !counts.byTile) return null
   return order.filter((t) => (counts.byTile[t] ?? 0) > 0).map((tile) => ({ tile, studied: counts.studied[tile] ?? 0, seen: counts.seen[tile] ?? 0, possible: counts.byTile[tile]! }))
 }
 

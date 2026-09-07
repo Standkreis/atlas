@@ -25,6 +25,15 @@
 
 Struck through in the original findings: 0008 A5 A6 A7 A11 · 0009 A4 · 0010 B3 · 0011 A4 · 0012 T2 T4 T5 · 0013 6 · 0014 A6 C5 · 0018 4 · 0020 8 9 10 · 0021 D E · 0022 1 3 4 6 · 0023 1 2 4. Accepted with the reason written: 0008 A1 · 0009 M2 · 0011 B2 B4 · 0014 A5 B4 · 0016 A2 A5 · 0019 3 7 · 0021 F H and the rest of the owner-decision table.
 
+## 🚑 After the deploy: the profile crashed on updated phones
+
+| What | Detail |
+| --- | --- |
+| Symptom | `/de/you` and `/en/you` on build `mtr6qvpx` showed Next.js 16's default error page ("This page couldn't load", Reload / Back) in the iPhone 17 Pro Simulator; atlas and journal fine; a fresh Simulator and headless Chrome fine; the server answered 200 for the same cookie |
+| Cause | B5 changed the `dex.setCounts` shape; the persisted query store still held the old one (`ids`, no `seen`/`studied`) for the second region, and `rowsOf` read `counts.studied[tile]` on the first render before the `refetchOnMount` answer |
+| Fix | `GroupRows.ts:rowsOf` returns null (not loaded) when `seen`, `studied` or `byTile` is missing; test "pre-0025 persisted shape"; 71 tests |
+| Lesson | A persisted query's shape change needs a guard on the reader or a persister buster; the tracks' checks ran on fresh stores |
+
 ## 🙋 Owner, after the push
 
 | # | What | Command or place |
