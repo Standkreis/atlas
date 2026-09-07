@@ -19,7 +19,7 @@
 | C1 | `parseAnAge` → `{ lifespan: '21.8 wild', reproduction: 'clutch 4.5 · perYear 2 · maturity 365' }`; `recodeAnAge` on the old English and on codes | `taxon.test.ts` "AnAge (E8)", 2 cases · 58 tests pass |
 | C2 | Dev DB: `recode` rewrote **145 of 851** taxa with facts; the second run **0** | CLI output |
 | C3 | Eisvogel (2475532) on `next start` in the Simulator: **Alter 21 Jahre (frei lebend) · Nachwuchs reif mit 365 Tagen** | [`0024-shots/eisvogel-de.png`](0024-shots/eisvogel-de.png) |
-| C4 | Neon | ⏳ owner, after the deploy: `npm run etl -- recode` with the unpooled URL ([ETL README §🚀](../../app/etl/README.md)) |
+| C4 | Neon: `recode` after build `mtqhebcx` went live rewrote **134 of 746** taxa with facts; live Amsel shows **21,8 Jahre (frei lebend) · reif mit 365 Tagen** in the Simulator | owner's CLI output 2026-09-07 · `taxon.page` on atlas.standkreis.de returns `21.8 wild` / `maturity 365` |
 
 ## 🤔 Doubts
 
