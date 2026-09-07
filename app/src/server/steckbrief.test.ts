@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { wingspanWords } from '../../etl/facts'
+import { EDIBILITY_ORDER, wingspanWords } from '../../etl/facts'
 import { floweringWords } from '../../etl/gift'
 import { licenceName, pickClip, seconds } from '../../etl/clip'
 import { bulkFacts, dietFromShares, grams, metres, millimetres, table } from '../../etl/traits'
@@ -11,6 +11,10 @@ describe('formats (D2)', () => {
     expect(millimetres(8)).toBe('8 mm'); expect(millimetres(128)).toBe('12.8 cm'); expect(millimetres(1420)).toBe('1.4 m')
     expect(metres(0.3)).toBe('30 cm'); expect(metres(1.5)).toBe('1.5 m'); expect(metres(25)).toBe('25 m')
     expect(wingspanWords([36])).toBe('36 cm'); expect(wingspanWords([80, 95])).toBe('80–95 cm'); expect(wingspanWords([222])).toBe('2.2 m'); expect(wingspanWords([100, 150])).toBe('1–1.5 m'); expect(wingspanWords([95, 110])).toBe('95 cm–1.1 m')
+  })
+  it('edibility codes worst first and without medicinal (0024)', () => {
+    expect(EDIBILITY_ORDER).toEqual(['deadly', 'poisonous', 'psychoactive', 'inedible', 'choice', 'edible', 'unknown'])
+    expect(EDIBILITY_ORDER).not.toContain('medicinal')
   })
   it('flowering months in German like the year strip, null on "variable"', () => {
     expect(floweringWords('May', 'Oct')).toBe('Mai–Okt'); expect(floweringWords('Jun', 'Jun')).toBe('Jun'); expect(floweringWords('Mar', undefined)).toBe('Mär')

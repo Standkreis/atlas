@@ -31,7 +31,10 @@ async function selectTaxa({ region, keys, limit, force }: FactsOpts): Promise<Ta
 
 // ── Wikidata: the mycomorphbox (P789 edibility, P787 spore print) and the wingspan with its unit (P2050) ───────────
 const WD_UNIT: Record<string, number> = { Q11573: 100, Q174728: 1, Q174789: 0.1 } // metre, centimetre, millimetre → cm
-const EDIBILITY: [RegExp, string][] = [[/deadly/, 'deadly'], [/poison/, 'poisonous'], [/psychoactive|hallucinogen/, 'psychoactive'], [/inedible/, 'inedible'], [/choice/, 'choice'], [/edible/, 'edible'], [/medicinal/, 'medicinal'], [/unknown/, 'unknown']]
+// Worst first; the value keeps this order. No `medicinal`: Wikidata P789 carries it on 35 of 110 fungi in the dev set, the
+// Knollenblätterpilz among them, and a health claim is not an edibility (0021 doubt A, closed in 0024).
+const EDIBILITY: [RegExp, string][] = [[/deadly/, 'deadly'], [/poison/, 'poisonous'], [/psychoactive|hallucinogen/, 'psychoactive'], [/inedible/, 'inedible'], [/choice/, 'choice'], [/edible/, 'edible'], [/unknown/, 'unknown']]
+export const EDIBILITY_ORDER = EDIBILITY.map(([, c]) => c)
 const SPORE = ['white', 'cream', 'yellow', 'ochre', 'olive', 'brown', 'pink', 'purple', 'black', 'green', 'red', 'grey', 'orange', 'buff', 'salmon', 'lilac']
 type WdFacts = { edibility?: string[]; sporePrint?: string[]; wingspanCm?: number[] }
 type Binding = Record<string, { value: string } | undefined>
@@ -112,7 +115,7 @@ export async function runFacts(opts: FactsOpts): Promise<FactsResult> {
       if (t.tile === 'plant') Object.assign(fresh, await giftFacts(t.sciName))
       const w = t.wikidataId ? wd.get(t.wikidataId) : undefined
       const wdUrl = `https://www.wikidata.org/wiki/${t.wikidataId}`
-      if (w?.edibility?.length) fresh.edibility = { value: uniq(w.edibility).join(', '), source: 'Wikidata', url: wdUrl, licence: 'CC0 1.0' }
+      if (w?.edibility?.length) fresh.edibility = { value: uniq(w.edibility).sort((a, b) => EDIBILITY_ORDER.indexOf(a) - EDIBILITY_ORDER.indexOf(b)).join(', '), source: 'Wikidata', url: wdUrl, licence: 'CC0 1.0' }
       if (w?.sporePrint?.length) fresh.sporePrint = { value: uniq(w.sporePrint).join(', '), source: 'Wikidata', url: wdUrl, licence: 'CC0 1.0' }
       if (w?.wingspanCm?.length) fresh.wingspan = { value: wingspanWords(w.wingspanCm), source: 'Wikidata', url: wdUrl, licence: 'CC0 1.0' }
 

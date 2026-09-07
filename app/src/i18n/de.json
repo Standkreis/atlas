@@ -487,7 +487,6 @@
           "inedible": "ungenießbar",
           "choice": "sehr guter Speisepilz",
           "edible": "essbar",
-          "medicinal": "Heilpilz",
           "unknown": "unbekannt"
         },
         "sporePrint": {

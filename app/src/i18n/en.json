@@ -487,7 +487,6 @@
           "inedible": "inedible",
           "choice": "choice edible",
           "edible": "edible",
-          "medicinal": "medicinal",
           "unknown": "unknown"
         },
         "sporePrint": {

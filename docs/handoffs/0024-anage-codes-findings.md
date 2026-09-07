@@ -34,6 +34,7 @@
 | Doubt | Fix | Data |
 | --- | --- | --- |
 | 0021 C, GIFT height is a maximum | "bis 3 m" / "up to 3 m" (`facts.values.height.max`) | none |
+| 0021 A, "Heilpilz" on the Fliegenpilz | `medicinal` dropped from the edibility codes (Wikidata put it on 35 of 110 fungi, "medicinal, deadly" on the Knollenblätterpilz); codes ordered worst first: deadly, poisonous, psychoactive, inedible, choice, edible, unknown. ETL and page both, so rows filled before 0024 render the same | none needed (client filters); dev `facts --force` rewrote 38 fungi |
 | 0021 18, amphibian mass not written | `traits.ts` writes `mass` from AmphiBIO `Body_mass_g`; `mass` first in the amphibian key order | `npm run etl -- facts --force` on Neon: only rows whose facts change are written (dev: 16 of 1 869, 0.0 min) |
 
 ## 🔀 For the merge

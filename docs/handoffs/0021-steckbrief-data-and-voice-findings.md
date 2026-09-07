@@ -136,7 +136,7 @@ Headless Chrome drops `Network.emulateNetworkConditions` on the hard navigation 
 
 | # | Doubt |
 | --- | --- |
-| A | **Fliegenpilz "Heilpilz"**: Wikidata P789 holds `medicinal mushrooms` next to poisonous and psychoactive. The code is translated faithfully; the mycomorphbox is only as good as its editors. The box above stays the guard |
+| A | ~~**Fliegenpilz "Heilpilz"**: Wikidata P789 holds `medicinal mushrooms` next to poisonous and psychoactive~~ → closed in 0024: `medicinal` sat on 35 of 110 fungi, the Knollenblätterpilz among them ("medicinal, deadly"). The ETL no longer maps it and orders the codes worst first; the page drops and sorts old values the same way, so Neon needs no run |
 | B | AnAge values are still English on the German page (`21.8 years (wild)`, `mature at 365 days`) — untouched by this handoff, the same before |
 | C | ~~GIFT `height` is the **maximum** (`1.6.2`): Brennnessel 3 m, Stieleiche 50 m. Correct but tall~~ → fixed with 0024: the cell reads **"bis 3 m"** / "up to 3 m" (`species.facts.values.height.max`) |
 | D | Bird `habitat` from AVONET is one word (`Wald` for the Amsel, `Gebüsch` for the Schwarzkehlchen); AVONET's `Habitat` is the primary class only |

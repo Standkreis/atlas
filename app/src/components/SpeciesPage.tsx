@@ -27,6 +27,8 @@ const TILE_KEYS: Record<string, string[]> = {
 /** Enum-like keys: the ETL stores codes, the page translates them (`species.facts.values.<key>.<code>`), lists stay comma-joined. */
 const CODED = new Set(['migration', 'habitat', 'diet', 'activity', 'pollination', 'lifeform', 'edibility', 'sporePrint'])
 const METRIC = new Set(['mass', 'wingspan', 'length', 'height'])
+/** Worst first, `medicinal` gone (a health claim is not an edibility; 0021 doubt A). Same list as `etl/facts.ts`, kept here so the client bundle carries no ETL code. */
+const EDIBILITY_ORDER = ['deadly', 'poisonous', 'psychoactive', 'inedible', 'choice', 'edible', 'unknown']
 type Fact = { value: string; source: string; url?: string; licence?: string }
 const KINDS = ['eats', 'eatenBy', 'pollinates', 'visitsFlowersOf', 'hostOf', 'parasiteOf'] as const
 /** The deed behind a licence string, for the ⓘ sheets (handoff 0014 D3): "CC BY-SA 4.0" → creativecommons.org; anything else has no link. */
@@ -108,6 +110,7 @@ export function SpeciesPage() {
   const dataSource = (o: string, url?: string): Source => ({ origin: o, sourceUrl: url ?? HOME[o] ?? null })
   const factSource = (f: Fact): Source => ({ origin: f.source, sourceUrl: f.url ?? HOME[f.source] ?? null, licence: f.licence ?? null, licenceUrl: licenceUrl(f.licence) })
   const factWords = (k: string, v: string) => {
+    if (k === 'edibility') v = v.split(', ').filter((c) => c !== 'medicinal').sort((a, b) => EDIBILITY_ORDER.indexOf(a) - EDIBILITY_ORDER.indexOf(b)).join(', ') // 0024: rows filled before it
     if (CODED.has(k)) return v.split(', ').map((c) => (t.has(`facts.values.${k}.${c}`) ? t(`facts.values.${k}.${c}`) : c)).join(', ')
     if (k === 'flowering') return locale === 'en' ? v.replace(/Mär|Mai|Okt|Dez/g, (m) => MONTHS_EN[m] ?? m) : v
     const metric = METRIC.has(k) && locale === 'de' ? v.replace(/(\d)\.(\d)/g, '$1,$2') : v
