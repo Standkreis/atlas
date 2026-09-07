@@ -402,7 +402,7 @@
       },
       "values": {
         "lifespan": {
-          "years": "{n} Jahre",
+          "years": "bis {n} Jahre",
           "wild": "frei lebend",
           "captivity": "in Obhut"
         },

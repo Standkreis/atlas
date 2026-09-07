@@ -402,7 +402,7 @@
       },
       "values": {
         "lifespan": {
-          "years": "{n} years",
+          "years": "up to {n} years",
           "wild": "wild",
           "captivity": "in captivity"
         },

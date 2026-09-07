@@ -26,7 +26,7 @@
 | # | Doubt |
 | --- | --- |
 | D1 | Until C4 runs, the deployed page prints the old English values unchanged (the client passes unknown shapes through). Harmless, but the order is deploy → recode, not the reverse: the old client would print the codes raw |
-| D2 | AnAge's "Maximum longevity" is a maximum; the cell says "21 Jahre" as if typical. Same family as the GIFT height doubt in 0021: "bis 21 Jahre" would be honest, one word in the message |
+| D2 | ~~AnAge's "Maximum longevity" printed as if typical~~ → fixed the same day: the cell reads **"bis 21,8 Jahre (frei lebend)"** / "up to 21.8 years (wild)". The GIFT height doubt in 0021 is the same family and still open |
 | D3 | `perYear` reads "2× im Jahr" without saying what: "2 Gelege im Jahr" would need the clutch/litter word carried over. Left as is |
 
 ## 🔀 For the merge
