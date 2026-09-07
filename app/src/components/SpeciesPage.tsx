@@ -20,7 +20,7 @@ import { enqueue, flush, type Lead } from './Queue'
 const TILE_KEYS: Record<string, string[]> = {
   bird: ['mass', 'wingspan', 'migration', 'habitat', 'diet', 'activity', 'lifespan', 'reproduction'],
   mammal: ['mass', 'length', 'diet', 'activity', 'lifespan', 'reproduction'],
-  amphibian: ['length', 'habitat', 'diet', 'activity', 'lifespan', 'reproduction'],
+  amphibian: ['mass', 'length', 'habitat', 'diet', 'activity', 'lifespan', 'reproduction'],
   plant: ['flowering', 'height', 'pollination', 'lifeform'],
   fungus: ['edibility', 'sporePrint'],
 }

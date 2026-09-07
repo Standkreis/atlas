@@ -33,7 +33,7 @@ describe('bulk files (D3)', () => {
     const fuchs = bulkFacts('mammal', ['Vulpes vulpes'])
     expect(fuchs.mass?.source).toBe('EltonTraits'); expect(fuchs.length?.source).toBe('PanTHERIA'); expect(fuchs.activity?.value).toContain('nocturnal')
     const frosch = bulkFacts('amphibian', ['Rana temporaria'])
-    expect(frosch.length?.value).toBe('11 cm'); expect(frosch.habitat?.value).toContain('terrestrial')
+    expect(frosch.mass?.value).toBe('48 g'); expect(frosch.length?.value).toBe('11 cm'); expect(frosch.habitat?.value).toContain('terrestrial')
     expect(bulkFacts('bird', ['Nomen dubium'])).toEqual({}); expect(bulkFacts('plant', ['Urtica dioica'])).toEqual({})
   })
 })

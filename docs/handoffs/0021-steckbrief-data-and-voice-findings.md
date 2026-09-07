@@ -23,7 +23,7 @@
 | 15 | The grey line names only the tile's keys, animals include AnAge's `lifespan`/`reproduction` | `TILE_KEYS` in `SpeciesPage.tsx:20`; fish/reptile/insect have no row, so no line |
 | 16 | `facts` writes only rows that changed (canonical JSON compare) | Postgres returns jsonb in its own key order; the first version called every row changed. Now `--force` twice → 0 written |
 | 17 | `content` calls `runFacts({ keys, force: true })` after its pool for the taxa it filled (`etl/content.ts`) | D3 "also inside content after GloBI"; `--purge <gbifKey>` also nulls `factsAt` |
-| 18 | Amphibian `mass` not written | D2 lists length, habitat, diet for amphibians; AmphiBIO has `Body_mass_g` on 100 %, one line in `traits.ts` if wanted |
+| 18 | ~~Amphibian `mass` not written~~ → written since 0024 from AmphiBIO `Body_mass_g`, one line in `traits.ts`; `facts --force` on the amphibians fills it |
 
 ## 🛠️ What was built
 

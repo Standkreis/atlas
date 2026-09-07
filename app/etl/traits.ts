@@ -118,6 +118,7 @@ export function bulkFacts(tile: string, names: string[]): Record<string, Fact> {
   } else if (tile === 'amphibian') {
     const a = pick('amphibio')
     if (a) {
+      const g = num(a.Body_mass_g); if (g) fact('mass', grams(g), REFS.amphibio) // 0021 doubt 18, written since 0024
       const mm = num(a.Body_size_mm); if (mm) fact('length', millimetres(mm), REFS.amphibio)
       fact('habitat', flags(a, { Ter: 'terrestrial', Aqu: 'aquatic', Arb: 'arboreal', Fos: 'fossorial' }).join(', ') || null, REFS.amphibio)
       fact('diet', flags(a, { Arthro: 'arthropods', Vert: 'vertebrates', Leaves: 'leaves', Seeds: 'seeds', Fruits: 'fruit', Flowers: 'flowers' }).join(', ') || null, REFS.amphibio)

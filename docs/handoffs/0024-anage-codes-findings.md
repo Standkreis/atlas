@@ -29,6 +29,13 @@
 | D2 | ~~AnAge's "Maximum longevity" printed as if typical~~ → fixed the same day: the cell reads **"bis 21,8 Jahre (frei lebend)"** / "up to 21.8 years (wild)". The GIFT height doubt in 0021 is the same family and still open |
 | D3 | ~~`perYear` read "2× im Jahr" without saying what~~ → fixed the same day: the page picks **Gelege** or **Würfe** from the sibling clutch/litter part, else from the tile (mammal → Würfe). Rauchschwalbe: "Gelege 6 Eier · 2 Gelege im Jahr · reif mit 365 Tagen" |
 
+## ➕ Same day, the other Steckbrief doubts
+
+| Doubt | Fix | Data |
+| --- | --- | --- |
+| 0021 C, GIFT height is a maximum | "bis 3 m" / "up to 3 m" (`facts.values.height.max`) | none |
+| 0021 18, amphibian mass not written | `traits.ts` writes `mass` from AmphiBIO `Body_mass_g`; `mass` first in the amphibian key order | `npm run etl -- facts --force` on Neon: only rows whose facts change are written (dev: 16 of 1 869, 0.0 min) |
+
 ## 🔀 For the merge
 
 Straight on `main`, no shared files with an open track. After the deploy the owner runs `recode` against Neon (C4).
