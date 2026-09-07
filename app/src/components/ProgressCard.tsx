@@ -6,13 +6,14 @@ import { useTranslations } from 'next-intl'
 import type { RegionStatus, Tile } from '@/generated/prisma/enums'
 import { useTRPC } from '@/trpc/client'
 import { allTiles } from './AtlasCounters'
-import { type Axis, type GroupRow, barWidth, foldRows, groupsOf, membersOf, onTiles, regionOf } from './GroupRows'
+import { type Axis, type GroupRow, barWidth, foldRows, groupsOf, onTiles, regionOf, rowsOf } from './GroupRows'
 import { Icon } from './Marks'
 
 // The progress section of the profile (handoff 0022): one axis switch, then one card per region of `me.regionIds`, the
 // active one first and open, the others folded to name and counts. Every bar and every bold number follow the chosen
 // axis; the other axis stays as small text on the same line. Counts = the identity's `progress` ids ∩ the region's set:
-// for the active region the grid's `dex.set` entry (already in the cache), for the others the light `dex.setCounts`.
+// for the active region the grid's `dex.set` entry (already in the cache), for the others `dex.setCounts`, which counts
+// the intersection on the server (0025 B5, ~200 bytes) and is refetched on every mount of the card.
 // The switch and the folds are client state, so the section reads the same from the persisted cache without network.
 
 // The axis is remembered in localStorage (P2); read through useSyncExternalStore so the server renders "seen" and the
@@ -26,8 +27,9 @@ const subscribeAxis = (l: () => void) => { axisListeners.add(l); return () => { 
 type Region = { id: string; name: string; status: RegionStatus }
 type Progress = { studied: string[]; seen: string[]; tiles: Tile[] }
 const card = 'rounded-3xl bg-card px-4 py-4 shadow-[0_2px_12px_rgba(30,42,35,0.06)]'
-const ink = (axis: Axis) => (axis === 'seen' ? 'text-moss-deep' : 'text-amber')
-const fill = (axis: Axis) => (axis === 'seen' ? 'bg-moss' : 'bg-amber')
+const ink = (axis: Axis) => (axis === 'seen' ? 'text-moss-deep' : 'text-amber-deep')
+const fill = (axis: Axis) => (axis === 'seen' ? 'bg-moss' : 'bg-amber') // the bars: the brand colours, no text on them
+const radioFill = (axis: Axis) => (axis === 'seen' ? 'bg-moss-deep' : 'bg-amber-deep') // 0025 B6: white text needs the deep pair (5.0 and 5.6 : 1; on moss and amber it was 3.3 and 4.1)
 
 export function ProgressCard() {
   const t = useTranslations('you')
@@ -47,7 +49,7 @@ export function ProgressCard() {
       <div role="radiogroup" aria-label={t('progress')} className="flex rounded-full bg-tile p-1" data-testid="axis">
         {(['seen', 'studied'] as const).map((a) => (
           <button key={a} type="button" role="radio" aria-checked={axis === a} onClick={() => writeAxis(a)} data-testid={`axis-${a}`}
-            className={`motion-toggle flex-1 rounded-full py-1.5 text-[14px] font-semibold ${axis === a ? `${fill(a)} text-white` : 'text-ink-soft'}`}>
+            className={`motion-toggle flex-1 rounded-full py-1.5 text-[14px] font-semibold ${axis === a ? `${radioFill(a)} text-white` : 'text-ink-soft'}`}>
             {t(a === 'seen' ? 'axisSeen' : 'axisStudied')}
           </button>
         ))}
@@ -66,9 +68,10 @@ function RegionCard({ region, active, axis, progress, empty }: { region: Region;
   // Two sources, one shape: the grid's `dex.set` for the active region (no extra request, the same cache entry the atlas
   // holds), `dex.setCounts` for the others. Both hooks are mounted; only the one this card needs is enabled.
   const set = useQuery(trpc.dex.set.queryOptions({ regionId: region.id, tiles: allTiles, nowOnly: false }, { enabled: ready && active }))
-  const counts = useQuery(trpc.dex.setCounts.queryOptions({ regionId: region.id, tiles: allTiles }, { enabled: ready && !active }))
-  const members = active ? (set.data ?? null) : membersOf(counts.data, allTiles)
-  const rows = onTiles(groupsOf(members, progress), progress?.tiles ?? [])
+  // `refetchOnMount: 'always'`: the counts are the identity's, so every visit of the profile asks again (~200 bytes per
+  // region); without network the query pauses and the persisted answer stands.
+  const counts = useQuery(trpc.dex.setCounts.queryOptions({ regionId: region.id, tiles: allTiles }, { enabled: ready && !active, refetchOnMount: 'always' }))
+  const rows = onTiles(active ? groupsOf(set.data ?? null, progress) : progress ? rowsOf(counts.data, allTiles) : null, progress?.tiles ?? [])
   const sum = regionOf(rows)
   const [openState, setOpen] = useState<boolean | null>(null)
   const open = openState ?? active
@@ -88,7 +91,7 @@ function RegionCard({ region, active, axis, progress, empty }: { region: Region;
         {ready && <span className="fold-chevron shrink-0 text-ink-faint" data-open={open} aria-hidden><Icon name="chevron" size={20} /></span>}
       </button>
       {ready && (
-        <div className="fold" data-open={open} id={bodyId} data-testid="region-body">
+        <div className="fold" data-open={open} id={bodyId} data-testid="region-body" inert={!open}>
           <div>
             {rows && <Rows rows={rows} axis={axis} open={moreOpen} setOpen={setMore} td={td} t={t} />}
             {active && empty && <p className="mt-3 text-[13px] text-ink-faint" data-testid="empty-hint">{t('emptyHint')}</p>}
@@ -138,11 +141,10 @@ function Rows({ rows, axis, open, setOpen, td, t }: { rows: GroupRow<Tile>[]; ax
       {shown.length > 0 && <ul className="mt-3 flex flex-col gap-2.5" data-testid="rows-shown">{shown.map(row)}</ul>}
       {folded.length > 0 && (
         <>
-          <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={foldId} data-testid="more-groups" className="mt-3 flex w-full items-center justify-between text-left text-[14px] font-semibold text-ink-soft">
-            {shown.length ? t('moreGroups', { n: folded.length }) : t('allGroups', { n: folded.length })}
-            <span className="fold-chevron shrink-0 text-ink-faint" data-open={open} aria-hidden><Icon name="chevron" size={18} /></span>
+          <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={foldId} data-testid="more-groups" className="mt-3 block text-left text-[14px] font-semibold text-moss-deep">
+            {open ? t('fewerGroups') : shown.length ? t('moreGroups', { n: folded.length }) : t('allGroups', { n: folded.length })}
           </button>
-          <div className="fold" data-open={open} id={foldId}>
+          <div className="fold" data-open={open} id={foldId} inert={!open}>
             <div><ul className="mt-2 flex flex-col gap-2.5" data-testid="rows-folded">{folded.map(row)}</ul></div>
           </div>
         </>

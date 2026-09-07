@@ -4,7 +4,7 @@
 export type GroupRow<T extends string = string> = { tile: T; studied: number; seen: number; possible: number }
 export type Axis = 'seen' | 'studied'
 
-/** The two shapes a region's membership arrives in: `dex.set` (the grid's entry) or `dex.setCounts` (0022 P3, ids only). */
+/** The membership shape of `dex.set` (the grid's entry); the other source, `dex.setCounts`, arrives counted (`rowsOf`). */
 export type Members<T extends string = string> = { tiles: { tile: T }[]; species: { taxonId: string; tile: T }[] }
 
 export function groupsOf<T extends string>(set: Members<T> | null, progress: { studied: string[]; seen: string[] } | null): GroupRow<T>[] | null {
@@ -17,11 +17,13 @@ export function groupsOf<T extends string>(set: Members<T> | null, progress: { s
   return [...rows.values()]
 }
 
-/** `dex.setCounts` → the `dex.set` shape, tiles in `order` (the Tile enum), tiles without members dropped. */
-export function membersOf<T extends string>(counts: { ids: Partial<Record<T, string[]>> } | null | undefined, order: T[]): Members<T> | null {
+/** `dex.setCounts` (0025 B5): the members per tile and, among them, the identity's seen and studied ones, counted on the server. */
+export type Counts<T extends string = string> = { byTile: Partial<Record<T, number>>; seen: Partial<Record<T, number>>; studied: Partial<Record<T, number>> }
+
+/** `dex.setCounts` → the same rows `groupsOf` makes from `dex.set`, tiles in `order` (the Tile enum), tiles without members dropped. */
+export function rowsOf<T extends string>(counts: Counts<T> | null | undefined, order: T[]): GroupRow<T>[] | null {
   if (!counts) return null
-  const tiles = order.filter((t) => (counts.ids[t]?.length ?? 0) > 0)
-  return { tiles: tiles.map((tile) => ({ tile })), species: tiles.flatMap((tile) => counts.ids[tile]!.map((taxonId) => ({ taxonId, tile }))) }
+  return order.filter((t) => (counts.byTile[t] ?? 0) > 0).map((tile) => ({ tile, studied: counts.studied[tile] ?? 0, seen: counts.seen[tile] ?? 0, possible: counts.byTile[tile]! }))
 }
 
 /** The rows of the tiles the identity keeps on (empty = all), in the set's order. */

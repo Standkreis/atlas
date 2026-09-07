@@ -119,22 +119,36 @@ export const dexRouter = router({
     }),
 
   /**
-   * The set's membership without the species rows (handoff 0022 P3): the profile's progress card for a region that is
-   * not the active one. `ids` per tile (~40 KB for 929 members against ~900 KB for `dex.set`), so the client intersects
-   * them with `identity.progress` exactly as it does with `dex.set`; `total` and `byTile` are the "von n" denominators.
-   * A tile without members (fish, mostly) is absent, as `set.tiles` drops it. Pure read, no identity: shared and persisted.
+   * The set's counts for the profile's progress card (handoff 0022 P3, reworked in 0025 B5): per tile the members and,
+   * among them, the calling identity's seen (wild sightings) and studied ones. The first version shipped the member ids
+   * (~40 KB per region) for a client-side join; `identity.progress` carries no membership, so the intersection runs here
+   * and the answer is ~200 bytes. The entry is persisted like `dex.set`, dropped with the identity (trpc/client.tsx
+   * `watchIdentity`) and refetched on every mount of the card. A tile without members (fish, mostly) is absent, as
+   * `set.tiles` drops it.
    */
   setCounts: publicProcedure
     .input(z.object({ regionId: z.string().uuid(), tiles: z.array(tile).min(1) }))
     .query(async ({ ctx, input }) => {
       const region = await ctx.db.region.findUnique({ where: { id: input.regionId }, select: { id: true, status: true } })
       if (!region) return null
-      const rows = await ctx.db.plausibility.findMany({ where: { regionId: region.id, taxon: { tile: { in: input.tiles } } }, select: { taxonId: true, taxon: { select: { tile: true } } } })
+      const [rows, studies, sightings] = await Promise.all([
+        ctx.db.plausibility.findMany({ where: { regionId: region.id, taxon: { tile: { in: input.tiles } } }, select: { taxonId: true, taxon: { select: { tile: true } } } }),
+        ctx.db.study.findMany({ where: { identityId: ctx.identity.id }, select: { taxonId: true } }),
+        ctx.db.sighting.findMany({ where: { identityId: ctx.identity.id, wildness: 'wild' }, select: { taxonId: true }, distinct: ['taxonId'] }),
+      ])
+      const studiedIds = new Set(studies.map((s) => s.taxonId))
+      const seenIds = new Set(sightings.map((s) => s.taxonId))
       // A tile with no member gets no key: fish vanishes on its own, the client lists the tiles present (as `set.tiles`).
-      const ids: Partial<Record<Tile, string[]>> = {}
-      for (const r of rows) (ids[r.taxon.tile] ??= []).push(r.taxonId)
-      const byTile = Object.fromEntries(Object.entries(ids).map(([t, list]) => [t, list.length])) as Partial<Record<Tile, number>>
-      return { region, total: rows.length, byTile, ids }
+      const byTile: Partial<Record<Tile, number>> = {}
+      const seen: Partial<Record<Tile, number>> = {}
+      const studied: Partial<Record<Tile, number>> = {}
+      for (const r of rows) {
+        const t = r.taxon.tile
+        byTile[t] = (byTile[t] ?? 0) + 1
+        seen[t] = (seen[t] ?? 0) + (seenIds.has(r.taxonId) ? 1 : 0)
+        studied[t] = (studied[t] ?? 0) + (studiedIds.has(r.taxonId) ? 1 : 0)
+      }
+      return { region, total: rows.length, byTile, seen, studied }
     }),
 
   /**
