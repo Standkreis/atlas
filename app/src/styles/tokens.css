@@ -13,7 +13,8 @@
   --color-moss: #16a34a;          /* primary, saturated: surfaces, badges, buttons */
   --color-moss-deep: #15803d;     /* text on paper, AA contrast */
   --color-moss-soft: #dcf5e3;
-  --color-amber: #c4620f;         /* handoff 0014 G4: one step more saturated than #b8701a; 4.1:1 on white */
+  --color-amber: #c4620f;         /* handoff 0014 G4: one step more saturated than #b8701a; 4.1:1 on white. Fills, rings, bars, the disc */
+  --color-amber-deep: #a94c08;    /* 0025 B6: amber for text, AA on white 5.6, paper 5.0, amber-soft 4.5 (the moss / moss-deep pair) */
   --color-amber-soft: #f4e4c8;
   --color-sky: #2563eb;           /* the third axis (XP, level) and, since handoff 0014 G5, selection: chips, radio dot, check badge */
   --color-sky-deep: #1d4ed8;
@@ -46,6 +47,7 @@
     --color-moss-deep: #4ade80;
     --color-moss-soft: #17402a;
     --color-amber: #f0a030;
+    --color-amber-deep: #f0a030;    /* 6.3 on tile to 8.2 on paper: one amber is enough in the dark */
     --color-amber-soft: #3b2a12;
     --color-sky: #3b82f6;
     --color-sky-deep: #60a5fa;
@@ -65,6 +67,7 @@
     --color-moss-deep: #4ade80;
     --color-moss-soft: #17402a;
     --color-amber: #f0a030;
+    --color-amber-deep: #f0a030;
     --color-amber-soft: #3b2a12;
     --color-sky: #3b82f6;
     --color-sky-deep: #60a5fa;
