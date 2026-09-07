@@ -20,6 +20,7 @@ Personal atlas over open biodiversity data. Next.js 16 App Router · tRPC 11 · 
 - Edit files outside your track's list when running as a parallel agent. Shared files are named in the handoff; merge them by hand.
 - Push. The owner says "push".
 - Read or print values from `.env*` files or `vercel env pull` output. Names and lengths only.
+- Call `api.anthropic.com` from scripts, grills or ETL steps with the app's `ANTHROPIC_API_KEY`. That key is the production scan's Console budget, pay-as-you-go. Model work in a session (drafts, judges, grills) runs through Claude Code itself: subagents on the plan. 0019, 0026 and the first minute of 0027 broke this (≈ 5.3 $).
 
 ## ✅ Always
 

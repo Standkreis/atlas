@@ -4,7 +4,7 @@
 
 | 🗓️ Written | 👤 Owner | ⬆️ Parent | ⏱️ Budget |
 | --- | --- | --- | --- |
-| 2026-09-07 | Sven Reiser | [0026 findings](0026-prose-grill-findings.md) P5, doubts 1, 2, 7 · `app/scripts/prose-grill/` | One session, worktree `../standkreis-dex-prose` (branch `prose-2` from `main`). **Spend cap 4 $**, the cache makes unchanged calls free |
+| 2026-09-07 | Sven Reiser | [0026 findings](0026-prose-grill-findings.md) P5, doubts 1, 2, 7 · `app/scripts/prose-grill/` | One session, worktree `../standkreis-dex-prose` (branch `prose-2` from `main`). **No API calls** (CLAUDE.md): every draft and every audit is a Claude Code subagent on the plan |
 
 ## 🔧 The four fixes, in `app/scripts/prose-grill/` only
 
@@ -14,6 +14,14 @@
 | F2 | **Thin in-set pairs out of prose.** An in-set pair with one record from one study leaves the prose sheet (it stays a tile row, not this session's business) | Report the count |
 | F3 | **"beobachtet" resolved one way.** Pick: the ECO prompt says "GloBI rows are observations; write them as *wurde beim Fressen von X beobachtet*" **and** the judge prompt says the same fact line grants "beobachtet/observed/recorded". Same for "Fressfeinde/predator/Falter" wording that only names the edge's kind | Zero artefact ❌ in the hand classification |
 | F4 | **Validator accepts one paragraph** when the sheet has fewer than N lines (pick N from 0026's failures, say so) | V1 validator ✓ ≥ 38 / 40 |
+
+## 🤖 How the model is called now
+
+| Rule | Detail |
+| --- | --- |
+| No `api.anthropic.com` | The owner's rule of 2026-09-07: the app's key is the production scan's budget. `common.mjs`'s `ask()` is replaced by a file protocol: `sheets.mjs` writes one prompt file per draft under `prompts/<run>/<species>-<lang>.md`, the session's coordinator hands each to a **subagent** (Sonnet, `Agent` tool) that writes `answers/<run>/<species>-<lang>.json` with the same JSON the API returned; `report.mjs` reads the answers. The audit is another subagent per draft, verdict first. Batch the subagents: one agent per five prompts, drafts and audits never in the same agent |
+| The 0026 cache | Stays as read-only evidence for the 0026 numbers; nothing new is written to `.cache/` |
+| Cost | Plan tokens, not dollars. Report the count of subagents and the wall time instead of the ¢ columns; the P4 cost table becomes "drafts per region and the plan's daily ceiling", and it says whether the production build (2 414 taxa × 2 languages + audit) can run on the plan at all or needs the owner's decision on a budget |
 
 Also from 0026 doubt 7: the audit answers **verdict first** (`{"verdict":"supported","why":…}`), max_tokens 2 000, so the judge cannot reverse itself mid-sentence.
 
@@ -37,5 +45,4 @@ If a gate fails: name the leaking input with counts and stop. No build draft on 
 | --- | --- |
 | Where | `app/scripts/prose-grill/` (edit in place; `grill.json`, `results.json`, `report.md`, `drafts.md` rewritten). Nothing in `app/src/`, `app/etl/`, the schema, Neon |
 | Data | Dev DB read-only. 0025 is merged, so the stratum fallback in `sheets.mjs` (0026 doubt 5) goes: read the i18n keys |
-| Key | `ANTHROPIC_API_KEY` from `app/.env.local` in the worktree, name only, never printed. Thinking disabled |
 | Deliverables | `docs/handoffs/0027-prose-regrill-findings.md`: per-fix counts, P1'/P2' tables against 0026's, the full hand read of the 38 Ökologie paragraphs marked sentence by sentence, cost, decisions, doubts, §📐 or the stop. Small commits on `prose-2`, `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`, no push |
