@@ -1,0 +1,34 @@
+# prompts/audit-P2/Alnus-glutinosa-en.md
+
+Model `claude-sonnet-5`, thinking disabled, max_tokens 2000. The answer is the JSON object the model would return, nothing else, written to `answers/audit-P2/Alnus-glutinosa-en.json`.
+
+## System
+
+You audit a species text against the numbered fact lines it was written from. For every sentence give:
+1. "verdict": "supported" (every claim in the sentence follows from the cited lines), "partial" (some claim goes beyond the cited lines or rests on an uncited line), "unsupported" (a claim that no line states, or that contradicts a line). Be strict: rounding is fine, a unit change is fine; an added adjective of colour, size, behaviour or place, a cause, a season, a habit or preference read out of a record, a "typical" or "important" is not.
+2. A GloBI line ("n GloBI-Belege" / "n GloBI records") is the record of an observed interaction. It grants every wording that only restates the record or names its kind: "beobachtet", "verzeichnet", "registriert", "nachgewiesen", "Fressfeind", "Beute", "Nahrung", "Wirt", "Blütenbesucher", "Bestäuber" / "observed", "recorded", "documented", "predator", "prey", "food", "host", "flower visitor", "pollinator". It does not grant a habit, a frequency, a life stage, a preference or a partner the line does not name. The species' own name and a plain group word for it (Falter, Vogel, Pilz / butterfly, bird, fungus) are not claims, like the region.
+3. Decide the verdict first and keep it. "why" has at most 25 words, explains the verdict and never argues against it; if you notice while writing that the sentence is supported, the verdict is "supported".
+4. "claims": every atomic claim in the sentence (one fact per claim, at most 12 words, in the language of the text), each with "fact": the id of the line that states it (any line, cited or not), or null when no line states it. Names, group words and the region are not claims; "it is nocturnal" is a claim.
+Answer with JSON only, the verdict before anything else in each sentence:
+{"sentences":[{"n":1,"verdict":"supported|partial|unsupported","why":"<≤ 25 words; empty when supported>","claims":[{"claim":"<text>","fact":"F3"}, {"claim":"<text>","fact":null}]}]}
+
+## User
+
+FACTS:
+F1 [GIFT (Weigelt et al.)] Pollination: wind.
+F2 [GBIF occurrences] Region Mainz-Bingen: 27 reports in ten years; main time "Ganzes Jahr"; month profile as % of the peak month: Jan 59, Feb 28, Mar 16, Apr 13, May 31, Jun 38, Jul 28, Aug 47, Sep 41, Oct 38, Nov 31, Dec 100.
+F3 [GloBI] is eaten by: European goldfinch (Carduelis carduelis) — 5 GloBI records.
+F4 [GloBI] is eaten by: Musk beetle (Aromia moschata) — 2 GloBI records.
+F5 [GloBI] host of: Turkeytail (Trametes versicolor) — 9 GloBI records.
+F6 [GloBI] host of: Tinder Bracket (Fomes fomentarius) — 6 GloBI records.
+F7 [GloBI] host of: Dotted border (Agriopis marginaria) — 5 GloBI records.
+F8 [GloBI] host of: Red-Belted Bracket (Fomitopsis pinicola) — 5 GloBI records.
+F9 [GloBI] host of: Lime Hawk-Moth (Mimas tiliae) — 2 GloBI records.
+F10 [GloBI] host of: Candlesnuff Fungus (Xylaria hypoxylon) — 2 GloBI records.
+
+TEXT (sentence n, cited ids, text):
+1. [F1] Alnus glutinosa is pollinated by wind.
+2. [F2] In Mainz-Bingen it has been reported throughout the year over the past decade, with the most reports recorded in December.
+3. [F3,F4] The European goldfinch and, in two records, the musk beetle are recorded as predators.
+4. [F5,F6,F8,F10] It is recorded as a host for the fungi Turkeytail, Tinder Bracket, Red-Belted Bracket and Candlesnuff Fungus.
+5. [F7,F9] It is also recorded as a host for the moths Dotted Border and Lime Hawk-Moth.
