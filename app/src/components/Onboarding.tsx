@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'next/navigation'
 import { useFormatter, useTranslations } from 'next-intl'
@@ -10,6 +10,7 @@ import { useTRPC } from '@/trpc/client'
 import { Brand } from './Brand'
 import { Icon, SeenMark, StudiedMark } from './Marks'
 import { OnboardingSilhouette } from './OnboardingSilhouette'
+import { RegionPicker } from './RegionPicker'
 
 // Four screens: choose a ready region intentionally, select groups, preview the set and review the promises.
 // Later steps have explicit back controls.
@@ -29,11 +30,6 @@ const allTiles = Object.values(Tile) as Tile[]
 const tileOrder: Tile[] = ['bird', 'insect', 'plant', 'fungus', 'mammal', 'amphibian', 'reptile', 'fish']
 type Step = 'region' | 'tiles' | 'ready' | 'promises'
 type Region = { id: string; name: string; status: string }
-// PersistQueryClient restores `dex.regions` from localStorage before hydration. The server cannot read that store, so
-// the first server and browser snapshots must both keep the list empty; React fills it immediately after hydration.
-const subscribeHydration = () => () => {}
-const clientHydrated = () => true
-const serverHydrated = () => false
 
 export function Onboarding() {
   const change = useSearchParams().get('change') === '1'
@@ -63,7 +59,7 @@ export function Onboarding() {
         <div className="absolute inset-0 bg-gradient-to-b from-night/15 via-night/60 via-45% to-night-deep to-90%" />
       </div>
       <div className="relative h-full overflow-y-auto">
-        {step === 'region' && <RegionScreen change={change} initialRegion={region?.id ?? null} onChosen={chosen} />}
+        {step === 'region' && <RegionScreen change={change} initialRegion={region} onChosen={chosen} />}
         {step === 'tiles' && region && <TilesScreen onBack={() => setStep('region')} of={of} region={region} tiles={tiles} setTiles={setTiles} onNext={() => setStep('ready')} />}
         {step === 'ready' && region && <ReadyScreen onBack={() => setStep('tiles')} of={of} region={region} tiles={tiles} onNext={change ? go : () => setStep('promises')} />}
         {step === 'promises' && <PromisesScreen onBack={() => setStep('ready')} of={of} onNext={go} />}
@@ -74,16 +70,15 @@ export function Onboarding() {
 
 // ── 1 · Region ────────────────────────────────────────────────────────────────
 
-function RegionScreen({ change, initialRegion, onChosen }: { change: boolean; initialRegion: string | null; onChosen: (r: Region) => void }) {
+function RegionScreen({ change, initialRegion, onChosen }: { change: boolean; initialRegion: Region | null; onChosen: (r: Region) => void }) {
   const t = useTranslations('onboarding')
-  const tc = useTranslations('common')
   const trpc = useTRPC()
   const router = useRouter()
-  const [picked, setPicked] = useState<string | null>(initialRegion)
+  const [picked, setPicked] = useState<string | null>(initialRegion?.id ?? null)
+  const [selected, setSelected] = useState<Region | null>(initialRegion)
+  // A bounded compatibility read keeps existing offline packs and fixture databases usable until #28 cutover.
+  // The picker never renders this list wholesale; it is only searched when the canonical registry is unavailable.
   const regions = useQuery(trpc.dex.regions.queryOptions())
-  const hydrated = useSyncExternalStore(subscribeHydration, clientHydrated, serverHydrated)
-  const ready = (hydrated ? regions.data ?? [] : []).filter((r) => r.status === 'ready')
-  const selected = ready.find((r) => r.id === picked)
   return (
     <div className="relative mx-auto flex min-h-full w-full max-w-[520px] flex-col px-6 pt-[max(2rem,env(safe-area-inset-top))]">
       {change && <button type="button" onClick={() => router.back()} data-testid="cancel" className="min-h-11 self-end px-3 text-[15px] font-semibold">{t('cancel')}</button>}
@@ -91,20 +86,17 @@ function RegionScreen({ change, initialRegion, onChosen }: { change: boolean; in
         <Brand label={t('eyebrow')} inverse />
         <h1 className="mt-5 text-[34px] leading-[1.1] font-bold tracking-tight">{t('headline')}</h1>
         <p className="mt-3 text-[17px] leading-snug text-white/85">{t('promise')}</p>
-        <fieldset className="mt-6">
-          <legend className="text-[15px] text-white/85">{t('question')}</legend>
-          <ul className="mt-3 flex flex-col gap-2" data-testid="regions">
-            {ready.map((r) => <li key={r.id}>
-              <label className={`motion-toggle flex min-h-14 cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-[18px] font-bold ${selected?.id === r.id ? 'bg-white text-night' : 'bg-white/10 text-white'}`}>
-                <input type="radio" name="onboarding-region" value={r.id} checked={picked === r.id} onChange={() => setPicked(r.id)} data-region={r.id} className="size-6 shrink-0 accent-sky" />
-                <span>{r.name}</span>
-              </label>
-            </li>)}
-          </ul>
-          {(!hydrated || regions.isLoading) && <p className="mt-3" role="status">{t('working')}</p>}
-          {hydrated && regions.isSuccess && ready.length === 0 && <p className="mt-3">{t('noReadyRegion')}</p>}
-          {hydrated && regions.isError && <p className="mt-3" role="alert">{t('error')} <button type="button" onClick={() => void regions.refetch()} className="min-h-11 underline">{tc('retry')}</button></p>}
-        </fieldset>
+        <div className="mt-6">
+          <RegionPicker
+            selectedId={picked}
+            fallbackRegions={regions.data ?? []}
+            tone="dark"
+            onSelect={(next) => {
+              setPicked(next.id)
+              setSelected({ id: next.id, name: next.name, status: next.status })
+            }}
+          />
+        </div>
       </div>
       <div className="sticky bottom-0 -mx-6 mt-4 bg-gradient-to-t from-night-deep from-70% to-transparent px-6 pt-5" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
         <button type="button" disabled={!selected} data-testid="region-next" onClick={() => selected && onChosen(selected)} className="h-14 w-full rounded-2xl bg-moss text-[18px] font-bold text-white disabled:opacity-60">{t('chooseRegion')}</button>

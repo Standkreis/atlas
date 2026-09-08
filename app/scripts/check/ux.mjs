@@ -46,8 +46,13 @@ try {
   }
   const selector = (s) => `document.querySelector(${JSON.stringify(s)})`
   const click = async (s) => { await wait(`${selector(s)} && !${selector(s)}.disabled`, s); await evaluate(`${selector(s)}.focus(); ${selector(s)}.click()`); await sleep(100) }
-  const key = async (name, modifiers = 0) => { await send('Input.dispatchKeyEvent', { type: 'keyDown', key: name, code: name, modifiers }); await send('Input.dispatchKeyEvent', { type: 'keyUp', key: name, code: name, modifiers }) }
+  const key = async (name, modifiers = 0) => {
+    const native = name === 'Enter' ? { windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, text: '\r' } : {}
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: name, code: name, modifiers, ...native })
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: name, code: name, modifiers, ...native, text: undefined })
+  }
   await send('Page.enable')
+  await send('Browser.setPermission', { permission: { name: 'geolocation' }, setting: 'denied', origin: base })
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `
     window.__dexHydrationErrors = []
     const rememberHydrationError = (value) => {
@@ -62,17 +67,27 @@ try {
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] })
   await send('Page.navigate', { url: `${base}/${locale}/onboarding` })
-  await wait(`${selector('[data-region]')} && Object.keys(${selector('[data-region]')}).some(k => k.startsWith('__reactProps'))`, 'hydrated available region')
+  await wait(`${selector('[data-testid=region-search]')} && Object.keys(${selector('[data-testid=region-search]')}).some(k => k.startsWith('__reactProps'))`, 'hydrated region search')
+  assert.equal(await evaluate(`document.querySelectorAll('[data-testid=region-result]').length`), 0, 'picker does not render the regional catalogue by default')
   assert.equal(await evaluate(`${selector('[data-testid=region-next]')}.disabled`), true, 'region selection is intentional')
   assert.equal(await evaluate(`(() => { const r = ${selector('[data-testid=region-next]')}.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight })()`), true, 'first action fits the viewport')
-  await click('[data-region]')
+  assert.ok(await evaluate(`${selector('[data-testid=region-location]')}.previousElementSibling.textContent.length > 20`), 'location explanation precedes its action')
+  await click('[data-testid=region-location]')
+  await wait(`/location|standort/i.test(${selector('[role=alert]')}?.textContent ?? '')`, 'denied location is explained')
+  await evaluate(`(() => { const input = ${selector('[data-testid=region-search]')}; const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(input, 'Mainz'); input.dispatchEvent(new Event('input', { bubbles: true })) })()`)
+  await wait(`${selector('[data-testid=region-result]')} && Object.keys(${selector('[data-testid=region-result]')}).some(k => k.startsWith('__reactProps'))`, 'bounded region search result')
+  await evaluate(`${selector('[data-testid=region-search]')}.focus()`)
+  await key('Tab')
+  await key('Tab')
+  assert.equal(await evaluate(`document.activeElement?.getAttribute('data-testid')`), 'region-result', 'search result is keyboard reachable')
+  await key('Enter')
   await click('[data-testid=region-next]')
   await wait(selector('[data-testid=onboarding-tiles]'))
   await click('[data-testid=onboarding-back]')
   await wait(selector('[data-testid=onboarding-region]'))
   await wait(`JSON.parse(localStorage.getItem('dex.queries') || 'null')?.json?.clientState?.queries?.some(q => q.queryKey[0].join('.') === 'dex.regions' && q.state.data?.length)`, 'regions persisted')
   await send('Page.reload')
-  await wait(`${selector('[data-region]')} && Object.keys(${selector('[data-region]')}).some(k => k.startsWith('__reactProps'))`, 'persisted regions hydrate')
+  await wait(`${selector('[data-region]')} && Object.keys(${selector('[data-region]')}).some(k => k.startsWith('__reactProps'))`, 'recent region hydrates without the national list')
   assert.deepEqual(await evaluate('window.__dexHydrationErrors'), [], 'persisted regions hydrate without a server/client mismatch')
   await click('[data-region]')
   await click('[data-testid=region-next]')
