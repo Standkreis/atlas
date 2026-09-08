@@ -22,6 +22,7 @@ proc.on('error', (error) => { chromeFailure = error })
 proc.on('exit', (code, signal) => { if (!chromeFailure) chromeFailure = new Error(`Chrome exited before connecting (${signal ?? code})`) })
 let ws
 let offlineSwitchRegionId = null
+let offlineUnavailableRegionId = null
 try {
   let target
   for (let i = 0; i < 200 && !target && !chromeFailure; i++) {
@@ -245,8 +246,10 @@ try {
       return evaluate(`document.querySelector('[data-testid=region-result]').dataset.region`)
     }
     offlineSwitchRegionId = await searchFor('Südwestpfalz')
+    const imagesBeforeSouthWest = await evaluate(`performance.getEntriesByType('resource').filter(entry => entry.initiatorType === 'img').length`)
     await click('[data-testid=region-result]')
     await wait(`document.querySelectorAll('[data-testid=region-row]').length === 2`, 'Südwestpfalz is added without replacing Mainz-Bingen')
+    assert.equal(await evaluate(`performance.getEntriesByType('resource').filter(entry => entry.initiatorType === 'img').length`), imagesBeforeSouthWest, 'adding a saved region starts no image download')
     await click(`[data-testid=region-row][data-region="${offlineSwitchRegionId}"] [data-testid=region-pick]`)
     await wait(`!${selector('[data-testid=region-sheet]')}`, 'switch closes region management')
     await click('[data-testid=tab-dex]')
@@ -254,9 +257,13 @@ try {
     await click('[data-testid=tab-you]')
     await click('[data-testid=change-region]')
     await click('[data-testid=region-add]')
-    const berlinId = await searchFor('Berlin')
-    await click('[data-testid=region-result]')
-    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 3`, 'Berlin is added to the saved list')
+    await send('Browser.setPermission', { permission: { name: 'geolocation' }, setting: 'granted', origin: base })
+    await send('Emulation.setGeolocationOverride', { latitude: 52.52, longitude: 13.405, accuracy: 25 })
+    await click('[data-testid=region-location]')
+    await wait(`Array.from(document.querySelectorAll('[data-testid=region-result]')).some(row => row.textContent.includes('Berlin'))`, 'Berlin resolves from the current location')
+    const berlinId = await evaluate(`Array.from(document.querySelectorAll('[data-testid=region-result]')).find(row => row.textContent.includes('Berlin')).dataset.region`)
+    await evaluate(`Array.from(document.querySelectorAll('[data-testid=region-result]')).find(row => row.dataset.region === ${JSON.stringify(berlinId)})?.click()`)
+    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 3`, 'Berlin is added from location')
     await click(`[data-testid=region-row][data-region="${berlinId}"] [data-testid=region-pick]`)
     await wait(`!${selector('[data-testid=region-sheet]')}`, 'Berlin switch closes region management')
     await click('[data-testid=tab-dex]')
@@ -264,8 +271,20 @@ try {
     await click('[data-testid=tab-you]')
     await click('[data-testid=change-region]')
     await wait(`document.querySelectorAll('[data-testid=region-row]').length === 3`, 'all saved regions survive switches')
+    await click('[data-testid=region-add]')
+    offlineUnavailableRegionId = await searchFor('Hamburg')
+    await send('Network.setBlockedURLs', { urls: ['*identity.setFilter*'] })
+    await click('[data-testid=region-result]')
+    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 3 && !!document.querySelector('[data-testid=region-line]')`, 'failed add rolls optimistic saved state back')
+    await send('Network.setBlockedURLs', { urls: [] })
+    await click('[data-testid=region-add]')
+    await searchFor('Hamburg')
+    const imagesBeforeHamburg = await evaluate(`performance.getEntriesByType('resource').filter(entry => entry.initiatorType === 'img').length`)
+    await click('[data-testid=region-result]')
+    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 4`, 'Hamburg adds after transport recovers')
+    assert.equal(await evaluate(`performance.getEntriesByType('resource').filter(entry => entry.initiatorType === 'img').length`), imagesBeforeHamburg, 'adding an uncached region starts no image download')
     await click(`[data-testid=region-row][data-region="${initialRegionId}"] [data-testid=region-remove]`)
-    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 2`, 'inactive Mainz-Bingen is removed')
+    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 3`, 'inactive Mainz-Bingen is removed')
     assert.equal(await evaluate(`${selector('[data-testid=region-row][data-active] [data-testid=region-remove]')}.disabled`), true, 'active region remains protected with multiple saved regions')
   } else {
     await click('[data-testid=region-add]')
@@ -344,6 +363,9 @@ try {
   await wait(selector('[data-testid=region-offline-management]'), 'offline region-management boundary is explicit')
   if (fullCatalogue) {
     assert.ok(offlineSwitchRegionId, 'a second cached region was prepared')
+    assert.ok(offlineUnavailableRegionId, 'an uncached saved region was prepared')
+    await click(`[data-testid=region-row][data-region="${offlineUnavailableRegionId}"] [data-testid=region-pick]`)
+    await wait(`!!${selector('[data-testid=region-line]')} && !!${selector('[data-testid=region-sheet]')}`, 'an uncached saved region stays put and is explained once')
     await click('[data-testid=region-add]')
     await wait(selector('[data-testid=region-picker-panel]'))
     assert.match(await evaluate(`${selector('[data-testid=region-picker-panel]')}.textContent`), /offline|verbindung/i, 'offline picker explains why catalogue search is unavailable')
