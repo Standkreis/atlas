@@ -2,10 +2,10 @@ import { createHash, randomUUID } from 'node:crypto'
 import { Prisma } from '../src/generated/prisma/client'
 import { OBSERVATION_WINDOW } from '../src/domain/observationWindow'
 import { isNow } from '../src/domain/rules'
-import { resolveAcceptedSpecies, type AcceptedTaxonomyResult, type SpeciesLookup } from './accepted-taxonomy'
+import { resolveAcceptedSpecies, type AcceptedTaxonomyResult, type SpeciesLookup, type SpeciesMatchLookup } from './accepted-taxonomy'
 import { db } from './db'
 import { failedCaptureRequests, withFreshCache, withResponseCapture, type RequestStats } from './fetch'
-import { BASIS, gbifSpecies, type Species } from './gbif'
+import { BASIS, gbifSpecies, gbifSpeciesMatch, type Species } from './gbif'
 import {
   calculateRegistryRegion,
   type RegionJobDependencies,
@@ -14,7 +14,8 @@ import {
 } from './region'
 
 export const NATIONWIDE_RULES = {
-  plausible: 1,
+  // v2 resolves doubtful GBIF variants to an exact accepted concept before floors and tile cuts.
+  plausible: 2,
   tileMapping: 1,
 } as const
 
@@ -252,7 +253,8 @@ export function catalogueTaxonomyResolver(
   catalogueId: string,
   store: NationwideStore,
   lookup: SpeciesLookup = gbifSpecies,
-  resolveMissing: (sourceKeys: readonly number[]) => Promise<AcceptedTaxonomyResult> = (sourceKeys) => resolveAcceptedSpecies(sourceKeys, lookup),
+  match: SpeciesMatchLookup = gbifSpeciesMatch,
+  resolveMissing: (sourceKeys: readonly number[]) => Promise<AcceptedTaxonomyResult> = (sourceKeys) => resolveAcceptedSpecies(sourceKeys, lookup, match),
 ): (sourceKeys: readonly number[]) => Promise<AcceptedTaxonomyResult> {
   let chain: Promise<unknown> = Promise.resolve()
   return (sourceKeys) => {
@@ -327,6 +329,7 @@ export type NationwideOptions = {
   calculate?: typeof calculateRegistryRegion
   regionDependencies?: Partial<RegionJobDependencies>
   species?: SpeciesLookup
+  match?: SpeciesMatchLookup
   fresh?: typeof withFreshCache
   capture?: typeof withResponseCapture
 }
@@ -385,6 +388,7 @@ export async function runNationwide(options: NationwideOptions): Promise<Nationw
     catalogue.id,
     store,
     options.regionDependencies?.species ?? options.species ?? gbifSpecies,
+    options.match ?? gbifSpeciesMatch,
     upstreamTaxonomy,
   )
   const attempted = new Set<string>()
