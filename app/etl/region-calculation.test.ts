@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Facet, Species } from './gbif'
+import { resolveAcceptedSpecies } from './accepted-taxonomy'
 
 const dbMocks = vi.hoisted(() => ({
   findEntries: vi.fn(),
@@ -98,5 +99,41 @@ describe('calculateRegistryRegion', () => {
     expect(facet).toHaveBeenCalledTimes(13)
     expect(dbMocks.updateRegion).not.toHaveBeenCalled()
     expect(dbMocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('merges a doubtful variant into its accepted concept before applying the regional floor', async () => {
+    dbMocks.findEntries.mockResolvedValueOnce([{
+      id: 'registry-entry-doubtful',
+      registryVersionId: REGISTRY,
+      region: { id: 'region-doubtful', canonicalKey: REGION, gadmGid: null, name: 'Fixture region', higher: 'Deutschland › Testland' },
+      sourceUnits: [{ queryUnits: [{ providerKey: QUERY_UNIT }] }],
+    }])
+    const doubtfulKey = 201, acceptedKey = 200
+    const facet = vi.fn(async (_field: string, params: Record<string, string | number | boolean | string[]>): Promise<Facet> => ({
+      total: params.month === undefined || params.month === 5 ? 12 : 0,
+      counts: params.month === undefined || params.month === 5
+        ? [{ name: String(doubtfulKey), count: 6 }, { name: String(acceptedKey), count: 6 }]
+        : [],
+    }))
+    const records = new Map<number, Species>([
+      [doubtfulKey, { ...accepted(doubtfulKey, 'Merged identity'), canonicalName: 'Merged identity', taxonomicStatus: 'DOUBTFUL' }],
+      [acceptedKey, accepted(acceptedKey, 'Merged identity')],
+    ])
+    const species = vi.fn(async (key: number) => records.get(key) ?? null)
+    const match = vi.fn(async () => ({ ...records.get(acceptedKey)!, usageKey: acceptedKey, matchType: 'EXACT', status: 'ACCEPTED' }))
+
+    const result = await calculateRegistryRegion(REGISTRY, REGION, () => undefined, {
+      facet,
+      species,
+      taxonomy: (keys) => resolveAcceptedSpecies(keys, species, match),
+      requestStats: () => ({ perHost: {}, hits: 0, misses: 0, retries: 0, tooMany: 0 }),
+    })
+
+    expect(result.plausibility).toHaveLength(1)
+    expect(result.plausibility[0]).toMatchObject({ gbifKey: acceptedKey, obs: 12 })
+    expect(result.taxonomyResolutions).toEqual([
+      { sourceKey: acceptedKey, status: 'accepted', acceptedKey, species: records.get(acceptedKey) },
+      { sourceKey: doubtfulKey, status: 'accepted', acceptedKey, species: records.get(acceptedKey) },
+    ])
   })
 })

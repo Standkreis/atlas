@@ -41,7 +41,29 @@ describe('resolveAcceptedSpecies', () => {
     expect((await resolveAcceptedSpecies([1], async (key) => chain.get(key) ?? null)).rejected[0]?.reason).toContain('acceptedKey cycle')
   })
 
-  it('quarantines unresolved, non-species, and unnamed taxonomy without losing valid keys', async () => {
+  it('maps a doubtful exact variant to its accepted species before returning the source key', async () => {
+    const records = new Map<number, Species>([
+      [6, species(6, { canonicalName: 'Rana dalmatina', kingdom: 'Animalia', taxonomicStatus: 'DOUBTFUL' })],
+      [7, species(7, { canonicalName: 'Rana dalmatina', kingdom: 'Animalia' })],
+    ])
+    const match = vi.fn(async () => ({ ...records.get(7)!, usageKey: 7, matchType: 'EXACT', status: 'ACCEPTED' }))
+    const result = await resolveAcceptedSpecies([6, 7], async (key) => records.get(key) ?? null, match)
+
+    expect(result.rejected).toEqual([])
+    expect(result.resolved.get(6)).toEqual({ sourceKey: 6, acceptedKey: 7, species: records.get(7) })
+    expect(match).toHaveBeenCalledWith('rana dalmatina', 'Animalia')
+  })
+
+  it('quarantines ambiguous or unresolved doubtful concepts instead of accepting their keys', async () => {
+    const source = species(6, { canonicalName: 'Rana dalmatina', kingdom: 'Animalia', taxonomicStatus: 'DOUBTFUL' })
+    const fuzzy = { ...species(7, { canonicalName: 'Rana temporaria', kingdom: 'Animalia' }), usageKey: 7, matchType: 'FUZZY', status: 'ACCEPTED' }
+    const fuzzyResult = await resolveAcceptedSpecies([6], async () => source, async () => fuzzy)
+    const missingResult = await resolveAcceptedSpecies([6], async () => source, async () => null)
+    expect(fuzzyResult.rejected[0]?.reason).toContain('expected EXACT/ACCEPTED')
+    expect(missingResult.rejected[0]?.reason).toContain('no exact accepted name match')
+  })
+
+  it('quarantines unresolved, non-species, unnamed, and non-accepted terminal taxonomy without losing valid keys', async () => {
     const records = new Map<number, Species>([
       [2, species(2)],
       [3, { key: 3, rank: 'GENUS', canonicalName: 'Example' }],
@@ -49,14 +71,15 @@ describe('resolveAcceptedSpecies', () => {
       [5, species(5, { taxonomicStatus: 'SYNONYM' })],
       [6, species(6, { taxonomicStatus: 'DOUBTFUL' })],
     ])
-    const result = await resolveAcceptedSpecies([1, 2, 3, 4, 5, 6], async (key) => records.get(key) ?? null)
-    expect([...result.resolved.keys()]).toEqual([2, 6])
-    expect(result.rejected.map((row) => row.sourceKey)).toEqual([1, 3, 4, 5])
+    const result = await resolveAcceptedSpecies([1, 2, 3, 4, 5, 6], async (key) => records.get(key) ?? null, async () => null)
+    expect([...result.resolved.keys()]).toEqual([2])
+    expect(result.rejected.map((row) => row.sourceKey)).toEqual([1, 3, 4, 5, 6])
     expect(result.rejected.map((row) => row.reason)).toEqual([
       expect.stringContaining('did not resolve'),
       expect.stringContaining('expected SPECIES'),
       expect.stringContaining('no scientific name'),
       expect.stringContaining('no distinct acceptedKey'),
+      expect.stringContaining('no exact accepted name match'),
     ])
   })
 
