@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Species } from './gbif'
 import type { RegistryRegionCalculation } from './region'
+import { habitatAudit, WORMS_SOURCE, type StoredHabitatBatch } from './marine-habitat'
 import {
   canonicalJson,
   catalogueOutliers,
@@ -56,6 +57,7 @@ class FakeStore implements NationwideStore {
     id: `build-${index + 1}`, registryEntryId: `entry-${regionKey}`, regionKey, attempts: 0, status: 'pending', owner: null, error: null,
   }))
   taxonomy = new Map<number, StoredTaxonomyResolution>()
+  habitat = new Map<string, StoredHabitatBatch>()
   executionOwner: string | null = null
   union = new Set<number>()
 
@@ -97,6 +99,8 @@ class FakeStore implements NationwideStore {
   }
   async loadTaxonomy(_id: string, keys: readonly number[]) { return keys.flatMap((key) => this.taxonomy.get(key) ?? []) }
   async saveTaxonomy(_id: string, rows: readonly StoredTaxonomyResolution[]) { for (const row of rows) this.taxonomy.set(row.sourceKey, row) }
+  async loadHabitat(_id: string, names: readonly string[]) { return [...this.habitat.values()].filter((batch) => batch.names.some((name) => names.includes(name))) }
+  async saveHabitat(_id: string, batch: StoredHabitatBatch) { this.habitat.set(batch.requestFingerprint, batch) }
   async finalize(_id: string, owner: string) {
     if (this.executionOwner !== owner) return false
     const complete = this.builds.filter((row) => row.status === 'complete')
@@ -114,6 +118,7 @@ class FakeStore implements NationwideStore {
       key: build.regionKey, name: build.regionKey, state: 'Testland', status: build.status, attempts: build.attempts,
       observations: build.staged?.calculation.total ?? null, size: build.staged?.calculation.plausibility.length ?? null,
       perTile: build.staged?.calculation.perTile ?? {}, rejectedTaxa: build.staged?.calculation.rejectedTaxa.length ?? 0,
+      habitatSummary: build.staged?.habitatSummary ?? null,
       requestStats: ZERO_REQUESTS, seconds: build.staged?.calculation.seconds ?? null, error: build.error,
       responseFingerprint: build.staged?.responseFingerprint ?? null, setFingerprint: build.staged?.setFingerprint ?? null,
     }))
@@ -124,11 +129,12 @@ class FakeStore implements NationwideStore {
         inputFingerprint: 'input', sourceFingerprint: 'source', responseFingerprint: null, unionFingerprint: this.union.size ? fingerprint([...this.union]) : null,
         registryVersionId: 'registry-1', registryVersion: 'test', sourceTopicDates: ['2024-12-31'],
         observationWindow: { version: 1, yearFrom: 2016, yearTo: 2026 }, plausibleRulesVersion: 1, tileMappingVersion: 1,
+        habitatRulesVersion: 1, habitatSource: WORMS_SOURCE,
         occurrencePredicates: {}, startedAt: '2026-09-08T00:00:00.000Z', generatedAt: this.handle.status === 'complete' ? '2026-09-08T00:00:01.000Z' : null, elapsedSeconds: 1,
       },
       regions: { expected: 2, complete: count('complete'), failed: count('failed'), pending: count('pending'), running: count('running'), rows },
       national: { uniqueTaxa: this.union.size, perTile: this.union.size ? { plant: this.union.size } : {}, unionFingerprint: fingerprint([...this.union]), contentComplete: 0, contentAwaiting: this.union.size },
-      enrichment: {}, requests: ZERO_REQUESTS, outliers: catalogueOutliers(rows), stoppedReason,
+      enrichment: {}, habitat: habitatAudit([...this.habitat.values()]), requests: ZERO_REQUESTS, outliers: catalogueOutliers(rows), stoppedReason,
     }
   }
 }
@@ -182,6 +188,7 @@ describe('nationwide orchestration', () => {
     registryVersionId: 'registry-1', runKey: 'germany-1', store, owner: 'worker-1',
     now: () => new Date('2026-09-08T00:00:00.000Z'), log: () => {}, fresh: passthroughFresh,
     capture: passthroughCapture,
+    habitatLookup: async (names: readonly string[]) => JSON.stringify(names.map(() => [])),
   })
 
   it('stages every region, deduplicates the union, and makes an unchanged rerun a no-op', async () => {
@@ -221,10 +228,26 @@ describe('nationwide orchestration', () => {
     expect(store.builds.map((row) => row.status)).toEqual(['failed', 'pending'])
   })
 
+  it('also stops after the habitat source exhausts the shared request budget', async () => {
+    const store = new FakeStore()
+    const result = await runGermany({ ...base(store), calculate: async (_registry, key) => calculation(key, 1),
+      habitatLookup: async () => { throw new Error('total request budget exhausted (10 network attempts)') } })
+    expect(result).toMatchObject({ attempted: 1, failed: 1, stoppedReason: 'request budget exhausted' })
+    expect(store.builds.map((row) => row.status)).toEqual(['failed', 'pending'])
+    expect(store.union.size).toBe(0)
+  })
+
   it('rejects unsafe concurrency and another active execution lease', async () => {
     const store = new FakeStore()
     await expect(runGermany({ ...base(store), concurrency: 5 })).rejects.toThrow('1 to 4')
     store.executionOwner = 'someone-else'
     await expect(runGermany({ ...base(store), calculate: async (_registry, key) => calculation(key, 1) })).rejects.toThrow('already running')
+  })
+
+  it('refuses remote database generation before preparing any candidate', async () => {
+    vi.stubEnv('DATABASE_URL', 'postgresql://example:example@remote.example/atlas')
+    try {
+      await expect(runGermany({ registryVersionId: 'registry-1', runKey: 'remote-forbidden' })).rejects.toThrow('requires local Postgres')
+    } finally { vi.unstubAllEnvs() }
   })
 })

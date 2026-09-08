@@ -74,6 +74,17 @@ observation window, occurrence predicates, plausible-set rules, and tile mapping
 Germany run while one is `building` or `partial` is rejected; finish or explicitly resolve that run
 first.
 
+Germany habitat rule v1 also pins the WoRMS Aphia source contract. Every distinct accepted
+regional-set name is matched in batches of at most 50 (`marine_only=false`). Only a unique exact
+accepted-name match with positive marine and no positive freshwater/terrestrial evidence is
+excluded, before staging membership, lookalikes, picker summaries and the national union.
+Unmatched, ambiguous, inexact and habitat-unknown names are retained and reported. See the
+[decision, attribution and terms review](../../docs/records/2026-09-09-germany-marine-exclusion.md).
+The raw bounded batch envelopes stay in local `CatalogueHabitatBatch` checkpoints; reports expose
+derived evidence, source dates, fingerprints and request statistics. Successful batches are reused
+within this catalogue after interruption; missing WoRMS batches are always fetched fresh, including
+with `--reuse-cache`. Use a new run key when moving from a historical unfiltered candidate.
+
 Each region is leased and calculated into `CatalogueRegionBuild`, `CataloguePlausibility`, and
 `CatalogueLookalike`. These candidate tables do not change live regions, live plausibility,
 look-alikes, or regional prose. A process interruption leaves completed regions intact; expired

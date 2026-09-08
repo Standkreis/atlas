@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { Prisma } from '../src/generated/prisma/client'
 import { OBSERVATION_WINDOW } from '../src/domain/observationWindow'
 import { isNow } from '../src/domain/rules'
@@ -6,6 +6,8 @@ import { resolveAcceptedSpecies, type AcceptedTaxonomyResult, type SpeciesLookup
 import { db } from './db'
 import { failedCaptureRequests, withFreshCache, withResponseCapture, type RequestStats } from './fetch'
 import { BASIS, gbifSpecies, gbifSpeciesMatch, type Species } from './gbif'
+import { fingerprint } from './fingerprint'
+import { catalogueHabitatResolver, decodeHabitatBatch, filterMarineRegion, habitatAudit, MARINE_RULE_VERSION, WORMS_SOURCE, type HabitatLookup, type HabitatRegionSummary, type HabitatStore } from './marine-habitat'
 import {
   calculateRegistryRegion,
   type RegionJobDependencies,
@@ -13,27 +15,18 @@ import {
   type TaxonomyResolutionSummary,
 } from './region'
 
+export { canonicalJson, fingerprint } from './fingerprint'
+
 export const NATIONWIDE_RULES = {
   // v2 resolves doubtful GBIF variants to an exact accepted concept before floors and tile cuts.
   plausible: 2,
   tileMapping: 1,
+  habitat: MARINE_RULE_VERSION,
 } as const
 
 const COUNTRY = 'DE'
 const DEFAULT_LEASE_MS = 15 * 60_000
 const MAX_CONCURRENCY = 4
-
-type JsonObject = Record<string, unknown>
-
-/** JSON serialization with recursively sorted object keys, used for durable catalogue fingerprints. */
-export function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value)
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
-  const record = value as JsonObject
-  return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(',')}}`
-}
-
-export const fingerprint = (value: unknown): string => createHash('sha256').update(canonicalJson(value)).digest('hex')
 
 const OCCURRENCE_PREDICATES = {
   basisOfRecord: [...BASIS].sort(),
@@ -71,6 +64,7 @@ export type StoredTaxonomyResolution = {
 
 export type StagedRegion = {
   calculation: RegistryRegionCalculation
+  habitatSummary: HabitatRegionSummary
   responseFingerprint: string
   setFingerprint: string
   requestStats: RequestStats
@@ -86,6 +80,7 @@ export type RegionReport = {
   size: number | null
   perTile: Record<string, number>
   rejectedTaxa: number
+  habitatSummary: HabitatRegionSummary | null
   requestStats: RequestStats
   seconds: number | null
   error: string | null
@@ -109,6 +104,8 @@ export type NationwideReport = {
     observationWindow: { version: number; yearFrom: number; yearTo: number }
     plausibleRulesVersion: number
     tileMappingVersion: number
+    habitatRulesVersion: number
+    habitatSource: unknown
     occurrencePredicates: unknown
     startedAt: string
     generatedAt: string | null
@@ -130,6 +127,7 @@ export type NationwideReport = {
     contentAwaiting: number
   }
   enrichment: Record<string, Record<string, number>>
+  habitat: ReturnType<typeof habitatAudit> | null
   requests: RequestStats
   outliers: {
     smallest: { key: string; size: number }[]
@@ -146,13 +144,15 @@ export type PrepareCatalogueInput = {
   countryCode: string
   plausibleRulesVersion: number
   tileMappingVersion: number
+  habitatRulesVersion: number
+  habitatSource: typeof WORMS_SOURCE
   observationWindowVersion: number
   yearFrom: number
   yearTo: number
   occurrencePredicates: typeof OCCURRENCE_PREDICATES
 }
 
-export type NationwideStore = {
+export type NationwideStore = HabitatStore & {
   prepare(input: PrepareCatalogueInput): Promise<CatalogueHandle>
   acquireExecution(catalogueId: string, owner: string, now: Date, expiresAt: Date): Promise<boolean>
   renewExecution(catalogueId: string, owner: string, now: Date, expiresAt: Date): Promise<boolean>
@@ -330,6 +330,7 @@ export type NationwideOptions = {
   regionDependencies?: Partial<RegionJobDependencies>
   species?: SpeciesLookup
   match?: SpeciesMatchLookup
+  habitatLookup?: HabitatLookup
   fresh?: typeof withFreshCache
   capture?: typeof withResponseCapture
 }
@@ -358,6 +359,10 @@ export async function runNationwide(options: NationwideOptions): Promise<Nationw
   const now = options.now ?? (() => new Date())
   const log = options.log ?? console.log
   const store = options.store ?? prismaStore
+  if (store === prismaStore) {
+    const url = new URL(process.env.DATABASE_URL ?? 'postgresql://dex:dex@localhost:5433/dex')
+    if (!['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) throw new Error('Germany catalogue generation requires local Postgres')
+  }
   const calculate = options.calculate ?? calculateRegistryRegion
   const fresh = options.fresh ?? withFreshCache
   const capture = options.capture ?? withResponseCapture
@@ -367,6 +372,8 @@ export async function runNationwide(options: NationwideOptions): Promise<Nationw
     countryCode: options.countryCode ?? COUNTRY,
     plausibleRulesVersion: NATIONWIDE_RULES.plausible,
     tileMappingVersion: NATIONWIDE_RULES.tileMapping,
+    habitatRulesVersion: NATIONWIDE_RULES.habitat,
+    habitatSource: WORMS_SOURCE,
     observationWindowVersion: OBSERVATION_WINDOW.version,
     yearFrom: OBSERVATION_WINDOW.firstYear,
     yearTo: OBSERVATION_WINDOW.lastYear,
@@ -384,6 +391,7 @@ export async function runNationwide(options: NationwideOptions): Promise<Nationw
   }
 
   const upstreamTaxonomy = options.regionDependencies?.taxonomy
+  const habitat = catalogueHabitatResolver(catalogue.id, store, options.habitatLookup, now)
   const taxonomy = catalogueTaxonomyResolver(
     catalogue.id,
     store,
@@ -435,18 +443,17 @@ export async function runNationwide(options: NationwideOptions): Promise<Nationw
         }, heartbeatEvery)
         claimHeartbeat.unref?.()
         try {
-          const captured = await capture(() => fresh(() => calculate(
-            catalogue.registryVersionId,
-            claim.regionKey,
-            log,
-            { ...options.regionDependencies, taxonomy },
-          )))
+          const captured = await capture(() => fresh(async () => {
+            const calculation = await calculate(catalogue.registryVersionId, claim.regionKey, log, { ...options.regionDependencies, taxonomy })
+            return filterMarineRegion(calculation, await habitat(calculation.taxa.map((taxon) => taxon.sciName)))
+          }))
           attemptRequests = captured.requests
           if (claimLost) throw new Error(`region claim lease lost for ${claim.regionKey}`)
           const staged: StagedRegion = {
-            calculation: captured.value,
-            responseFingerprint: responseFingerprint(captured.fingerprint, captured.value.taxonomyResolutions),
-            setFingerprint: setFingerprint(captured.value),
+            calculation: captured.value.calculation,
+            habitatSummary: captured.value.summary,
+            responseFingerprint: fingerprint({ taxonomy: responseFingerprint(captured.fingerprint, captured.value.calculation.taxonomyResolutions), habitat: captured.value.summary.evidenceFingerprint }),
+            setFingerprint: setFingerprint(captured.value.calculation),
             requestStats: captured.requests,
           }
           if (await store.stageRegion(catalogue, claim, owner, now(), staged)) {
@@ -521,6 +528,7 @@ export function formatNationwideReport(report: NationwideReport): string {
     `Registry ${report.catalogue.registryVersion} (${report.catalogue.registryVersionId}) · observations ${report.catalogue.observationWindow.yearFrom}–${report.catalogue.observationWindow.yearTo} (v${report.catalogue.observationWindow.version})`,
     `Regions ${state} · ${sizeRange}`,
     `National union ${report.national.uniqueTaxa} taxa · ${tiles}`,
+    ...(report.habitat ? [`Habitat v${report.habitat.version}: ${report.habitat.names} names matched · ${report.habitat.reasons.marine ?? 0} marine excluded · coverage ${JSON.stringify(report.habitat.reasons)}`] : []),
     `Content ${report.national.contentComplete} complete · ${report.national.contentAwaiting} awaiting`,
     `Enrichment ${enrichment}`,
     `Regional size outliers ${outliers}`,
@@ -557,7 +565,8 @@ const prismaStore: NationwideStore = {
       registryVersionId: registry.id,
       registryVersion: registry.version,
       sourceFingerprint,
-      rules: { plausible: input.plausibleRulesVersion, tile: input.tileMappingVersion },
+      rules: { plausible: input.plausibleRulesVersion, tile: input.tileMappingVersion, habitat: input.habitatRulesVersion },
+      habitatSource: input.habitatSource,
       observation: { version: input.observationWindowVersion, yearFrom: input.yearFrom, yearTo: input.yearTo },
       occurrencePredicates: input.occurrencePredicates,
     })
@@ -578,6 +587,8 @@ const prismaStore: NationwideStore = {
           sourceFingerprint,
           plausibleRulesVersion: input.plausibleRulesVersion,
           tileMappingVersion: input.tileMappingVersion,
+          habitatRulesVersion: input.habitatRulesVersion,
+          habitatSource: input.habitatSource,
           observationWindowVersion: input.observationWindowVersion,
           yearFrom: input.yearFrom,
           yearTo: input.yearTo,
@@ -728,6 +739,7 @@ const prismaStore: NationwideStore = {
           nowCounts: Array.from({ length: 12 }, (_, month) => calculation.plausibility.filter((row) => isNow(row.monthShare, row.peak, month + 1)).length),
           perTile: calculation.perTile as Prisma.InputJsonValue,
           rejectedTaxa: calculation.rejectedTaxa as unknown as Prisma.InputJsonValue,
+          habitatSummary: staged.habitatSummary as unknown as Prisma.InputJsonValue,
           requestStats: addRequestStats([requestStats(build.requestStats), staged.requestStats]) as unknown as Prisma.InputJsonValue,
           responseFingerprint: staged.responseFingerprint,
           setFingerprint: staged.setFingerprint,
@@ -784,6 +796,24 @@ const prismaStore: NationwideStore = {
     }
   },
 
+  async loadHabitat(catalogueId, names) {
+    if (!names.length) return []
+    return db.catalogueHabitatBatch.findMany({ where: { catalogueVersionId: catalogueId, names: { hasSome: [...names] } }, orderBy: { requestFingerprint: 'asc' } })
+  },
+
+  async saveHabitat(catalogueId, batch) {
+    decodeHabitatBatch(batch)
+    await db.$transaction(async (tx) => {
+      // A stale process can finish an HTTP request after its lease expires. Serialize the
+      // overlap check with insertion so a new owner cannot checkpoint a name twice.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`catalogue-habitat:${catalogueId}`}, 0))::text`
+      const overlaps = await tx.catalogueHabitatBatch.findMany({ where: { catalogueVersionId: catalogueId, names: { hasSome: batch.names } } })
+      if (overlaps.some((stored) => stored.requestFingerprint !== batch.requestFingerprint || stored.recordFingerprint !== batch.recordFingerprint)) throw new Error('habitat checkpoint conflict')
+      if (overlaps.length) return
+      await tx.catalogueHabitatBatch.create({ data: { ...batch, catalogueVersionId: catalogueId, record: batch.record as Prisma.InputJsonValue } })
+    })
+  },
+
   async finalize(catalogueId, owner, at) {
     return db.$transaction(async (tx) => {
       const catalogue = await tx.catalogueVersion.findFirst({ where: { id: catalogueId, executionOwner: owner, executionExpiresAt: { gt: at }, status: { in: ['building', 'partial'] } } })
@@ -806,8 +836,9 @@ const prismaStore: NationwideStore = {
         select: { taxonId: true, taxon: { select: { gbifKey: true } } },
         orderBy: { taxonId: 'asc' },
       })
-      const builds = await tx.catalogueRegionBuild.findMany({ where: { catalogueVersionId: catalogueId, status: 'complete' }, select: { registryEntryId: true, responseFingerprint: true, setFingerprint: true }, orderBy: { registryEntryId: 'asc' } })
+      const builds = await tx.catalogueRegionBuild.findMany({ where: { catalogueVersionId: catalogueId, status: 'complete' }, select: { registryEntryId: true, responseFingerprint: true, setFingerprint: true, habitatSummary: true }, orderBy: { registryEntryId: 'asc' } })
       if (builds.some((build) => !build.responseFingerprint || !build.setFingerprint)) throw new Error(`catalogue ${catalogueId} has a complete region without fingerprints`)
+      if (catalogue.habitatRulesVersion > 0 && builds.some((build) => !build.habitatSummary)) throw new Error(`catalogue ${catalogueId} has a complete region without habitat evidence`)
       await tx.catalogueTaxon.deleteMany({ where: { catalogueVersionId: catalogueId } })
       if (staged.length > 0) await tx.catalogueTaxon.createMany({ data: staged.map((row) => ({ catalogueVersionId: catalogueId, taxonId: row.taxonId })) })
       const aggregateFingerprint = fingerprint(builds.map((build) => ({ entry: build.registryEntryId, response: build.responseFingerprint })))
@@ -831,6 +862,7 @@ const prismaStore: NationwideStore = {
     const catalogue = await db.catalogueVersion.findUniqueOrThrow({
       where: { id: catalogueId },
       include: {
+        habitat: { orderBy: { requestFingerprint: 'asc' } },
         registryVersion: { include: { sources: { select: { topicDate: true } } } },
         regionBuilds: {
           orderBy: { registryEntry: { sourceCode: 'asc' } },
@@ -849,6 +881,7 @@ const prismaStore: NationwideStore = {
       size: build.regionSize,
       perTile: build.perTile && typeof build.perTile === 'object' && !Array.isArray(build.perTile) ? build.perTile as Record<string, number> : {},
       rejectedTaxa: Array.isArray(build.rejectedTaxa) ? build.rejectedTaxa.length : 0,
+      habitatSummary: build.habitatSummary as HabitatRegionSummary | null,
       requestStats: requestStats(build.requestStats),
       seconds: build.startedAt && build.completedAt ? (build.completedAt.getTime() - build.startedAt.getTime()) / 1000 : null,
       error: build.error,
@@ -883,6 +916,8 @@ const prismaStore: NationwideStore = {
         observationWindow: { version: catalogue.observationWindowVersion, yearFrom: catalogue.yearFrom, yearTo: catalogue.yearTo },
         plausibleRulesVersion: catalogue.plausibleRulesVersion,
         tileMappingVersion: catalogue.tileMappingVersion,
+        habitatRulesVersion: catalogue.habitatRulesVersion,
+        habitatSource: catalogue.habitatSource,
         occurrencePredicates: catalogue.occurrencePredicates,
         startedAt: catalogue.startedAt.toISOString(),
         generatedAt,
@@ -904,6 +939,7 @@ const prismaStore: NationwideStore = {
         contentAwaiting: unionRows.filter((taxon) => !taxon.contentAt).length,
       },
       enrichment,
+      habitat: catalogue.habitatRulesVersion > 0 ? habitatAudit(catalogue.habitat) : null,
       requests: addRequestStats(rows.map((row) => row.requestStats)),
       outliers: catalogueOutliers(rows),
       stoppedReason,

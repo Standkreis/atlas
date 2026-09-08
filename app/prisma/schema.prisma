@@ -331,6 +331,9 @@ model CatalogueVersion {
   unionFingerprint         String?
   plausibleRulesVersion    Int
   tileMappingVersion       Int
+  /// 0 denotes historical catalogues predating the explicit marine exclusion rule.
+  habitatRulesVersion      Int                   @default(0)
+  habitatSource            Json?
   observationWindowVersion Int
   yearFrom                 Int
   yearTo                   Int
@@ -350,6 +353,7 @@ model CatalogueVersion {
   regionBuilds CatalogueRegionBuild[]
   taxa         CatalogueTaxon[]
   taxonomy     CatalogueTaxonomyResolution[]
+  habitat      CatalogueHabitatBatch[]
 
   @@unique([countryCode, runKey])
   @@unique([id, registryVersionId])
@@ -380,6 +384,7 @@ model CatalogueRegionBuild {
   nowCounts           Int[]                      @default([])
   perTile             Json?
   rejectedTaxa        Json?
+  habitatSummary      Json?
   requestStats        Json?
   responseFingerprint String?
   setFingerprint      String?
@@ -452,6 +457,20 @@ model CatalogueTaxonomyResolution {
 
   @@id([catalogueVersionId, sourceKey])
   @@index([acceptedKey])
+}
+
+/// Local bounded WoRMS match evidence. Raw response envelopes are never product API payloads.
+model CatalogueHabitatBatch {
+  catalogueVersion   CatalogueVersion @relation(fields: [catalogueVersionId], references: [id], onDelete: Restrict)
+  catalogueVersionId String
+  requestFingerprint String
+  names              String[]
+  record             Json
+  recordFingerprint  String
+  resolvedAt         DateTime         @default(now())
+
+  @@id([catalogueVersionId, requestFingerprint])
+  @@index([names], type: Gin)
 }
 
 /// Phase/version-specific global work checkpoint. It is keyed by global taxon identity rather

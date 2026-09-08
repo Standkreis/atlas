@@ -22,9 +22,9 @@ function store(dir: string, file: string, body: string) {
 }
 const BUDGET = Number(process.env.ETL_BUDGET ?? 50_000)
 /** Minimum gap between two requests to one host, ms. iNaturalist allows ~1/s; Wikidata and GloBI ~3/s. */
-const MIN_GAP: Record<string, number> = { 'api.inaturalist.org': 1100, 'query.wikidata.org': 300, 'api.globalbioticinteractions.org': 300, 'api.gbif.org': 200, 'xeno-canto.org': 1100, 'gift.uni-goettingen.de': 500 }
+const MIN_GAP: Record<string, number> = { 'api.inaturalist.org': 1100, 'query.wikidata.org': 300, 'api.globalbioticinteractions.org': 300, 'api.gbif.org': 200, 'xeno-canto.org': 1100, 'gift.uni-goettingen.de': 500, 'www.marinespecies.org': 1000 }
 /** GBIF publishes no fixed safe search rate. Keep requests conservative and let Retry-After extend the shared host cooldown. */
-const MAX_INFLIGHT: Record<string, number> = { 'api.gbif.org': 2 }
+const MAX_INFLIGHT: Record<string, number> = { 'api.gbif.org': 2, 'www.marinespecies.org': 1 }
 const ATTEMPTS = 5
 
 const budget: Record<string, number> = {}
@@ -107,12 +107,22 @@ type ResponseCapture = { entries: { url: string; response: string }[]; requests:
  * Each async context owns its entries, so concurrent runs cannot contaminate one another.
  */
 export async function withResponseCapture<T>(fn: () => Promise<T>): Promise<{ value: T; fingerprint: string; requests: RequestStats }> {
+  const parent = responseCapture.getStore()
   const capture: ResponseCapture = { entries: [], requests: emptyRequestStats() }
   let value: T
   try {
     value = await responseCapture.run(capture, fn)
   } catch (error) {
     throw new ResponseCaptureFailure(error, capture.requests)
+  } finally {
+    // A checkpoint can capture one batch within a regional capture. The enclosing region still
+    // owns those requests, including failed attempts; sibling async captures remain isolated.
+    if (parent) {
+      parent.entries.push(...capture.entries)
+      for (const [host, count] of Object.entries(capture.requests.perHost)) parent.requests.perHost[host] = (parent.requests.perHost[host] ?? 0) + count
+      parent.requests.networkAttempts = (parent.requests.networkAttempts ?? 0) + (capture.requests.networkAttempts ?? 0)
+      for (const kind of ['hits', 'misses', 'retries', 'tooMany'] as const) parent.requests[kind] += capture.requests[kind]
+    }
   }
   const fingerprint = createHash('sha256')
   for (const entry of [...capture.entries].sort((a, b) => a.url.localeCompare(b.url) || a.response.localeCompare(b.response))) {

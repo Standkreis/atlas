@@ -1,19 +1,23 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { AcceptedTaxonomyResult } from '../../etl/accepted-taxonomy'
 import type { Species } from '../../etl/gbif'
-import { runGermany } from '../../etl/nationwide'
+import { fingerprint, prismaStore, runGermany } from '../../etl/nationwide'
+import { WORMS_SOURCE, wormsMatchUrl } from '../../etl/marine-habitat'
 import { importRegionRegistry } from '../../etl/registry-import'
 import { parseRegionQueryMapping } from '../../etl/registry-mapping'
 import { parseRegionRegistry, type RegionRegistry } from '../../etl/registry/registry'
 import type { RegistryRegionCalculation, RegionJobDependencies } from '../../etl/region'
 import { runTaxonWork } from '../../etl/taxon-work'
 import { db } from './db'
+import { germanyProgress } from './germanyProgress'
+import { searchRegions } from './regionSearch'
 
 const REGISTRY_ID = 'de-krg-2098-12-31'
 const NORTH_KEY = 'de-krg-99101000'
 const SOUTH_KEY = 'de-krg-99102000'
 const RUN_COMPLETE = 'issue-18-integration-complete'
 const RUN_RETRY = 'issue-18-integration-retry'
+const RUN_MARINE = 'issue-53-integration-marine'
 const SHARED_KEY = 990_018_001
 const NORTH_ONLY_KEY = 990_018_002
 const SOUTH_ONLY_KEY = 990_018_003
@@ -108,11 +112,12 @@ const taxonomy = vi.fn(async (sourceKeys: readonly number[]): Promise<AcceptedTa
 }))
 
 const emptyStats = () => ({ perHost: {}, networkAttempts: 0, hits: 0, misses: 0, retries: 0, tooMany: 0 })
+const unmatchedHabitat = async (names: readonly string[]) => JSON.stringify(names.map(() => []))
 let targets = new Map<string, { entryId: string; regionId: string; name: string }>()
 
 async function removeFixture() {
   const catalogues = await db.catalogueVersion.findMany({
-    where: { countryCode: 'DE', runKey: { in: [RUN_COMPLETE, RUN_RETRY] } },
+    where: { countryCode: 'DE', runKey: { in: [RUN_COMPLETE, RUN_RETRY, RUN_MARINE] } },
     select: { id: true },
   })
   const catalogueIds = catalogues.map((row) => row.id)
@@ -124,6 +129,7 @@ async function removeFixture() {
   await db.cataloguePlausibility.deleteMany({ where: { regionBuild: { catalogueVersionId: { in: catalogueIds } } } })
   await db.catalogueTaxon.deleteMany({ where: { catalogueVersionId: { in: catalogueIds } } })
   await db.catalogueTaxonomyResolution.deleteMany({ where: { catalogueVersionId: { in: catalogueIds } } })
+  await db.catalogueHabitatBatch.deleteMany({ where: { catalogueVersionId: { in: catalogueIds } } })
   await db.catalogueRegionBuild.deleteMany({ where: { catalogueVersionId: { in: catalogueIds } } })
   await db.catalogueVersion.deleteMany({ where: { id: { in: catalogueIds } } })
 
@@ -300,6 +306,7 @@ describe('nationwide catalogue orchestration', () => {
       runKey: RUN_COMPLETE,
       concurrency: 2,
       calculate,
+      habitatLookup: unmatchedHabitat,
       regionDependencies: { taxonomy },
       log: () => undefined,
     })
@@ -335,6 +342,7 @@ describe('nationwide catalogue orchestration', () => {
       registryVersionId: REGISTRY_ID,
       runKey: RUN_COMPLETE,
       calculate,
+      habitatLookup: unmatchedHabitat,
       regionDependencies: { taxonomy },
       log: () => undefined,
     })
@@ -367,6 +375,7 @@ describe('nationwide catalogue orchestration', () => {
       runKey: RUN_RETRY,
       concurrency: 1,
       calculate,
+      habitatLookup: unmatchedHabitat,
       regionDependencies: { taxonomy },
       log: () => undefined,
     })
@@ -383,6 +392,7 @@ describe('nationwide catalogue orchestration', () => {
       runKey: RUN_RETRY,
       concurrency: 1,
       calculate,
+      habitatLookup: unmatchedHabitat,
       regionDependencies: { taxonomy },
       log: () => undefined,
     })
@@ -410,5 +420,64 @@ describe('nationwide catalogue orchestration', () => {
     })
     expect(globallyReused).toMatchObject({ seeded: 3, attempted: 0, completed: 0, failed: 0, lost: 0, counts: { complete: 3 } })
     expect(worker).not.toHaveBeenCalled()
+  })
+
+  it('filters marine taxa before staging union, lookalikes, picker and seasonal counts', async () => {
+    const before = await liveSnapshot()
+    const lookup = vi.fn(async (names: readonly string[]) => JSON.stringify(names.map((name) => [{
+      scientificname: name, valid_name: name, AphiaID: 53, valid_AphiaID: 53,
+      match_type: 'exact', status: 'accepted', rank: 'Species', isMarine: 1,
+      isFreshwater: name === species(SHARED_KEY).canonicalName ? 0 : 1, isTerrestrial: 0,
+    }])))
+    const result = await runGermany({ registryVersionId: REGISTRY_ID, runKey: RUN_MARINE, concurrency: 2,
+      calculate: calculateFixture, regionDependencies: { taxonomy }, habitatLookup: lookup, log: () => undefined })
+    expect(result).toMatchObject({ completed: 2, failed: 0 })
+    expect(result.report).toMatchObject({ catalogue: { status: 'complete', habitatRulesVersion: 1 }, national: { uniqueTaxa: 2, perTile: { bird: 2 } },
+      habitat: { names: 3, reasons: { marine: 1, compatible: 2 } } })
+    expect(lookup.mock.calls.flatMap(([names]) => names).filter((name) => name === species(SHARED_KEY).canonicalName)).toHaveLength(1)
+    const builds = await db.catalogueRegionBuild.findMany({ where: { catalogueVersionId: result.catalogueId }, include: { plausibility: { include: { taxon: true } }, lookalikes: true } })
+    expect(builds).toHaveLength(2)
+    for (const build of builds) {
+      expect(build.regionSize).toBe(1)
+      expect(build.perTile).toEqual({ bird: 1 })
+      expect(build.nowCounts).toEqual([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+      expect(build.lookalikes).toHaveLength(0)
+      expect(build.plausibility.map((row) => row.taxon.gbifKey)).not.toContain(SHARED_KEY)
+      expect(build.habitatSummary).toMatchObject({ examined: 2, retained: 1, excluded: [{ gbifKey: SHARED_KEY }] })
+    }
+    expect(await db.catalogueTaxon.count({ where: { catalogueVersionId: result.catalogueId, taxon: { gbifKey: SHARED_KEY } } })).toBe(0)
+    expect(await liveSnapshot()).toEqual(before)
+    // Activate only this disposable fixture to exercise the actual product readers.
+    expect(await db.catalogueVersion.count({ where: { countryCode: 'DE', status: 'active' } })).toBe(0)
+    expect(await db.regionRegistryVersion.count({ where: { countryCode: 'DE', active: true } })).toBe(0)
+    await db.catalogueVersion.update({ where: { id: result.catalogueId }, data: { status: 'active', auditedAt: new Date(), activatedAt: new Date() } })
+    await db.regionRegistryVersion.update({ where: { id: REGISTRY_ID }, data: { active: true } })
+    try {
+      const progress = await germanyProgress(db, 'marine-fixture-no-identity', async () => ({ status: 'ok', regionKeys: [] }))
+      expect(progress.catalogue).toMatchObject({ id: result.catalogueId, species: 2, discovered: 0, studied: 0 })
+      const picker = await searchRegions(db, { q: 'Atlas North', limit: 10, month: 1 })
+      expect(picker.results).toHaveLength(1)
+      expect(picker.results[0]!.summary).toMatchObject({ setSize: 1, nowCount: 1, perTile: { bird: 1 } })
+    } finally {
+      await db.catalogueVersion.update({ where: { id: result.catalogueId }, data: { status: 'complete', auditedAt: null, activatedAt: null } })
+      await db.regionRegistryVersion.update({ where: { id: REGISTRY_ID }, data: { active: false } })
+    }
+    const checkpoint = await db.catalogueHabitatBatch.findFirstOrThrow({ where: { catalogueVersionId: result.catalogueId } })
+    expect(checkpoint.record).toMatchObject({ ruleVersion: 1, source: { marine_only: false }, rawResponse: expect.any(String) })
+    // Idempotent saves are safe, while a stale owner's overlapping batch cannot add a second decision.
+    await Promise.all([prismaStore.saveHabitat(result.catalogueId, checkpoint), prismaStore.saveHabitat(result.catalogueId, checkpoint)])
+    const overlapNames = [checkpoint.names[0]!, 'Extra fixture']
+    const overlapUrl = wormsMatchUrl(overlapNames)
+    const overlapRecord = { ...(checkpoint.record as Record<string, unknown>), names: overlapNames, url: overlapUrl, rawResponse: '[[],[]]' }
+    await expect(prismaStore.saveHabitat(result.catalogueId, { names: overlapNames, requestFingerprint: fingerprint({ source: WORMS_SOURCE, url: overlapUrl }),
+      record: overlapRecord, recordFingerprint: fingerprint(overlapRecord) })).rejects.toThrow('habitat checkpoint conflict')
+    expect(await db.catalogueHabitatBatch.count({ where: { catalogueVersionId: result.catalogueId } })).toBe(result.report.habitat!.batches)
+    const stored = await db.catalogueVersion.findUniqueOrThrow({ where: { id: result.catalogueId } })
+    await db.catalogueVersion.update({ where: { id: stored.id }, data: { inputFingerprint: 'historical-input-fingerprint' } })
+    try {
+      await expect(runGermany({ registryVersionId: REGISTRY_ID, runKey: RUN_MARINE, log: () => undefined })).rejects.toThrow('different catalogue inputs')
+    } finally {
+      await db.catalogueVersion.update({ where: { id: stored.id }, data: { inputFingerprint: stored.inputFingerprint } })
+    }
   })
 })

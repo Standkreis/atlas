@@ -125,6 +125,23 @@ describe('ETL cache freshness', () => {
 })
 
 describe('response capture', () => {
+  it('includes nested checkpoint requests exactly once in the enclosing regional capture', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ answer: 'checkpoint' })))
+    const outer = await layer.withResponseCapture(async () => {
+      return layer.withResponseCapture(() => layer.withFreshCache(() => layer.get('https://www.marinespecies.org/nested-fixture')))
+    })
+    expect(outer.requests).toEqual(outer.value.requests)
+    expect(outer.requests.networkAttempts).toBe(1)
+    expect(outer.fingerprint).toBe(outer.value.fingerprint)
+  })
+
+  it('preserves nested failure accounting in an outer capture', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('bad request', { status: 400 })))
+    const failure = await layer.withResponseCapture(() => layer.withResponseCapture(() =>
+      layer.withFreshCache(() => layer.get('https://www.marinespecies.org/nested-failure')))).catch((error) => error)
+    expect(layer.failedCaptureRequests(failure)).toMatchObject({ networkAttempts: 1, perHost: { 'www.marinespecies.org': 1 } })
+  })
+
   it('captures cache, JSON, text, and 404 responses without exposing bodies', async () => {
     const network = vi.fn(async (url: string) => {
       if (url.endsWith('/text')) return new Response('hello')
