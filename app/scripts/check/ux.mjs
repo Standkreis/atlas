@@ -232,7 +232,7 @@ try {
   await wait(selector('[data-testid=display-name]'), 'profile opens')
   await click('[data-testid=change-region]')
   await wait(selector('[data-testid=region-sheet]'))
-  assert.equal(await evaluate(`document.querySelectorAll('[data-testid=region-row]').length`), 1, 'region management renders only the saved region')
+  await wait(`document.querySelectorAll('[data-testid=region-row]').length === 1`, 'region management renders only the saved region')
   const initialRegionId = await evaluate(`${selector('[data-testid=region-row]')}.dataset.region`)
   assert.equal(await evaluate(`${selector('[data-testid=region-remove]')}.disabled`), true, 'active final region cannot be removed')
   await click('[data-testid=region-add]')
