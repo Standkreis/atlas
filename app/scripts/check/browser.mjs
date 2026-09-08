@@ -1,6 +1,7 @@
 // Reproduces the CI production-browser suite against a disposable database.
 import { spawn } from 'node:child_process'
 import pg from 'pg'
+import landManifest from '../../src/server/data/germany-land.manifest.json' with { type: 'json' }
 const database = new URL(process.env.DATABASE_URL ?? '')
 if (!['localhost', '127.0.0.1'].includes(database.hostname) || !/^\/dex_check_[a-z0-9_]+$/.test(database.pathname)) throw new Error('Browser tests require a local dex_check_* database')
 const base = 'http://localhost:3002'
@@ -27,6 +28,20 @@ try {
     ON CONFLICT (id) DO UPDATE SET url = EXCLUDED.url, licence = EXCLUDED.licence,
       "licenceUrl" = EXCLUDED."licenceUrl", "sourceUrl" = EXCLUDED."sourceUrl", origin = EXCLUDED.origin
   `)
+  // Add the smallest active, geometry-compatible German catalogue so the suite exercises the ready national summary.
+  const now = new Date()
+  const { rows: [mainz] } = await fixtureDb.query(`UPDATE "Region" SET "canonicalKey" = 'de-krg-07339', "countryCode" = 'DE' WHERE name = 'Mainz-Bingen' RETURNING id, name`)
+  if (!mainz) throw new Error('Mainz-Bingen seed region missing')
+  const registryId = 'browser-registry-de', sourceId = 'browser-source-de', entryId = 'browser-entry-mainz'
+  const catalogueId = 'browser-catalogue-de', buildId = 'browser-build-mainz'
+  await fixtureDb.query(`INSERT INTO "RegionRegistryVersion" (id, "countryCode", version, "artifactSha256", "expectedRegions", "expectedSourceUnits", active, "activatedAt") VALUES ($1, 'DE', $2, $3, 1, 1, true, $4) ON CONFLICT ("countryCode", version) DO UPDATE SET "artifactSha256" = EXCLUDED."artifactSha256", active = true, "activatedAt" = EXCLUDED."activatedAt"`, [registryId, landManifest.registryVersion, landManifest.registrySha256, now])
+  await fixtureDb.query(`INSERT INTO "RegionRegistrySource" (id, "registryVersionId", role, name, url, "topicDate", "downloadedAt", sha256, "licenceId", "licenceUrl", attribution) VALUES ($1, $2, 'regions', 'Browser fixture from checked-in BKG land artefact', 'local://germany-land', $3, $4, $5, $6, $7, $8) ON CONFLICT ("registryVersionId", role) DO NOTHING`, [sourceId, registryId, landManifest.source.topicDate, now, landManifest.geometrySha256, landManifest.source.licence.id, landManifest.source.licence.url, landManifest.source.attribution])
+  await fixtureDb.query(`INSERT INTO "RegionRegistryEntry" (id, "registryVersionId", "sourceId", "regionId", "sourceCode", "sourceName", "displayName", "stateCode", "stateName") VALUES ($1, $2, $3, $4, '07339', $5, $5, '07', 'Rheinland-Pfalz') ON CONFLICT ("registryVersionId", "regionId") DO NOTHING`, [entryId, registryId, sourceId, mainz.id, mainz.name])
+  await fixtureDb.query(`INSERT INTO "RegionRegistryAlias" (id, "registryEntryId", kind, name, "normalizedName") VALUES ('browser-alias-mainz', $1, 'displayName', 'Mainz-Bingen', 'mainz bingen') ON CONFLICT DO NOTHING`, [entryId])
+  const { rows: [{ count }] } = await fixtureDb.query(`SELECT count(*)::int AS count FROM "Plausibility" WHERE "regionId" = $1`, [mainz.id])
+  await fixtureDb.query(`INSERT INTO "CatalogueVersion" (id, "countryCode", "runKey", "registryVersionId", "inputFingerprint", "sourceFingerprint", "responseFingerprint", "unionFingerprint", "plausibleRulesVersion", "tileMappingVersion", "observationWindowVersion", "yearFrom", "yearTo", "occurrencePredicates", status, "expectedRegions", "completedRegions", "unionTaxa", "generatedAt", "auditedAt", "activatedAt", "updatedAt") VALUES ($1, 'DE', 'browser-fixture-v1', $2, 'browser-fixture', 'browser-fixture', 'browser-fixture', 'browser-fixture', 1, 1, 1, 2016, 2025, '{"basis":"browser fixture"}', 'active', 1, 1, $3, $4, $4, $4, $4) ON CONFLICT ("countryCode", "runKey") DO UPDATE SET status = 'active', "unionTaxa" = EXCLUDED."unionTaxa", "activatedAt" = EXCLUDED."activatedAt", "updatedAt" = EXCLUDED."updatedAt"`, [catalogueId, registryId, count, now])
+  await fixtureDb.query(`INSERT INTO "CatalogueRegionBuild" (id, "catalogueVersionId", "registryVersionId", "registryEntryId", status, "completedAt", "totalObservations", "monthTotals", "regionSize", "nowCounts", "perTile", "rejectedTaxa", "requestStats", "responseFingerprint", "setFingerprint", "updatedAt") VALUES ($1, $2, $3, $4, 'complete', $5, 1, $6, $7, $6, '{"bird":100,"mammal":100,"amphibian":50,"reptile":20,"fish":20,"insect":200,"plant":300,"fungus":139}', '[]', '{}', 'browser-fixture', 'browser-fixture', $5) ON CONFLICT ("catalogueVersionId", "registryEntryId") DO NOTHING`, [buildId, catalogueId, registryId, entryId, now, Array(12).fill(count), count])
+  await fixtureDb.query(`INSERT INTO "CatalogueTaxon" ("catalogueVersionId", "taxonId", "createdAt") SELECT $1, "taxonId", $2 FROM "Plausibility" WHERE "regionId" = $3 ON CONFLICT DO NOTHING`, [catalogueId, now, mainz.id])
 } finally { await fixtureDb.end() }
 const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', '3002'], { stdio: 'inherit', env: { ...process.env, VERCEL: '1', BLOB_READ_WRITE_TOKEN: '', PHOTO_DIR: '/tmp/dex-check-photos', ANTHROPIC_API_KEY: 'check-only', ANTHROPIC_BASE_URL: 'http://127.0.0.1:9', RESEND_API_KEY: 'check-only', RESEND_BASE_URL: 'http://127.0.0.1:9', WEBAUTHN_RP_ID: 'localhost', WEBAUTHN_ORIGIN: base, WEBAUTHN_SECRET: 'check-only-secret-with-at-least-32-characters' } })
 const run = (script, args) => new Promise((resolve, reject) => {

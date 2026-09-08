@@ -9,9 +9,11 @@ import { useTRPC } from '@/trpc/client'
 import { allTiles } from './AtlasCounters'
 import { type Axis, type GroupRow, barWidth, foldRows, groupsOf, onTiles, regionOf, rowsOf } from './GroupRows'
 import { Icon } from './Marks'
+import { GermanyProgressCard } from './GermanyProgressCard'
+import { regionDrilldown } from './GermanyProgressState'
 
-// The progress section of the profile (handoff 0022): one axis switch, then one card per region of `me.regionIds`, the
-// active one first and open, the others folded to name and counts. Every bar and every bold number follow the chosen
+// Germany-wide counts lead the progress section. The regional drilldown mounts the active/first saved atlas initially;
+// the user can reveal the bounded remainder. Every bar and every bold number follow the chosen
 // axis; the other axis stays as small text on the same line. Counts = the identity's `progress` ids ∩ the region's set:
 // for the active region the grid's `dex.set` entry (already in the cache), for the others `dex.setCounts`, which counts
 // the intersection on the server (0025 B5, ~200 bytes) and is refetched on every mount of the card.
@@ -40,23 +42,36 @@ export function ProgressCard() {
   const axis = useSyncExternalStore(subscribeAxis, readAxis, () => 'seen' as Axis)
   const regions = me.data?.regions ?? []
   const activeId = me.data?.region?.id ?? null
-  // Active first (P3), then the list's order.
-  const ordered = [...regions].sort((a, b) => Number(b.id === activeId) - Number(a.id === activeId))
   const p = progress.data ?? null
   const empty = !!p && p.studied.length === 0 && p.seen.length === 0
+  const [regionsOpen, setRegionsOpen] = useState(false)
+  const drilldown = regionDrilldown(regions, activeId, regionsOpen)
 
   return (
     <section className="flex flex-col gap-3" data-testid="progress" data-axis={axis} aria-label={t('progress')}>
-      <div role="radiogroup" onKeyDown={radioKeys} aria-label={t('progress')} className="flex rounded-full bg-tile p-1" data-testid="axis">
-        {(['seen', 'studied'] as const).map((a) => (
-          <button key={a} type="button" role="radio" tabIndex={axis === a ? 0 : -1} aria-checked={axis === a} onClick={() => writeAxis(a)} data-testid={`axis-${a}`}
-            className={`motion-toggle min-h-11 flex-1 rounded-full py-1.5 text-[14px] font-semibold ${axis === a ? `${radioFill(a)} text-white` : 'text-ink-soft'}`}>
-            {t(a === 'seen' ? 'axisSeen' : 'axisStudied')}
-          </button>
-        ))}
+      <GermanyProgressCard />
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <h2 className="text-[19px] font-bold">{t('regionalTitle')}</h2>
+        {drilldown.total > 0 && <span className="text-[12px] text-ink-faint">{t('savedRegions', { n: drilldown.total })}</span>}
       </div>
+      {regions.length > 0 && (
+        <div role="radiogroup" onKeyDown={radioKeys} aria-label={t('regionalAxis')} className="flex rounded-full bg-tile p-1" data-testid="axis">
+          {(['seen', 'studied'] as const).map((a) => (
+            <button key={a} type="button" role="radio" tabIndex={axis === a ? 0 : -1} aria-checked={axis === a} onClick={() => writeAxis(a)} data-testid={`axis-${a}`}
+              className={`motion-toggle min-h-11 flex-1 rounded-full py-1.5 text-[14px] font-semibold ${axis === a ? `${radioFill(a)} text-white` : 'text-ink-soft'}`}>
+              {t(a === 'seen' ? 'axisSeen' : 'axisStudied')}
+            </button>
+          ))}
+        </div>
+      )}
       {regions.length === 0 && <p className={`${card} text-[15px] text-ink-soft`}>{me.isLoading ? '' : t('noRegion')}</p>}
-      {ordered.map((r) => <RegionCard key={r.id} region={r} active={r.id === activeId} axis={axis} progress={p} empty={empty} />)}
+      {drilldown.visible.map((r) => <RegionCard key={r.id} region={r} active={r.id === activeId} axis={axis} progress={p} empty={empty} />)}
+      {drilldown.additional > 0 && (
+        <button type="button" onClick={() => setRegionsOpen(!regionsOpen)} aria-expanded={regionsOpen} data-testid="more-regions"
+          className="min-h-11 rounded-2xl bg-card px-4 text-left text-[14px] font-semibold text-moss-deep shadow-[0_2px_12px_rgba(30,42,35,0.06)]">
+          {regionsOpen ? t('hideRegions') : t('moreRegions', { n: drilldown.additional })}
+        </button>
+      )}
     </section>
   )
 }
