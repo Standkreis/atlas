@@ -1,5 +1,6 @@
 'use client'
 
+import { radioKeys } from './ChoiceKeyboard'
 import { useId, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslations } from 'next-intl'
@@ -46,10 +47,10 @@ export function ProgressCard() {
 
   return (
     <section className="flex flex-col gap-3" data-testid="progress" data-axis={axis} aria-label={t('progress')}>
-      <div role="radiogroup" aria-label={t('progress')} className="flex rounded-full bg-tile p-1" data-testid="axis">
+      <div role="radiogroup" onKeyDown={radioKeys} aria-label={t('progress')} className="flex rounded-full bg-tile p-1" data-testid="axis">
         {(['seen', 'studied'] as const).map((a) => (
-          <button key={a} type="button" role="radio" aria-checked={axis === a} onClick={() => writeAxis(a)} data-testid={`axis-${a}`}
-            className={`motion-toggle flex-1 rounded-full py-1.5 text-[14px] font-semibold ${axis === a ? `${radioFill(a)} text-white` : 'text-ink-soft'}`}>
+          <button key={a} type="button" role="radio" tabIndex={axis === a ? 0 : -1} aria-checked={axis === a} onClick={() => writeAxis(a)} data-testid={`axis-${a}`}
+            className={`motion-toggle min-h-11 flex-1 rounded-full py-1.5 text-[14px] font-semibold ${axis === a ? `${radioFill(a)} text-white` : 'text-ink-soft'}`}>
             {t(a === 'seen' ? 'axisSeen' : 'axisStudied')}
           </button>
         ))}

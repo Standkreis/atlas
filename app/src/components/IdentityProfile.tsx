@@ -61,7 +61,7 @@ export function IdentityProfile() {
               onSubmit={(e) => { e.preventDefault(); setName.mutate({ displayName: editing }); setEditing(null) }}
               className="flex flex-col gap-2"
             >
-              <input autoFocus value={editing} maxLength={40} placeholder={t('namePlaceholder')} onChange={(e) => setEditing(e.target.value)} className="w-full rounded-xl bg-paper px-3 py-2 text-[17px] outline-none ring-1 ring-tile focus:ring-moss" />
+              <input autoFocus value={editing} maxLength={40} aria-label={t('namePlaceholder')} placeholder={t('namePlaceholder')} onChange={(e) => setEditing(e.target.value)} className="w-full rounded-xl bg-paper px-3 py-2 text-[17px] outline-none ring-1 ring-tile focus:ring-moss" />
               <p className="text-[12px] text-ink-soft">{t('nameHint')}</p>
               <div className="flex gap-3 text-[13px] font-semibold">
                 <button type="submit" className="rounded-full bg-moss px-3 py-1 text-white">{t('save')}</button>

@@ -2,13 +2,14 @@ import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { Wildness } from '@/generated/prisma/enums'
 import { publicProcedure, router, type Context } from '../trpc'
-import { deletePhotoFiles } from '@/server/photos'
+import { queuePhotoDeletes, retryPendingPhotoDeletes } from '@/server/photos'
+import { lock } from '../quotas'
 
 // The Tagebuch and the single sighting (spec §🎨 8, handoff 0008 Track B). The sighting is the atom; the diary is the
 // sequence: sightings and studies of one identity, newest first, grouped by the reader's local day.
 
 const DAYS_PER_PAGE = 30
-const ROW_CAP = 600 // rows fetched per page before the day cut; a day is never split across pages
+const ROW_CAP = 600 // bounded page; dense days continue through an exact row cursor
 
 const taxonCard = { id: true, gbifKey: true, sciName: true, commonNames: true, tile: true, assets: { where: { kind: 'image' }, orderBy: { createdAt: 'asc' }, take: 1, select: { url: true } } } as const
 type CardRow = { id: string; gbifKey: number; sciName: string; commonNames: unknown; tile: string; assets: { url: string }[] }
@@ -33,7 +34,7 @@ function dayKey(at: Date, tz: string) {
 export async function firstWildIds(db: Context['db'], identityId: string, taxonIds?: string[]) {
   const rows = await db.sighting.findMany({
     where: { identityId, wildness: 'wild', ...(taxonIds ? { taxonId: { in: taxonIds } } : {}) },
-    orderBy: [{ at: 'asc' }, { createdAt: 'asc' }],
+    orderBy: [{ at: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
     select: { id: true, taxonId: true },
   })
   const first = new Map<string, string>()
@@ -48,20 +49,25 @@ export const journalRouter = router({
    * taxon card, the Gemeinde (`place`), the own photo, note, wildness and `first`.
    */
   days: publicProcedure
-    .input(z.object({ cursor: z.date().nullish(), kind: z.enum(['all', 'seen', 'studied']).default('all'), tz: z.string().max(64).default('UTC') }))
+    .input(z.object({ cursor: z.union([z.date(), z.object({ at: z.date(), id: z.string().uuid(), kind: z.enum(['sighting', 'study']) })]).nullish(), kind: z.enum(['all', 'seen', 'studied']).default('all'), tz: z.string().max(64).default('UTC') }))
     .query(async ({ ctx, input }) => {
       const id = ctx.identity.id
-      const at = input.cursor ? { lt: input.cursor } : undefined
+      const after = (kind: 'sighting' | 'study') => {
+        const cursor = input.cursor
+        if (!cursor) return {}
+        if (cursor instanceof Date) return { at: { lt: cursor } }
+        return { OR: [{ at: { lt: cursor.at } }, { at: cursor.at, id: kind < cursor.kind ? { lte: cursor.id } : { lt: cursor.id } }] }
+      }
       const [sightings, studies] = await Promise.all([
         input.kind === 'studied'
           ? []
           : ctx.db.sighting.findMany({
-              where: { identityId: id, at },
-              orderBy: [{ at: 'desc' }, { createdAt: 'desc' }],
-              take: ROW_CAP,
+              where: { identityId: id, ...after('sighting') },
+              orderBy: [{ at: 'desc' }, { id: 'desc' }],
+              take: ROW_CAP + 1,
               include: { taxon: { select: taxonCard }, photos: { where: { kind: 'image' }, orderBy: { createdAt: 'asc' }, take: 1, select: { url: true } } },
             }),
-        input.kind === 'seen' ? [] : ctx.db.study.findMany({ where: { identityId: id, at }, orderBy: { at: 'desc' }, take: ROW_CAP, include: { taxon: { select: taxonCard } } }),
+        input.kind === 'seen' ? [] : ctx.db.study.findMany({ where: { identityId: id, ...after('study') }, orderBy: [{ at: 'desc' }, { id: 'desc' }], take: ROW_CAP + 1, include: { taxon: { select: taxonCard } } }),
       ])
       const firsts = sightings.length ? await firstWildIds(ctx.db, id, [...new Set(sightings.map((s) => s.taxonId))]) : new Set<string>()
 
@@ -72,21 +78,20 @@ export const journalRouter = router({
       const rows: Row[] = [
         ...sightings.map((s) => ({ id: s.id, kind: 'sighting' as const, at: s.at, createdAt: s.createdAt, taxon: card(s.taxon), place: s.place, photo: s.photos[0]?.url ?? null, note: s.note, wildness: s.wildness, first: firsts.has(s.id) })),
         ...studies.map((s) => ({ id: s.id, kind: 'study' as const, at: s.at, createdAt: s.at, taxon: card(s.taxon), place: null, photo: null, note: null, wildness: null, first: false })),
-      ].sort((a, b) => b.at.getTime() - a.at.getTime() || b.createdAt.getTime() - a.createdAt.getTime())
+      ].sort((a, b) => b.at.getTime() - a.at.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : a.kind < b.kind ? 1 : a.kind > b.kind ? -1 : 0))
 
-      // Group by local day, newest first; cut after DAYS_PER_PAGE days. If a source hit its cap, the last day fetched may be
-      // incomplete: drop it and page from its start, so no day is ever split.
-      const capped = sightings.length === ROW_CAP || studies.length === ROW_CAP
+      // Merge source streams before cutting; this avoids skipping either stream when one dense day fills a page.
       const byDay = new Map<string, Row[]>()
+      let shown = 0
       for (const r of rows) {
         const key = dayKey(r.at, input.tz)
+        if (shown >= ROW_CAP || (!byDay.has(key) && byDay.size >= DAYS_PER_PAGE)) break
         if (!byDay.has(key)) byDay.set(key, [])
         byDay.get(key)!.push(r)
+        shown++
       }
-      let keys = [...byDay.keys()]
-      let more = false
-      if (keys.length > DAYS_PER_PAGE) { keys = keys.slice(0, DAYS_PER_PAGE); more = true }
-      else if (capped && keys.length > 1) { keys = keys.slice(0, -1); more = true }
+      const keys = [...byDay.keys()]
+      const more = rows.length > shown
       const days = keys.map((key) => {
         const list = byDay.get(key)!
         const places = [...new Set(list.map((r) => r.place).filter((p): p is string => !!p))]
@@ -94,7 +99,7 @@ export const journalRouter = router({
       })
       // Next page starts before the earliest row shown (its exact instant): the next call's rows are all older days.
       const last = days.at(-1)?.rows.at(-1)
-      return { days, nextBefore: more && last ? last.at : null }
+      return { days, nextBefore: more && last ? { at: last.at, id: last.id, kind: last.kind } : null }
     }),
 
   /** One sighting with its photo, taxon card and the exact point (spec §⚖️: exact only here). */
@@ -128,10 +133,14 @@ export const journalRouter = router({
 
   /** Delete one sighting; its photo rows cascade, the files go first (Track A's helper). Deleting the only wild sighting of a taxon turns the cell grey (identity.progress follows). */
   remove: publicProcedure.input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
-    const own = await ctx.db.sighting.findFirst({ where: { id: input.id, identityId: ctx.identity.id }, select: { id: true } })
-    if (!own) throw new TRPCError({ code: 'NOT_FOUND' })
-    await deletePhotoFiles([own.id])
-    const { count } = await ctx.db.sighting.deleteMany({ where: { id: own.id, identityId: ctx.identity.id } })
+    const count = await ctx.db.$transaction(async (tx) => {
+      await lock(tx, `identity:${ctx.identity.id}`)
+      const own = await tx.sighting.findFirst({ where: { id: input.id, identityId: ctx.identity.id }, select: { id: true, photos: { where: { origin: 'user' }, select: { id: true } } } })
+      if (!own) throw new TRPCError({ code: 'NOT_FOUND' })
+      await queuePhotoDeletes(tx, own.photos.map((a) => a.id))
+      return (await tx.sighting.deleteMany({ where: { id: own.id, identityId: ctx.identity.id } })).count
+    })
+    await retryPendingPhotoDeletes()
     return { removed: count }
   }),
 })

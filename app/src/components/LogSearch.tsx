@@ -79,7 +79,7 @@ export function LogSearch({ photoId, scan = false, initialQuery = '' }: { photoI
         <button type="button" onClick={() => router.push('/')} aria-label={t('back')} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-card text-[20px] shadow-[0_2px_12px_rgba(30,42,35,0.06)]">‹</button>
         <div className="flex h-12 min-w-0 flex-1 items-center gap-2 rounded-full bg-card pr-2 pl-4 shadow-[0_2px_12px_rgba(30,42,35,0.06)]">
           <Icon name="search" size={20} className="shrink-0 text-ink-faint" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('searchPlaceholder')} autoFocus enterKeyHint="search" data-testid="log-query"
+          <input value={q} onChange={(e) => setQ(e.target.value)} aria-label={t('searchPlaceholder')} placeholder={t('searchPlaceholder')} autoFocus enterKeyHint="search" data-testid="log-query"
             className="min-w-0 flex-1 bg-transparent text-[17px] outline-none placeholder:text-ink-faint" />
           {typed && <button type="button" onClick={() => setQ('')} aria-label={t('clear')} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[18px] text-ink-soft">×</button>}
         </div>

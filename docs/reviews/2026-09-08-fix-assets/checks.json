@@ -1,0 +1,50 @@
+{
+  "node": "24.20.0",
+  "unit": {
+    "files": 23,
+    "tests": 136,
+    "result": "passed",
+    "note": "Final ETL prompt-binding regression added after production browser pass; runtime code unchanged."
+  },
+  "postgresIntegration": {
+    "files": 2,
+    "tests": 20,
+    "result": "passed",
+    "database": "dex_check_20260908_final"
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 6
+  },
+  "export": {
+    "pages": 2411,
+    "result": "passed"
+  },
+  "serverBuild": {
+    "buildId": "mtskxuwk",
+    "result": "passed"
+  },
+  "browser": {
+    "locales": [
+      "en",
+      "de"
+    ],
+    "viewport": "390x844",
+    "onboarding": "passed",
+    "dialogs": "passed",
+    "manualSaveAndJournal": "passed",
+    "offlineReload": {
+      "result": "passed",
+      "species": 303,
+      "discovered": 1,
+      "pageAndServiceWorkerNetworkDisabled": true
+    },
+    "privateCache": {
+      "responseAfterSyntheticCache": 404,
+      "crossTabPurge": true,
+      "scanMetadataPurge": true,
+      "publicPackPreserved": true
+    }
+  },
+  "productionChanges": false
+}

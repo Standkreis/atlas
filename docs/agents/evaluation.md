@@ -1,6 +1,6 @@
 # Harness evaluation — 2026-09-08
 
-Owner: Sven Reiser. Pilot: [issue #1](https://github.com/Standkreis/atlas/issues/1).
+Owner: Sven Reiser. Pilot: [issue #1](https://github.com/Standkreis/standkreis-dex/issues/1).
 
 ## Evidence
 

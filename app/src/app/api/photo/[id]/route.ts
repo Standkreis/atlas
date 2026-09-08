@@ -6,8 +6,8 @@ import { IDENTITY_COOKIE } from '@/server/trpc'
 // (A1, findings 0008 A6) the URL alone is not enough: the photo answers only to the identity that owns the Asset (the
 // `dex_id` cookie, the same cookie tRPC's context resolves). Anyone else, and a request without the cookie, gets the same
 // 404 as a missing photo: never a 403, so the id does not leak whether the photo exists. The export lists these URLs for
-// the owner, who has the cookie; the worker caches the answer under this URL, so a photo seen once online stays on the
-// phone. The store is private: this route STREAMS the object (never a redirect, there is no public URL). Costs one Blob
+// the owner, who has the cookie. Private responses bypass browser and worker caches so ownership/deletion is checked
+// on each request. The store is private: this route STREAMS the object (never a redirect, there is no public URL). Costs one Blob
 // read per first view per device (handoff 0011 Track A). No identity is minted here: an unknown cookie is a 404.
 //
 // GET /api/photo/<assetId>.mp3 (handoff 0021 D5): the xeno-canto clip of a `kind: 'sound'` Asset, stored under the
@@ -16,7 +16,7 @@ import { IDENTITY_COOKIE } from '@/server/trpc'
 // `Accept-Ranges` and a 206 for a Range request, which iOS Safari sends before it plays anything. The `.mp3` suffix
 // keeps the worker's image cache away from it (D8: sounds are not in the pack).
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const PHOTO_CACHE = 'private, max-age=31536000, immutable'
+const PHOTO_CACHE = 'private, no-store'
 const SOUND_CACHE = 'public, max-age=31536000, immutable'
 
 /** The `dex_id` cookie as tRPC reads it, or null: no cookie, or not a uuid. */

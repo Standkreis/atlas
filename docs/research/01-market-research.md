@@ -1,6 +1,6 @@
 # 🧭 Market research & competitor analysis
 
-**Project:** Atlas, a gamified "Pokédex for nature" (flora + fauna), hybrid web + mobile.
+**Project:** standkreis-dex, a gamified "Pokédex for nature" (flora + fauna), hybrid web + mobile.
 **Date:** 2026-09-04 · **Scope:** global, curious casual adults, hobby/portfolio · **Status:** step 1 of 4, awaiting HITL review (step 2).
 
 > Method: 8 parallel research passes (~600 web fetches) over app stores, forums, annual reports, peer-reviewed papers. Reddit and Google Play were largely bot-blocked; those voices are under-represented. Raw findings with all URLs live in [`raw/`](raw/). Numbers below are from sources dated 2025–2026 unless stated.
@@ -66,7 +66,7 @@ quadrantChart
     Gotcha: [0.85, 0.55]
     BioSnap: [0.92, 0.5]
     Wildex: [0.88, 0.7]
-    Atlas?: [0.7, 0.92]
+    standkreis-dex?: [0.7, 0.92]
 ```
 
 Top-right is nearly empty. Seek sat there and stopped moving. The dex games are all animals-first and lean toward pure play; nobody in the top-right also *teaches*.
@@ -140,7 +140,7 @@ Top-right is nearly empty. Seek sat there and stopped moving. The dex games are 
 
 ---
 
-## 🎯 Implications for Atlas, given your answers
+## 🎯 Implications for standkreis-dex, given your answers
 
 | Your answer | What it means |
 |---|---|

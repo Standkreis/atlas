@@ -1,3 +1,4 @@
+import { withFreshCache } from './fetch'
 // The region job (spec §🗃️ A–C, record 0002 E1 E2 E3 E5 E10 E11): GADM → Region row → 13 GBIF facets → cut per tile →
 // Taxon, Plausibility and Lookalike rows. Everything is written in one transaction at the end; a failed facet leaves the
 // region `failed` with the error and no half-written rows.
@@ -118,6 +119,6 @@ async function fetchAndWrite(regionId: string, gadmGid: string, log: (s: string)
 export async function refresh(days = 30, log: (s: string) => void = console.log) {
   const stale = await db.region.findMany({ where: { OR: [{ refreshedAt: null }, { refreshedAt: { lt: new Date(Date.now() - days * 86_400_000) } }] } })
   log(`${stale.length} region(s) older than ${days} days`)
-  for (const r of stale) await runRegion(r.gadmGid, log)
+  for (const r of stale) await withFreshCache(() => runRegion(r.gadmGid, log))
   return stale.length
 }

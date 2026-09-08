@@ -1,17 +1,22 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { QueryClient } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import type { PersistedClient, Persister } from '@tanstack/query-persist-client-core'
-import { createTRPCClient, httpBatchLink, TRPCClientError } from '@trpc/client'
+import { createTRPCClient, httpBatchLink, splitLink, TRPCClientError, type TRPCLink } from '@trpc/client'
 import { createTRPCContext } from '@trpc/tanstack-react-query'
 import superjson from 'superjson'
 import type { AppRouter } from '@/server/routers/_app'
+import { clearPrivateData, PRIVATE_RESET_KEY, PRIVATE_PAUSE_KEY, purgePrivatePhotos } from '@/components/PrivateData'
+import { acceptIdentity, expectedIdentity, identityFetch, invalidateIdentity } from '@/components/ClientIdentity'
+import { IDENTITY_KEY, pauseOutbox, resumeOutbox, load, flush } from '@/components/Queue'
 
 export const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>()
 
 // Same origin in dev and `next start`; the static export (Capacitor) points NEXT_PUBLIC_API_URL at the API host.
+const identityBoundaryLink: TRPCLink<AppRouter> = () => ({ op, next }) => next({ ...op, context: { ...op.context, expectedIdentity: expectedIdentity() } })
+
 const apiUrl = `${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/trpc`
 
 // ── Persistence (handoff 0009 Track A) ────────────────────────────────────────
@@ -22,6 +27,7 @@ const apiUrl = `${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/trpc`
 // ordinary use, every request pending forever until Safari was killed, which left the restore hanging and every page
 // blank. localStorage is synchronous and cannot hang; the store is ~1 MB (`dex.set` 900 KB) under Safari's 5 MB.
 const PERSIST_KEY = 'dex.queries'
+const PERSIST_BUSTER = 'dex-cache-v2'
 const PERSIST_MAX_AGE = 30 * 24 * 60 * 60 * 1000
 // Cache time of a persisted query in memory: as long as the store, capped at the longest setTimeout a browser takes
 // (2^31-1 ms, 24.8 days); past that the timer overflows and fires at once, and every query nobody looks at is gone
@@ -35,13 +41,25 @@ const isPath = (key: readonly unknown[], path: [string, string]) => Array.isArra
 let lastWritten = ''
 let lastStamp = 0 // timestamp of the store this page wrote last; a different one on disk means another page wrote
 const trace = (msg: string) => { try { localStorage.setItem('dex.persist.error', `${new Date().toISOString()} ${msg}`) } catch { /* private mode */ } }
-const read = (): PersistedClient | undefined => { const raw = localStorage.getItem(PERSIST_KEY); return raw ? superjson.parse<PersistedClient>(raw) : undefined }
+const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+const read = (): PersistedClient | undefined => {
+  const raw = localStorage.getItem(PERSIST_KEY)
+  if (!raw) return undefined
+  const value: unknown = superjson.parse(raw)
+  if (!record(value) || value.buster !== PERSIST_BUSTER || typeof value.timestamp !== 'number' || !Number.isFinite(value.timestamp)) return undefined
+  const state = value.clientState
+  if (!record(state) || !Array.isArray(state.queries) || !Array.isArray(state.mutations)) return undefined
+  if (!state.queries.every(q => record(q) && typeof q.queryHash === 'string' && Array.isArray(q.queryKey) && Array.isArray(q.queryKey[0]) && record(q.state) && typeof q.state.dataUpdatedAt === 'number' && Number.isFinite(q.state.dataUpdatedAt))) return undefined
+  return value as unknown as PersistedClient
+}
 const persister: Persister = {
   persistClient: (client) => {
     // Every query update asks for a write; only a changed store is serialised (~1 MB, a few ms on a phone).
     // Merged, not overwritten: Safari revives a page from its back/forward cache (a tab opened by URL, the back
     // button), its old QueryClient refetches on focus and would write its snapshot over what later pages added
     // (found in the Simulator: the store lost `journal.days` each time an older page came back).
+    const me = client.clientState.queries.find(q => isPath(q.queryKey, ['identity', 'me']))?.state.data as { id?: string } | undefined
+    try { if (me?.id && localStorage.getItem(IDENTITY_KEY) !== me.id) return } catch { /* unavailable */ }
     let next = sanitize(client)
     try { const disk = lastStamp !== 0 && read(); if (disk && disk.timestamp !== lastStamp) next = merge(disk, next) } catch { /* unreadable: overwrite */ }
     const signature = next.clientState.queries.map((q) => `${q.queryHash}:${q.state.dataUpdatedAt}`).join('|')
@@ -102,30 +120,53 @@ function makeQueryClient() {
 
 // A different identity (data deleted, cookie gone, a passkey signed in elsewhere) must not see the previous one's
 // persisted progress: when `identity.me` answers with a new id, every other query is dropped and persisted again.
-const IDENTITY_KEY = 'dex.persist.identity'
 function watchIdentity(qc: QueryClient) {
   return qc.getQueryCache().subscribe((e) => {
     if (e.type !== 'updated' || e.action.type !== 'success' || !isPath(e.query.queryKey, ['identity', 'me'])) return
     const id = (e.query.state.data as { id?: string } | undefined)?.id
     if (!id) return
+    acceptIdentity(id)
     let last: string | null = null
     try { last = localStorage.getItem(IDENTITY_KEY) } catch { /* private mode */ }
-    if (last && last !== id) { qc.removeQueries({ predicate: (q) => !isPath(q.queryKey, ['identity', 'me']) }); persister.removeClient() } // the disk copy too, so the next write does not merge it back
+    let cleanup = Promise.resolve()
+    if (last && last !== id) { cleanup = clearPrivateData(true, last); qc.removeQueries({ predicate: (q) => !isPath(q.queryKey, ['identity', 'me']) }); persister.removeClient() } // the disk copy too, so the next write does not merge it back
     try { localStorage.setItem(IDENTITY_KEY, id) } catch { /* private mode */ }
+    void cleanup.then(() => load()).then(() => flush()).catch(() => {})
   })
 }
 
 export function TRPCReactProvider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(makeQueryClient)
+  useEffect(() => {
+    const unsubscribe = watchIdentity(queryClient)
+    void purgePrivatePhotos().catch(() => {})
+    const reset = (event: StorageEvent) => {
+      if (event.key === PRIVATE_PAUSE_KEY) { if (event.newValue) pauseOutbox(); else resumeOutbox(); return }
+      if (event.key !== PRIVATE_RESET_KEY && event.key !== IDENTITY_KEY) return
+      invalidateIdentity()
+      void queryClient.cancelQueries().then(() => queryClient.resetQueries())
+      lastWritten = ''; lastStamp = 0
+      let previous = event.key === IDENTITY_KEY ? event.oldValue : null
+      if (event.key === PRIVATE_RESET_KEY) { try { previous = (JSON.parse(event.newValue ?? '{}') as { identityId?: string }).identityId ?? null } catch { /* legacy reset */ } }
+      if (previous) void clearPrivateData(false, previous).catch(() => {})
+    }
+    window.addEventListener('storage', reset)
+    return () => { unsubscribe(); window.removeEventListener('storage', reset) }
+  }, [queryClient])
   const [trpcClient] = useState(() =>
     // `x-dex-locale` (handoff 0016 A5): the page's language, so a procedure that writes prose (the scan's ladder) answers in it.
-    createTRPCClient<AppRouter>({ links: [httpBatchLink({ url: apiUrl, transformer: superjson, headers: () => ({ 'x-dex-locale': document.documentElement.lang }), fetch: (url, opts) => fetch(url, { ...opts, credentials: 'include' }) })] }),
+    createTRPCClient<AppRouter>({ links: [identityBoundaryLink, splitLink({
+      // Bootstrap alone may discover a missing or changed cookie. All other
+      // operations carry the identity this tab showed when the action began.
+      condition: op => op.path === 'identity.me',
+      true: httpBatchLink({ url: apiUrl, transformer: superjson, headers: () => ({ 'x-dex-locale': document.documentElement.lang }), fetch: identityFetch }),
+      false: httpBatchLink({ url: apiUrl, transformer: superjson, headers: ({ opList }) => ({ 'x-dex-locale': document.documentElement.lang, 'x-dex-identity': opList.every(op => op.context.expectedIdentity === opList[0]?.context.expectedIdentity) ? String(opList[0]?.context.expectedIdentity ?? 'unverified') : 'unverified' }), fetch: identityFetch }),
+    })] }),
   )
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister, maxAge: PERSIST_MAX_AGE, dehydrateOptions: { shouldDehydrateQuery: (q) => q.meta?.persist === true && q.state.data !== undefined } }}
-      onSuccess={() => { watchIdentity(queryClient) }}
+      persistOptions={{ persister, buster: PERSIST_BUSTER, maxAge: PERSIST_MAX_AGE, dehydrateOptions: { shouldDehydrateQuery: (q) => q.meta?.persist === true && q.state.data !== undefined } }}
     >
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>{children}</TRPCProvider>
     </PersistQueryClientProvider>

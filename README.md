@@ -1,6 +1,8 @@
-# 🌿 Standkreis Atlas
+# 🌿 standkreis-dex
 
 A **personal collection layer over open biodiversity data**: see what could be living around you right now, learn about it before you meet it, and fill the silhouette when you do. Web first, phone later, free forever.
+
+**Explore the codebase:** [Inside the Atlas — interactive architecture guide](docs/architecture/index.html) · [how to open and refresh it](docs/architecture/README.md). Includes the system map, every database model, request walkthroughs, external dependencies and a searchable source snapshot.
 
 | 🗺️ Roadmap | 📄 Spec | 📖 Glossary | 💬 Records | 🖼️ Reference screenshots |
 | --- | --- | --- | --- | --- |
@@ -10,19 +12,21 @@ A **personal collection layer over open biodiversity data**: see what could be l
 
 Next.js App Router · TypeScript strict · Tailwind 4 · next-intl (`de`, `en`) · tRPC · Prisma · Postgres. PWA now, Capacitor wrap of the static export later.
 
+Current setup, architecture and verification: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Use Node 24 (`.nvmrc`).
+
 ## 🚀 Run
 
 ```bash
 cd app && npm install          # generates the Prisma client (postinstall)
 npm run db:up                  # Postgres in Docker on :5433
-npm run db:migrate && npm run db:seed
+# Existing dev DB: use its deployed schema. For a fresh disposable setup see docs/DEVELOPMENT.md.
 npm run dev                    # http://localhost:3000 → /de or /en
 ```
 
 | Script | Does |
 | --- | --- |
-| `npm run check` | typecheck · lint · test · static export build. The CI job |
-| `npm run build:export` | `out/` for any file server or Capacitor. The tRPC route stays out; set `NEXT_PUBLIC_API_URL` |
+| `npm run check` | typecheck · lint · unit tests · static export · production server build (requires a seeded database) |
+| `npm run build:export` | Experimental static artifact in `out/`; API, cookie and dynamic-route hosting still need a deployment contract |
 | `node scripts/shot.mjs /de dark out.png` | 390 × 844 screenshot in a colour scheme, via headless Chrome |
 
 Production: push to `main` deploys to [atlas.standkreis.de](https://atlas.standkreis.de) on Vercel with Neon and Blob, see [docs/DEPLOY.md](docs/DEPLOY.md).

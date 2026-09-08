@@ -44,8 +44,15 @@ export function toJournalRow(r: QueueRow): JournalRow | null {
 /** The server's days with the outbox merged in by local day, newest first within a day; a day the server does not have yet is created. */
 export function mergeQueued(days: Day[], outbox: QueueRow[], kind: Kind): Day[] {
   const extra = outbox.map(toJournalRow).filter((r): r is JournalRow => !!r && (kind === 'all' || (kind === 'studied' ? r.kind === 'study' : r.kind === 'sighting')))
-  if (!extra.length) return days
-  const byDay = new Map(days.map((d) => [d.day, { ...d, rows: [...d.rows] }]))
+  const byDay = new Map<string, Day>()
+  for (const day of days) {
+    const existing = byDay.get(day.day) ?? { day: day.day, places: [], rows: [] }
+    const ids = new Set(existing.rows.map(row => `${row.kind}:${row.id}`))
+    existing.rows.push(...day.rows.filter(row => !ids.has(`${row.kind}:${row.id}`)))
+    existing.rows.sort((a, b) => b.at.getTime() - a.at.getTime())
+    existing.places = [...new Set([...existing.places, ...day.places])]
+    byDay.set(day.day, existing)
+  }
   for (const r of extra) {
     const key = dayKeyOf(r.at)
     const d = byDay.get(key) ?? { day: key, places: [], rows: [] }

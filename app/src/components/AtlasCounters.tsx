@@ -21,7 +21,7 @@ export function useAtlasSet(region: { id: string; status: string } | null) {
   const progress = useQuery(trpc.identity.progress.queryOptions(undefined, { enabled: ready }))
   const set = useQuery(trpc.dex.set.queryOptions({ regionId: region?.id ?? '', tiles: allTiles, nowOnly: false }, { enabled: ready }))
   const tiles: Tile[] = progress.data?.tiles.length ? progress.data.tiles : allTiles
-  return { ready, progress: progress.data ?? null, set: set.data ?? null, tiles, loading: ready && (progress.isLoading || set.isLoading) }
+  return { paused: progress.fetchStatus === 'paused' || set.fetchStatus === 'paused', error: progress.error ?? set.error, retry: () => Promise.all([progress.refetch(), set.refetch()]), ready, progress: progress.data ?? null, set: set.data ?? null, tiles, loading: ready && (progress.isLoading || set.isLoading) }
 }
 
 /** studiert · entdeckt · möglich over the species of the filter's tiles, whole year (findings 0002 doubt 41). */

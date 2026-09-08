@@ -79,15 +79,12 @@ export function LadderSheet({ state, photoUrl, region, commonName, onTake, onSea
         </div>
       }>
       <div className="min-h-0 overflow-y-auto px-4 pt-3" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} data-testid="ladder-body" data-state={state.status}>
-        <div className="flex items-start gap-4">
-          {photoUrl && (
-            // eslint-disable-next-line @next/next/no-img-element -- the identity's own upload, or its local blob
-            <img src={photoUrl} alt="" className="h-24 w-24 shrink-0 rounded-2xl object-cover" data-testid="ladder-photo" />
-          )}
-          <div className="min-w-0 flex-1">
-            <Body state={state} region={region} commonName={commonName} onTake={onTake} onSearch={onSearch} onAgain={onAgain} onJournal={onJournal} />
-          </div>
-        </div>
+        {/* The photo on top, full width (owner 2026-09-07): beside the text it squeezed the ladder and the buttons into two thirds of the sheet. */}
+        {photoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element -- the identity's own upload, or its local blob
+          <img src={photoUrl} alt="" className="mb-3 aspect-[16/10] w-full rounded-2xl object-cover" data-testid="ladder-photo" />
+        )}
+        <Body state={state} region={region} commonName={commonName} onTake={onTake} onSearch={onSearch} onAgain={onAgain} onJournal={onJournal} />
       </div>
     </Sheet>
   )

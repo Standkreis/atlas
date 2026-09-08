@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslations } from 'next-intl'
 import { useTRPC } from '@/trpc/client'
-import { clearOutbox } from './Queue'
+import { IDENTITY_KEY, pauseOutbox, resumeOutbox } from './Queue'
+import { clearPrivateData, PRIVATE_PAUSE_KEY } from './PrivateData'
 import { Sheet, useSheetClose } from './Sheet'
 
 // Doubt 33: two steps, the first names what goes ("2 Geräte · 14 Sichtungen"), the second goes. Never "only here".
@@ -27,9 +28,25 @@ function DeleteBody({ onDeleted }: { onDeleted: () => void }) {
   const [prepared, setPrepared] = useState<{ devices: number; sightings: number; token: string } | null>(null)
   const del = useMutation(
     trpc.data.delete.mutationOptions({
-      onSuccess: (r) => {
+      onMutate: (input) => {
+        if (input?.token) {
+          pauseOutbox()
+          try { localStorage.setItem(PRIVATE_PAUSE_KEY, crypto.randomUUID()) } catch { /* unavailable */ }
+        }
+      },
+      onSettled: () => {
+        resumeOutbox()
+        try { localStorage.removeItem(PRIVATE_PAUSE_KEY) } catch { /* unavailable */ }
+      },
+      onSuccess: async (r) => {
         if (r.step === 'confirm') setPrepared(r)
-        else { qc.clear(); void clearOutbox(); onDeleted() } // 0025 (0012 T4): the persisted queries go with the identity change, the outbox here
+        else {
+          await qc.cancelQueries(); qc.clear()
+          let previous: string | undefined
+          try { previous = localStorage.getItem(IDENTITY_KEY) ?? undefined; localStorage.removeItem(IDENTITY_KEY) } catch { /* unavailable */ }
+          await clearPrivateData(true, previous)
+          onDeleted()
+        } // 0025 (0012 T4): the persisted queries go with the identity change, the outbox here
       },
     }),
   )

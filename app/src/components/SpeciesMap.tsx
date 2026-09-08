@@ -1,5 +1,7 @@
 'use client'
 
+import { OBSERVATION_YEARS } from '@/domain/observationWindow'
+
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { useOffline } from './OfflineBanner'
@@ -13,7 +15,7 @@ const OSM = (x: number, y: number) => `${process.env.NEXT_PUBLIC_API_URL ?? ''}/
 // coarsest cell GBIF draws that still keeps the county in view. The 10 km cell of spec §⚖️ is the user's own sighting (M6).
 const SQUARE = 256, SQUARE_PX = 33, TILE_PX = 512
 const GBIF = (x: number, y: number, taxonKey: number) =>
-  `https://api.gbif.org/v2/map/occurrence/density/${Z}/${x}/${y}@1x.png?srs=EPSG%3A3857&taxonKey=${taxonKey}&bin=square&squareSize=${SQUARE}&style=green.poly&year=2016%2C2026`
+  `https://api.gbif.org/v2/map/occurrence/density/${Z}/${x}/${y}@1x.png?srs=EPSG%3A3857&taxonKey=${taxonKey}&bin=square&squareSize=${SQUARE}&style=green.poly&year=${encodeURIComponent(OBSERVATION_YEARS)}`
 /** Cell edge in km at this latitude, rounded to whole km. */
 const cellKm = (lat: number) => Math.round(((40075 * Math.cos((lat * Math.PI) / 180)) / 2 ** Z / TILE_PX) * SQUARE_PX)
 

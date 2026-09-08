@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useFormatter, useLocale, useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import { PhotoInput, photoSrc, type Photo, type PhotoState } from './LogPhoto'
+import { Sheet } from './Sheet'
 import { tileIcon } from './SpeciesCard'
 import { rememberSpeciesOrigin } from './SpeciesOrigin'
 
@@ -36,17 +37,10 @@ export function FillSheet({ s, onClose, onPhoto, photoState }: { s: Fill; onClos
   const name = s.taxon.names[locale] ?? s.taxon.names.de ?? s.taxon.names.en ?? s.taxon.sciName
   const image = s.photo ? photoSrc(s.photo.url) : s.taxon.lead?.url ?? null
   const origin = s.taxon.lead ? (ts.has(`origin.${s.taxon.lead.origin}`) ? ts(`origin.${s.taxon.lead.origin}`) : s.taxon.lead.origin) : ''
-  const startY = useRef<number | null>(null)
   const open = () => rememberSpeciesOrigin('/') // P4: "Zur Art" starts a chain on the atlas
   return (
-    <div className="fixed inset-0 z-30 flex items-end" onClick={onClose} role="presentation">
-      <div role="dialog" aria-modal aria-label={t('label')} data-testid="fill-sheet"
-        className="mx-auto w-full max-w-[520px] animate-[fill-up_320ms_ease-out] rounded-t-3xl bg-paper px-4 pt-3 shadow-[0_-8px_32px_rgba(30,42,35,0.18)]"
-        style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => (startY.current = e.clientY)}
-        onPointerUp={(e) => { if (startY.current !== null && e.clientY - startY.current > 60) onClose(); startY.current = null }}>
-        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-ink/20" />
+    <Sheet onClose={onClose} labelledBy="fill-title" testId="fill-sheet">
+      <div className="min-h-0 overflow-y-auto px-4 pt-3" style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}>
         <Link href={`/species/${s.taxon.gbifKey}`} className="flex items-center gap-4" onClick={open}>
           <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-tile ring-[3px] ring-moss" aria-hidden>
             {image ? (
@@ -57,7 +51,7 @@ export function FillSheet({ s, onClose, onPhoto, photoState }: { s: Fill; onClos
             )}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[13px] font-bold tracking-wide text-moss-deep uppercase">{t('label')}</span>
+            <span id="fill-title" className="block text-[13px] font-bold tracking-wide text-moss-deep uppercase">{t('label')}</span>
             <span className="block truncate text-[24px] leading-tight font-bold" data-testid="fill-name">{name}</span>
             <span className="mt-0.5 block text-[15px] leading-snug text-ink-soft" data-testid="fill-meta">
               <span aria-hidden>👁 </span>{t('meta', { date: format.dateTime(s.at, { day: 'numeric', month: 'short' }), place: s.place ?? '' })}
@@ -83,7 +77,7 @@ export function FillSheet({ s, onClose, onPhoto, photoState }: { s: Fill; onClos
           </Link>
         </div>
       </div>
-    </div>
+    </Sheet>
   )
 }
 

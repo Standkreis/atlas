@@ -127,7 +127,7 @@ function Body() {
           const waits = off && inList && !cached(r.id)
           return (
             <li key={r.id} className={`flex items-center gap-3 rounded-2xl bg-card px-3 py-3 shadow-[0_2px_12px_rgba(30,42,35,0.06)] ${active ? 'ring-[1.5px] ring-sky ring-inset' : ''}`} data-testid="region-row" data-region={r.id} data-active={active || undefined} data-in-list={inList || undefined}>
-              <button type="button" role="radio" aria-checked={active} disabled={setFilter.isPending} onClick={() => (inList ? activate(r) : add(r, true))} data-testid="region-pick" className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:opacity-60">
+              <button type="button" aria-pressed={active} disabled={setFilter.isPending} onClick={() => (inList ? activate(r) : add(r, true))} data-testid="region-pick" className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:opacity-60">
                 <span aria-hidden className={`motion-toggle grid size-6 shrink-0 place-items-center rounded-full border-2 ${active ? 'border-sky' : 'border-ink/25'}`}>{active && <span className="motion-badge size-3 rounded-full bg-sky" />}</span>
                 <span className="min-w-0 flex-1">
                   <span className={`block truncate text-[18px] leading-tight font-bold ${active ? 'text-sky-deep' : ''}`} data-testid="region-row-name">{r.name}</span>
@@ -137,7 +137,7 @@ function Body() {
                 </span>
               </button>
               <button type="button" role="checkbox" aria-checked={inList} aria-label={t('inList', { region: r.name })} disabled={setFilter.isPending} onClick={() => (inList ? remove(r) : add(r, false))} data-testid="region-check"
-                className={`motion-toggle grid size-7 shrink-0 place-items-center rounded-lg border-2 disabled:opacity-60 ${inList ? 'border-sky bg-sky text-white' : 'border-ink/25 bg-transparent text-transparent'}`}>
+                className={`motion-toggle grid size-11 shrink-0 place-items-center rounded-lg border-2 disabled:opacity-60 ${inList ? 'border-sky bg-sky text-white' : 'border-ink/25 bg-transparent text-transparent'}`}>
                 <Icon name="check" size={16} />
               </button>
             </li>

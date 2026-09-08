@@ -232,3 +232,13 @@ export async function identify({ jpeg, set, locale, search, signal }: { jpeg: Ui
   const joined = await join(parsed, set.bySci, search)
   return { ...joined, cost: cost(usage), ms }
 }
+
+/** Reserve an upper estimate using one token per UTF-8 prompt byte, 10k image tokens and maximum output.
+ * Uploads are decoded and bounded to 1600px before scans. Reservations are never refunded after uncertain calls.
+ */
+export function scanReservation(set: RegionSet, locale: Locale) {
+  const text = listBlock(set.region, set.rows) + instructions(locale, set.region) + userText(locale)
+  const bytes = Buffer.byteLength(text, 'utf8')
+  if (bytes > 200000) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Region set exceeds identification prompt limit' })
+  return Math.ceil(((bytes + 10000) * Math.max(PRICE.input, PRICE.cacheWrite) + MAX_TOKENS * PRICE.output) / 10000)
+}

@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import { del, get, head, put } from '@vercel/blob'
 import { db } from './db'
 import { env } from './env'
+import type { Prisma } from '../generated/prisma/client'
+import { lock } from './quotas'
 
 // User photos (handoff 0008 Track A, 0011 Track A). Two stores behind one seam, picked once at start:
 //   BLOB_READ_WRITE_TOKEN set → Vercel Blob, private store, `photos/<assetId>.jpg` (Vercel: /tmp does not survive a request)
@@ -24,13 +26,13 @@ export const soundPath = (gbifKey: number) => join(PHOTO_DIR, 'sounds', `${gbifK
 /** The URL a sound Asset carries: the photo route with `.mp3`, so the worker can tell it from an image and leave it out of its cache (0021 D8). */
 export const soundUrl = (assetId: string) => `/api/photo/${assetId}.mp3`
 
-export async function writePhoto(assetId: string, bytes: Uint8Array) {
+export async function writePhoto(assetId: string, bytes: Uint8Array, signal = AbortSignal.timeout(15000)) {
   if (BLOB_TOKEN) {
-    await put(blobPath(assetId), Buffer.from(bytes), { access: 'private', addRandomSuffix: false, contentType: 'image/jpeg', token: BLOB_TOKEN })
+    await put(blobPath(assetId), Buffer.from(bytes), { access: 'private', addRandomSuffix: false, contentType: 'image/jpeg', token: BLOB_TOKEN, abortSignal: signal })
     return
   }
   await mkdir(PHOTO_DIR, { recursive: true })
-  await writeFile(photoPath(assetId), bytes)
+  await writeFile(photoPath(assetId), bytes, { signal })
 }
 
 /** The bytes behind GET /api/photo/<id>: a stream from the private blob, or the file. `null` when the store has nothing. */
@@ -75,49 +77,75 @@ export async function readSound(gbifKey: number): Promise<Uint8Array<ArrayBuffer
   }
 }
 
-// A missing object is already gone: neither store's miss is an error here.
-const rm = (assetId: string) => (BLOB_TOKEN ? del(blobPath(assetId), { token: BLOB_TOKEN }) : unlink(photoPath(assetId))).catch(() => undefined)
-
-/**
- * Remove the files of every user photo on the given sightings. Call it BEFORE deleting the rows: the Sighting cascade
- * drops the Asset rows, and the file names are the Asset ids. Track B's `journal.remove` calls this, `data.delete` calls
- * `deletePhotoFilesOfIdentity`. Returns the number of files addressed.
- */
-export async function deletePhotoFiles(sightingIds: string[]): Promise<number> {
-  if (!sightingIds.length) return 0
-  const assets = await db.asset.findMany({ where: { origin: 'user', sightingId: { in: sightingIds } }, select: { id: true } })
-  await Promise.all(assets.map((a) => rm(a.id)))
-  return assets.length
-}
-
-/** Every file the identity owns, attached or not. Before `identity.delete`. */
-export async function deletePhotoFilesOfIdentity(identityId: string): Promise<number> {
-  const assets = await db.asset.findMany({ where: { origin: 'user', ownerId: identityId }, select: { id: true } })
-  await Promise.all(assets.map((a) => rm(a.id)))
-  return assets.length
-}
-
-/**
- * Abandoned uploads (findings 0008 A7): user Asset rows no sighting ever bound and no identity wears as its avatar
- * (0014 P2), older than `olderThanMs`, with their files. The restart sweep calls this; a photo still waiting in a phone's outbox is not on the server yet, so nothing
- * a walker still needs can be here.
- */
-export async function deleteAbandonedPhotos(olderThanMs = 24 * 3_600_000): Promise<number> {
-  const assets = await db.asset.findMany({ where: { origin: 'user', sightingId: null, avatarOf: null, createdAt: { lt: new Date(Date.now() - olderThanMs) } }, select: { id: true } })
-  if (!assets.length) return 0
-  await Promise.all(assets.map((a) => rm(a.id)))
-  await db.asset.deleteMany({ where: { id: { in: assets.map((a) => a.id) } } })
-  return assets.length
-}
-
-/** One asset: file and row. The sighting's evidence falls back to `claimed` when it was its last photo. */
-export async function deletePhoto(assetId: string) {
-  const a = await db.asset.findUnique({ where: { id: assetId }, select: { id: true, sightingId: true } })
-  if (!a) return
-  await rm(a.id)
-  await db.asset.delete({ where: { id: a.id } })
-  if (a.sightingId) {
-    const left = await db.asset.count({ where: { sightingId: a.sightingId, kind: 'image' } })
-    if (!left) await db.sighting.update({ where: { id: a.sightingId }, data: { evidence: 'claimed' } })
+/** Missing disk files and Blob's idempotent deletion are success; other errors retain retry work. */
+export async function removePhotoObject(assetId: string, signal = AbortSignal.timeout(5000)) {
+  if (BLOB_TOKEN) return del(blobPath(assetId), { token: BLOB_TOKEN, abortSignal: signal })
+  try { await unlink(photoPath(assetId)) } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
+}
+export async function queuePhotoDeletes(tx: Prisma.TransactionClient, assetIds: string[]) {
+  if (assetIds.length) await tx.photoDeletion.createMany({ data: assetIds.map((assetId) => ({ assetId })), skipDuplicates: true })
+}
+/** Durable tombstones have no FK and survive cascades. Each successful object deletion removes its own work item. */
+export async function retryPendingPhotoDeletes(limit = 10, deadlineAt = Date.now() + 15000) {
+  const pending = await db.photoDeletion.findMany({ take: limit, orderBy: { createdAt: 'asc' } })
+  let removed = 0
+  for (const row of pending) {
+    if (Date.now() >= deadlineAt) break
+    try {
+      await removePhotoObject(row.assetId, AbortSignal.timeout(Math.max(1, Math.min(5000, deadlineAt - Date.now()))))
+      await db.photoDeletion.deleteMany({ where: { assetId: row.assetId } })
+      removed++
+    } catch {
+      // Rotate a failing object behind older pending work so an outage for one object cannot starve the queue.
+      await db.photoDeletion.updateMany({ where: { assetId: row.assetId }, data: { createdAt: new Date() } })
+    }
+  }
+  return { removed, pending: await db.photoDeletion.count() }
+}
+
+/** Legacy helper: queue before the caller cascades rows. Prefer queuePhotoDeletes in the deletion transaction. */
+export async function deletePhotoFiles(sightingIds: string[]) {
+  const assets = await db.asset.findMany({ where: { origin: 'user', sightingId: { in: sightingIds } }, select: { id: true } })
+  await db.$transaction((tx) => queuePhotoDeletes(tx, assets.map((a) => a.id)))
+  await retryPendingPhotoDeletes()
+  return assets.length
+}
+export async function deletePhotoFilesOfIdentity(identityId: string) {
+  const assets = await db.asset.findMany({ where: { origin: 'user', ownerId: identityId }, select: { id: true } })
+  await db.$transaction((tx) => queuePhotoDeletes(tx, assets.map((a) => a.id)))
+  await retryPendingPhotoDeletes()
+  return assets.length
+}
+export async function deleteAbandonedPhotos(olderThanMs = 24 * 3600000) {
+  const assets = await db.asset.findMany({ where: { origin: 'user', sightingId: null, avatarOf: null, createdAt: { lt: new Date(Date.now() - olderThanMs) } }, select: { id: true, ownerId: true }, take: 100 })
+  let removed = 0
+  for (const asset of assets) {
+    removed += await db.$transaction(async (tx) => {
+      await lock(tx, `identity:${asset.ownerId}`)
+      const eligible = await tx.asset.findFirst({ where: { id: asset.id, sightingId: null, avatarOf: null } })
+      if (!eligible) return 0
+      await queuePhotoDeletes(tx, [asset.id])
+      await tx.asset.delete({ where: { id: asset.id } })
+      return 1
+    })
+  }
+  await retryPendingPhotoDeletes()
+  return removed
+}
+export async function deletePhoto(assetId: string) {
+  const owner = await db.asset.findUnique({ where: { id: assetId }, select: { ownerId: true } })
+  if (!owner) return
+  await db.$transaction(async (tx) => {
+    await lock(tx, `identity:${owner.ownerId}`)
+    const asset = await tx.asset.findUnique({ where: { id: assetId } })
+    if (!asset) return
+    await queuePhotoDeletes(tx, [asset.id])
+    await tx.asset.delete({ where: { id: asset.id } })
+    if (asset.sightingId && !await tx.asset.count({ where: { sightingId: asset.sightingId, kind: 'image' } })) {
+      await tx.sighting.updateMany({ where: { id: asset.sightingId }, data: { evidence: 'claimed' } })
+    }
+  })
+  await retryPendingPhotoDeletes(3, Date.now() + 3000)
 }

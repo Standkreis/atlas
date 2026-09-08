@@ -1,0 +1,22 @@
+
+> standkreis-dex@0.1.0 typecheck
+> next typegen && tsc --noEmit
+
+Generating route types...
+✓ Types generated successfully
+
+> standkreis-dex@0.1.0 test
+> vitest run
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /Users/svenreiser/Documents/Develop/standkreis/standkreis-dex/app
+
+
+ Test Files  23 passed (23)
+      Tests  136 passed (136)
+   Start at  13:27:03
+   Duration  468ms (transform 57%, tests 21%, import 20%, worker 2%)
+

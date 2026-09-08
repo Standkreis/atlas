@@ -17,6 +17,7 @@ const nextConfig: NextConfig = {
   trailingSlash: isExport, // /de/ → de/index.html, so any plain file server serves it
   pageExtensions: isExport ? ['tsx'] : ['tsx', 'ts'],
   reactStrictMode: true,
+  outputFileTracingExcludes: { '/*': ['etl/.cache/**/*', 'etl/prose/runs/**/*'] },
   generateBuildId: () => buildId,
   env: { NEXT_PUBLIC_BUILD_ID: buildId },
   // The phone on the same Wi-Fi (handoff 0009 §❓): dev assets may be requested from these hosts.

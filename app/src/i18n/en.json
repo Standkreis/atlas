@@ -15,7 +15,12 @@
     "comingSoon": "coming soon",
     "close": "Close",
     "error": "That did not work.",
-    "working": "One moment …"
+    "working": "One moment …",
+    "retry": "Try again",
+    "loadFailed": "The data could not be loaded.",
+    "refreshFailed": "Refresh failed. You are viewing the last loaded data.",
+    "offlineMissing": "Offline. This data is not available on your device yet. Connect to the internet to load it.",
+    "usingSaved": "Offline. You are viewing the last loaded data."
   },
   "dex": {
     "title": "Your Atlas",
@@ -26,7 +31,7 @@
     "possible": "{n} possible",
     "shown": "{n} now",
     "studiedBadge": "studied",
-    "sources": "Images: iNaturalist and Wikimedia Commons, licence per image · Data: GBIF",
+    "sources": "About our sources",
     "failed": "{region} could not be prepared.",
     "retry": "Try again",
     "tile": {
@@ -70,6 +75,40 @@
   },
   "quests": {
     "title": "Quests"
+  },
+  "sourcesPage": {
+    "title": "Sources",
+    "back": "Back",
+    "open": "Open",
+    "intro": "Standkreis Atlas combines open biodiversity data instead of maintaining a separate scientific database. Here is what each source contributes and where its limits begin.",
+    "limitsTitle": "A source is evidence, not certainty.",
+    "limitsBody": "Records can be incomplete, outdated or wrong. Local occurrence is an indication of what has been reported nearby, never a guarantee that a species is present.",
+    "imageNote": "Images and sounds can have a different author and licence for every asset. Their exact credit therefore stays attached to the image or recording instead of being replaced by this page.",
+    "groups": {
+      "atlas": { "title": "Atlas & occurrence" },
+      "identity": { "title": "Names, text & status" },
+      "profile": { "title": "Profile data" },
+      "ecology": { "title": "Ecology" },
+      "media": { "title": "Images & sounds" },
+      "identification": { "title": "Photo identification" }
+    },
+    "sources": {
+      "gbif": "Provides the taxonomic backbone and occurrence records used to assemble regional species lists, seasonal likelihood and maps.",
+      "wikidata": "Provides identifiers, common names and selected structured facts such as wingspan and fungal characteristics. Data is published under CC0.",
+      "wikipedia": "Provides the optional background text on species pages. The text keeps Wikipedia's licence and is not independently reviewed by us.",
+      "iucn": "Provides the conservation categories shown where a matching assessment is available.",
+      "avonet": "Provides bird body mass, habitat and migration traits. Published under CC BY 4.0.",
+      "elton": "Provides bird and mammal diet, activity and habitat traits. Published under CC0 1.0.",
+      "pantheria": "Provides mammal body measurements. The archive does not state a licence; its Figshare wrapper labels the dataset CC BY 4.0.",
+      "amphibio": "Provides amphibian size, mass, habitat, diet and activity traits. Published under CC BY 4.0.",
+      "gift": "Provides plant height, flowering period, pollination and life-form traits. The API does not currently state a licence, so the project is named wherever its data is used.",
+      "anage": "Provides longevity and reproduction values for some animals. Its pages do not state a reusable data licence.",
+      "globi": "Aggregates published records of ecological interactions. A recorded relationship is evidence from a dataset, not proof of an encounter in your region.",
+      "inaturalist": "Provides licensed species photographs. The photographer, licence and original page are shown on each image.",
+      "commons": "Provides freely licensed species photographs. The creator, licence and original file page are shown on each image.",
+      "xenoCanto": "Provides animal recordings. The recordist, licence and original recording page stay attached to each sound.",
+      "anthropic": "Provides the optional AI-assisted photo identification. Its suggestion can be wrong and is not a scientific determination."
+    }
   },
   "journal": {
     "title": "Journal",
@@ -119,7 +158,8 @@
     "deleteYes": "Yes, delete",
     "deleteNo": "Keep",
     "referenceTag": "Reference photo",
-    "addPhoto": "Add photo"
+    "addPhoto": "Add photo",
+    "when": "Date and time"
   },
   "you": {
     "title": "Profile",
@@ -190,8 +230,7 @@
     "today": "Today",
     "where": "Where",
     "whereSub": "stored exactly · shared only coarsely",
-    "locationWhy": "The exact place stays with you. Lists show only the municipality.",
-    "useLocation": "Use my location",
+    "useLocation": "use my location",
     "locating": "Finding the place …",
     "locationDenied": "No location · region only",
     "regionOnly": "region only",
@@ -200,9 +239,9 @@
     "notePlaceholder": "Note · optional",
     "wildQuestion": "Was it wild?",
     "wild": "Wild",
-    "wildSub": "save",
+    "wildSub": "in nature",
     "captive": "Kept",
-    "captiveSub": "zoo, garden, pot · save",
+    "captiveSub": "zoo, garden, pot",
     "captiveHint": "Kept animals and planted plants go into the journal but do not count as a discovery in the wild.",
     "saving": "Saving …",
     "unknown": "We do not know this species yet.",
@@ -219,8 +258,8 @@
     "title": "Settings",
     "back": "Profile",
     "identity": {
-      "localTitle": "Only on this phone",
-      "localBody": "No account. A new phone starts from zero as long as you link neither a passkey nor an email.",
+      "localTitle": "Recovery not set up",
+      "localBody": "Your discoveries are stored on our server. Without a passkey or email, changing phones or clearing browser data can lose your access.",
       "create": "🔑 Create a passkey",
       "createHint": "Face ID or fingerprint, no password.",
       "signIn": "Already have a passkey or an email? Sign in here.",
@@ -246,7 +285,7 @@
     "data": {
       "title": "Your data",
       "export": "Export",
-      "exportHint": "All sightings and studied species as JSON, any time, no account needed",
+      "exportHint": "Sightings and studied species as JSON. Photos are private links, not image files; the links stop working after deletion.",
       "delete": "Delete everything",
       "deleteHint": "On every device. Never just here.",
       "deleteTitle": "Really delete everything?",
@@ -267,7 +306,7 @@
     "about": {
       "title": "About",
       "sources": "Sources",
-      "sourcesHint": "GBIF · Wikidata · Wikipedia · Wikimedia Commons · iNaturalist · GloBI",
+      "sourcesHint": "How the Atlas is built",
       "version": "Version"
     },
     "email": {
@@ -284,7 +323,7 @@
       "cancel": "Cancel",
       "verified": "Linked to {email}.",
       "remove": "Remove",
-      "removeLast": "This is your only way back. Without an email or a passkey everything stays on this device only.",
+      "removeLast": "This is your only recovery method. Without an email or passkey, you can lose access to your stored discoveries.",
       "removeConfirm": "Remove anyway",
       "invalidAddress": "That does not look like an email address.",
       "wrongCode": "Wrong code.",
@@ -300,9 +339,10 @@
     "eyebrow": "Standkreis Atlas",
     "headline": "Discover the wildlife around you.",
     "promise": "Get to know local species and keep a record of your encounters.",
+    "chooseRegion": "Choose your region",
     "question": "Available regions",
     "useLocation": "Use my location",
-    "locationHint": "Your phone will ask for permission in a moment. We store only the district; exact places stay on your device.",
+    "locationHint": "Your phone asks for permission. Coordinates are sent to our server and to GBIF to identify the place.",
     "typePlace": "Type a place",
     "placePlaceholder": "Place or district",
     "orUseLocation": "or use my location",
@@ -322,22 +362,25 @@
     "readyBody": "<b>{n} species</b> are likely to be seen in {region} in {month}, <b>{total}</b> over the whole year.",
     "readyPreparing": "{region} is being prepared. A few minutes and everything is there.",
     "readyFailed": "{region} could not be prepared. You can try again in the Atlas.",
-    "axisStudy": "<b>Study.</b> Read about a species and it gets a frame.",
-    "axisSeen": "<b>Discover.</b> Log a sighting and the picture fills in.",
-    "noAccount": "No account needed. Everything stays on this device until you want to see it elsewhere.",
+    "axisStudyTitle": "Study in the Atlas",
+    "axisStudy": "Read about a species, then tap “{action}” on its page. Learning what to look for can help you spot it outdoors.",
+    "axisSeenTitle": "Discover in nature",
+    "axisSeen": "Found a species outdoors? Save a sighting with a photo or select the species yourself. It becomes part of your discovery record.",
+    "noAccount": "No name required. Discoveries are stored on our server; a passkey or email protects your future access.",
     "go": "Let's go",
-    "promisesBody": "One from us, one from you.",
-    "promisesTitle": "Two promises",
-    "promisesOurs": "Our promise",
-    "promisesOursText": "No account, no leaderboard. Your data stays on this device until you want to see it elsewhere. Only the district is stored; exact places never leave your phone.",
-    "promisesYours": "Your promise",
+    "promisesBody": "Our promise to you. Our community’s promise to nature.",
+    "promisesTitle": "A shared commitment",
+    "promisesOurs": "Not for profit. No account required.",
+    "promisesOursText": "Standkreis Atlas is a community project that connects people with the nature around them. Everyone can take part without creating an account.",
+    "promisesYours": "Nature comes first",
     "promisesYoursText": "Outdoors we are guests. We look, we marvel, we leave everything as we found it. No photo is worth crowding an animal or taking a plant. Walk slowly and you see more.",
     "promisesGo": "I'm in",
     "notAvailable": "Not available yet",
     "notAvailableHere": "{name} is not available yet. Type another place.",
     "cancel": "Cancel",
     "comingSoon": "soon",
-    "chooseRegion": "Choose your region"
+    "back": "Back",
+    "noReadyRegion": "No available region matches your search."
   },
   "species": {
     "back": "Back",
@@ -381,6 +424,7 @@
       "lifespan": "Lifespan",
       "reproduction": "Offspring",
       "migration": "Migration",
+      "group": "Group",
       "status": "Status",
       "missing": "{list}: no data yet",
       "mass": "Mass",
@@ -568,11 +612,15 @@
         "parasiteOf": "parasite of"
       },
       "showMore": "show more ({n})",
-      "showLess": "show less"
+      "showLess": "show less",
+      "evidenceHint": "These relationships come from published datasets. They do not confirm an encounter in your region. Sources show the extent of the evidence.",
+      "evidenceCount": "{records} records · {studies} studies"
     },
     "notInAtlas": "not in your Atlas",
     "sources": {
       "label": "Sources",
+      "link": "About our sources",
+      "imageCredits": "Image credits",
       "text": "Text: Wikipedia, {licence}",
       "data": "Data: {list}",
       "occurrence": "Occurrence: GBIF",
@@ -582,7 +630,7 @@
     },
     "study": {
       "mark": "Studied",
-      "marked": "Studied ✓",
+      "marked": "Studied",
       "working": "…"
     },
     "sourceInfo": {
@@ -592,7 +640,15 @@
       "occurrence": "Records from GBIF, the last ten years, cut to your district.",
       "lookalikes": "Species of the same genus in your Atlas, genus after GBIF.",
       "ecology": "Relationships from Global Biotic Interactions (GloBI). The images belong to the species shown."
-    }
+    },
+    "prose": {
+      "label": "AI-generated summary · View sources",
+      "sheetTitle": "Sources of the AI text",
+      "sheetHint": "These sources were used for the summary. An automated check compares the text against them; it does not replace scientific review.",
+      "judged": "{n} of {m} sentences checked"
+    },
+    "background": "Background",
+    "readExplanation": "Read the explanation"
   },
   "fill": {
     "label": "Discovered",
@@ -619,7 +675,7 @@
     "cancel": "Cancel",
     "stopped": "Paused · {done} / {total}",
     "resume": "Keep loading",
-    "failed": "Signal lost at {done} / {total}",
+    "failed": "Download incomplete: {done} / {total} images saved. Please try again.",
     "ready": "Ready offline · {date}",
     "reload": "Refresh",
     "banner": "Offline · your atlas is here, search and maps are waiting for a signal",
@@ -676,5 +732,11 @@
     "badgeAnswered": "Suggestion ready",
     "identifiedWith": "identified with {engine}",
     "costLine": "This identification: {cents} ¢"
+  },
+  "outboxRecovery": {
+    "title": "{n} older unsent items need recovery",
+    "body": "These items are still on this device. Download a backup before clearing app data. They will not be sent until their owner is confirmed.",
+    "download": "Download backup",
+    "error": "The backup could not be created. Please try again."
   }
 }

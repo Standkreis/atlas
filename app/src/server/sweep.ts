@@ -1,70 +1,17 @@
 import { db } from './db'
-import { deleteAbandonedPhotos } from './photos'
-import { startRegionJob } from './routers/dex'
+import { deleteAbandonedPhotos, retryPendingPhotoDeletes } from './photos'
+import { cleanupQuotas } from './quotas'
 
-// The restart sweep (handoff 0009 Track B; findings 0007 C2, 0008 A7 A11; handoff 0025 A4 A5: photos and email codes). The region job and the content kick run
-// in-process and die with the server; `Region.status` and `Taxon.contentAt` say what was left. On start (instrumentation
-// `register`) and by hand (`npm run etl sweep`) this heals: no job table, no worker, no migration.
-// Two servers on one database (Track A's and this one in dev) would both sweep: a transaction-scoped advisory lock lets
-// one in, the other logs and leaves.
-// Handoff 0011 Track B: on Vercel the hourly cron route calls this with a deadline under the function's `maxDuration`;
-// once it passes, no further region restart or content batch is started and the result says `cut: true`. Every step
-// is idempotent (`Region.status`, `Taxon.contentAt`), so the next hour continues where this one stopped.
-
-const LOCK = 0x0de55eec // "dex sweep", any constant does
-const QUEUED_AGE = 5 * 60_000
-const BATCH = 20
-const DAY = 24 * 3_600_000
+// Runtime maintenance is deliberately bounded. Region/content preparation runs in the CLI,
+// where a process can outlive a serverless request; no external ETL work or hour-long transaction here.
 export type SweepResult = { regions: string[]; content: number; contentDone: number; contentFailed: number; photos: number; codes: number; seconds: number; cut: boolean }
-
-export async function sweep(log: (s: string) => void = (s) => console.log(`[sweep] ${s}`), opts: { deadlineMs?: number } = {}): Promise<SweepResult | null> {
-  const t0 = Date.now()
-  const over = () => opts.deadlineMs !== undefined && Date.now() - t0 > opts.deadlineMs
-  let cut = false
-  return db.$transaction(
-    async (tx) => {
-      const [{ locked }] = await tx.$queryRaw<[{ locked: boolean }]>`select pg_try_advisory_xact_lock(${LOCK}) as locked`
-      if (!locked) { log('another process is sweeping; skipped'); return null }
-
-      // 1. Regions left `queued` by a dead server: older than five minutes, so a job a live server started a moment ago is left alone.
-      const stale = await db.region.findMany({ where: { status: 'queued', createdAt: { lt: new Date(Date.now() - QUEUED_AGE) } }, select: { gadmGid: true, name: true } })
-      const regions = stale.map((r) => r.gadmGid)
-      if (stale.length) log(`restarting ${stale.length} queued region(s): ${stale.map((r) => `${r.name} (${r.gadmGid})`).join(', ')}`)
-      for (const r of stale) {
-        if (over()) { cut = true; break }
-        await startRegionJob(r.gadmGid) // in order; each runs facets, set and content
-      }
-
-      // 2. Taxa without content: in a ready region's set, or logged (E13's out-of-set finds, the kick that died). Batches of 20, like the log's kick.
-      const { runContent } = await import('../../etl/content')
-      const missing = await db.taxon.findMany({
-        where: { contentAt: null, OR: [{ plausibility: { some: { region: { status: 'ready' } } } }, { sightings: { some: {} } }] },
-        select: { gbifKey: true },
-        orderBy: { gbifKey: 'asc' },
-      })
-      if (missing.length) log(`${missing.length} taxa without content`)
-      let contentDone = 0, contentFailed = 0
-      for (let i = 0; i < missing.length; i += BATCH) {
-        if (over()) { cut = true; break }
-        const keys = missing.slice(i, i + BATCH).map((t) => t.gbifKey)
-        const r = await runContent({ keys, log: (s) => log(`content ${i / BATCH + 1}/${Math.ceil(missing.length / BATCH)}: ${s}`) })
-        contentDone += r.done
-        contentFailed += r.failed
-      }
-
-      // 3. Abandoned uploads (findings 0008 A7): unattached user photos older than a day, rows and files.
-      const photos = await deleteAbandonedPhotos()
-      if (photos) log(`${photos} abandoned photo(s) removed`)
-
-      // 4. Email codes (handoff 0025 A4, findings 0020 9): a code lives ten minutes; a row whose expiry is a day past, used or not,
-      // is history. Not on `tx`: the codes have nothing to do with the region lock, and a step that fails must not roll the sweep back.
-      const { count: codes } = await db.emailCode.deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - DAY) } } })
-      if (codes) log(`${codes} email code(s) older than a day removed`)
-
-      const seconds = (Date.now() - t0) / 1000
-      log(`done: regions ${regions.length} · content ${missing.length} (${contentDone} filled, ${contentFailed} failed) · photos ${photos} · codes ${codes} · ${seconds.toFixed(1)} s${cut ? ' · cut at the deadline, the rest waits for the next run' : ''}`)
-      return { regions, content: missing.length, contentDone, contentFailed, photos, codes, seconds, cut }
-    },
-    { maxWait: 5_000, timeout: 6 * 3_600_000 }, // the lock lives as long as the transaction; a region job can take an hour
-  )
+export async function sweep(log: (s: string) => void = console.log, opts: { deadlineMs?: number } = {}): Promise<SweepResult> {
+  const started = Date.now(), deadline = started + (opts.deadlineMs ?? 30_000)
+  const photos = await deleteAbandonedPhotos()
+  if (Date.now() < deadline) await retryPendingPhotoDeletes(10)
+  const { count: codes } = await db.emailCode.deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 86_400_000) } } })
+  await cleanupQuotas()
+  const result = { regions: [], content: 0, contentDone: 0, contentFailed: 0, photos, codes, seconds: (Date.now() - started) / 1000, cut: Date.now() >= deadline }
+  log(`cleanup: ${photos} abandoned photos, ${codes} expired codes; region/content work remains in npm run etl -- sweep`)
+  return result
 }

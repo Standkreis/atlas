@@ -12,7 +12,7 @@ import { search } from './AtlasSearch'
 import { FilterDrawer, GROUPS, SHOWS, SORTS, type Group, type Show, type Sort } from './FilterDrawer'
 import { FillSheet, Toast } from './Fill'
 import { photoSrc } from './LogPhoto'
-import { Icon } from './Marks'
+import { Icon, SeenMark, StudiedMark } from './Marks'
 import { OnboardingSilhouette } from './OnboardingSilhouette'
 import { rememberSpeciesOrigin, restoreSpeciesOrigin } from './SpeciesOrigin'
 import { nudgeSeen, PasskeyNudge } from './PasskeyNudge'
@@ -25,7 +25,7 @@ type Row = Pick<Species, 'taxonId' | 'gbifKey' | 'sciName' | 'names' | 'tile'> &
 
 // The Atlas grid of spec §🎨 2 on the real set (handoff 0007 Track A). Header: title, one bar amber-then-green with the
 // three counters; one search bar with the filter button and its badge; the 3-column grid in sections (handoff 0023); one
-// sources line. Region and tiles live in the identity's Filter, state · sort · group · "nur jetzt" · query in the URL so
+// one link to the central sources page. Region and tiles live in the identity's Filter, state · sort · group · "nur jetzt" · query in the URL so
 // back restores them.
 export function AtlasGrid({ title }: { title: string }) {
   const t = useTranslations('dex')
@@ -45,7 +45,7 @@ export function AtlasGrid({ title }: { title: string }) {
   const regions = useQuery(trpc.dex.regions.queryOptions(undefined, { enabled: region?.status === 'failed' }))
   const retry = useMutation(trpc.dex.requestRegion.mutationOptions({ onSuccess: () => qc.invalidateQueries({ queryKey: trpc.identity.me.queryKey() }) }))
 
-  const { ready, set, progress: progressRaw, tiles, loading } = useAtlasSet(region)
+  const { ready, set, progress: progressRaw, tiles, loading, error: atlasError, retry: retryAtlas, paused: atlasPaused } = useAtlasSet(region)
   // Own photos per taxon (spec §🎨 2: own photo first) and the species seen outside the set, polled while their content kick runs.
   const photos = useQuery(trpc.sighting.photos.queryOptions(undefined, { enabled: ready }))
   const outside = useQuery(trpc.sighting.outside.queryOptions({ regionId: region?.id ?? '' }, { enabled: ready, refetchInterval: (q) => (q.state.data?.some((x) => !x.hasContent) ? 10_000 : false) }))
@@ -221,7 +221,7 @@ export function AtlasGrid({ title }: { title: string }) {
 
           <div ref={bar} className="mt-4 flex h-13 items-center gap-3 rounded-2xl bg-card pr-1.5 pl-4 shadow-[0_2px_12px_rgba(30,42,35,0.06)]" data-testid="bar">
             <Icon name="search" size={20} className="shrink-0 text-ink-faint" />
-            <input value={query} onChange={(e) => setParams({ q: e.target.value })} placeholder={t('search')} data-testid="search" enterKeyHint="search"
+            <input value={query} onChange={(e) => setParams({ q: e.target.value })} aria-label={t('search')} placeholder={t('search')} data-testid="search" enterKeyHint="search"
               className="min-w-0 flex-1 bg-transparent text-[17px] outline-none placeholder:text-ink-faint" />
             <FilterButton count={active} label={t('filters')} onClick={() => setDrawer('bar')} className="relative h-10 w-10 bg-moss-soft text-moss-deep" />
           </div>
@@ -229,7 +229,7 @@ export function AtlasGrid({ title }: { title: string }) {
           {visible.length === 0 ? (
             <p className="mt-6 text-center text-[15px] text-ink-soft" data-testid="empty">{query.trim() ? t('noMatch', { q: query.trim() }) : t('empty')}</p>
           ) : (
-            <ul className="mt-4 grid grid-cols-3 gap-2" data-testid="grid" data-group={group} aria-label={t('gridLabel', { n: visible.length })}>
+            <ul className="mt-4 grid grid-cols-2 min-[480px]:grid-cols-3 gap-3" data-testid="grid" data-group={group} aria-label={t('gridLabel', { n: visible.length })}>
               {sections.map((sec) => (
                 <Fragment key={sec.key}>
                   {sec.title !== null && (
@@ -239,13 +239,13 @@ export function AtlasGrid({ title }: { title: string }) {
                       <h2 className="text-[13px] font-bold tracking-wide text-ink-soft uppercase">{sec.title}<span className="font-normal"> · {format.number(sec.rows.length)}</span></h2>
                     </li>
                   )}
-                  {sec.rows.map((s) => <Cell key={s.taxonId} s={s} name={name(s)} own={photos.data?.[s.taxonId] ?? null} isSeen={seen.has(s.taxonId)} isStudied={studied.has(s.taxonId)} badge={t('studiedBadge')} fill={fill.data?.taxon.id === s.taxonId && fillId ? fillPhase : null} onOpen={() => rememberSpeciesOrigin(pathname)} />)}
+                  {sec.rows.map((s) => <Cell key={s.taxonId} s={s} name={name(s)} own={photos.data?.[s.taxonId] ?? null} isSeen={seen.has(s.taxonId)} isStudied={studied.has(s.taxonId)} seenBadge={t('sectionSeen')} studiedBadge={t('studiedBadge')} fill={fill.data?.taxon.id === s.taxonId && fillId ? fillPhase : null} onOpen={() => rememberSpeciesOrigin(pathname)} />)}
                 </Fragment>
               ))}
-              {extras.map((s) => <Cell key={s.taxonId} s={s} name={name(s)} own={photos.data?.[s.taxonId] ?? null} isSeen={seen.has(s.taxonId)} isStudied={studied.has(s.taxonId)} badge={t('studiedBadge')} fill={fill.data?.taxon.id === s.taxonId && fillId ? fillPhase : null} onOpen={() => rememberSpeciesOrigin(pathname)} />)}
+              {extras.map((s) => <Cell key={s.taxonId} s={s} name={name(s)} own={photos.data?.[s.taxonId] ?? null} isSeen={seen.has(s.taxonId)} isStudied={studied.has(s.taxonId)} seenBadge={t('sectionSeen')} studiedBadge={t('studiedBadge')} fill={fill.data?.taxon.id === s.taxonId && fillId ? fillPhase : null} onOpen={() => rememberSpeciesOrigin(pathname)} />)}
             </ul>
           )}
-          <p className="mt-4 text-[12px] text-ink-faint">{t('sources')}</p>
+          <p className="mt-4 text-[13px]"><Link href="/sources" className="font-semibold text-moss-deep underline underline-offset-4">{t('sources')}</Link></p>
 
           {barGone && (
             <FilterButton count={active} label={t('filters')} onClick={() => setDrawer('fab')} testId="fab"
@@ -265,7 +265,9 @@ export function AtlasGrid({ title }: { title: string }) {
           {shownToast && <Toast key={shownToast} text={shownToast} onDone={toastDone} />}
         </>
       )}
-      {loading && <p className="mt-3 text-[15px] text-ink-soft">{tc('working')}</p>}
+      {(atlasPaused || me.fetchStatus === 'paused') && <p className="mt-3 text-[15px] text-ink-soft" role="status">{set && progress ? tc('usingSaved') : tc('offlineMissing')}</p>}
+      {(atlasError || me.isError) && !atlasPaused && me.fetchStatus !== 'paused' && <p className="mt-3 text-[15px] text-amber-deep" role="alert">{set && progress ? tc('refreshFailed') : tc('loadFailed')} <button type="button" onClick={() => { void me.refetch(); void retryAtlas() }} className="min-h-11 px-2 underline">{tc('retry')}</button></p>}
+      {(loading || me.isLoading) && <p className="mt-3 text-[15px] text-ink-soft">{tc('working')}</p>}
       {regionSheet && <RegionSheet onClose={() => setRegionSheet(false)} />}
     </main>
   )
@@ -283,12 +285,12 @@ function FilterButton({ count, label, onClick, className, style, testId }: { cou
   )
 }
 
-// One cell, three states (findings 0002 revision 3): not yet = greyscale 45 %, studied = greyscale 70 % with an amber
-// inset ring and the book, discovered = colour with the check. Species without an image show the group silhouette.
+// Reference photos keep their recognition cues in every state. Rings and badges distinguish studied and discovered
+// species; species without an image show the group silhouette.
 // `own` = the identity's latest wild photo of the species, shown in colour instead of the reference image (spec §🎨 2).
-// `fill` = the cell of the fill moment: "pre" is drawn grey with the transition armed, "done" sweeps to colour over 400 ms under a 3 px green ring.
+// The fill moment adds a stronger ring around the newly discovered species.
 // Rings (handoff 0014 G4): a seen cell keeps a 2 px inset moss ring for good, a studied-only cell the amber one; the sweep's ring is the exception.
-function Cell({ s, name, own, isSeen, isStudied, badge, fill, onOpen }: { s: Row; name: string; own: string | null; isSeen: boolean; isStudied: boolean; badge: string; fill: 'pre' | 'done' | null; onOpen: () => void }) {
+function Cell({ s, name, own, isSeen, isStudied, seenBadge, studiedBadge, fill, onOpen }: { s: Row; name: string; own: string | null; isSeen: boolean; isStudied: boolean; seenBadge: string; studiedBadge: string; fill: 'pre' | 'done' | null; onOpen: () => void }) {
   // A small variant Wikimedia cannot scale (a rare error) falls back to the lead itself.
   const [broken, setBroken] = useState(false)
   const src = own && isSeen ? photoSrc(own) : (broken ? null : s.leadSmall) ?? s.lead?.url ?? null
@@ -298,16 +300,16 @@ function Cell({ s, name, own, isSeen, isStudied, badge, fill, onOpen }: { s: Row
         <div className={`relative aspect-square overflow-hidden rounded-2xl bg-tile ${fill === 'done' ? 'ring-[3px] ring-moss' : ''}`}>
           {src ? (
             // eslint-disable-next-line @next/next/no-img-element -- static export, remote hosts, no optimiser
-            <img src={src} alt="" loading="lazy" onError={() => { if (src === s.leadSmall && s.lead?.url && s.lead.url !== src) setBroken(true) }} className={`h-full w-full object-cover ${fill ? 'transition-[filter,opacity] duration-[400ms] ease-out' : ''} ${isSeen ? '' : isStudied ? 'opacity-70 grayscale' : 'opacity-45 grayscale'}`} />
+            <img src={src} alt="" loading="lazy" onError={() => { if (src === s.leadSmall && s.lead?.url && s.lead.url !== src) setBroken(true) }} className={`h-full w-full object-cover ${fill ? 'transition-[filter,opacity] duration-[400ms] ease-out' : ''}`} />
           ) : (
             <OnboardingSilhouette tile={s.tile} className="h-full w-full p-6 text-ink-faint opacity-60" />
           )}
           {/* The state ring is an overlay, not an inset box-shadow on the container: inset shadows paint under the image (handoff 0014 G4). */}
           {(isSeen || isStudied) && fill !== 'done' && <span className={`motion-ring pointer-events-none absolute inset-0 rounded-2xl ring-2 ring-inset ${isSeen ? 'ring-moss' : 'ring-amber'}`} />}
-          {isSeen && <span className="absolute right-1.5 bottom-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-moss text-[12px] font-bold text-white">✓</span>}
-          {isStudied && <span className="absolute bottom-1.5 left-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-amber text-[11px] leading-none" aria-label={badge}>📖</span>}
+          {isSeen && <SeenMark size={20} title={seenBadge} className="absolute right-1.5 bottom-1.5" />}
+          {isStudied && <StudiedMark size={20} title={studiedBadge} className="absolute bottom-1.5 left-1.5" />}
         </div>
-        <div className={`mt-1 truncate text-[12px] leading-tight ${isSeen || isStudied ? 'font-semibold' : 'text-ink-soft'}`}>{name}</div>
+        <div title={name} className={`mt-1 truncate text-[14px] leading-tight ${isSeen || isStudied ? 'font-semibold' : 'text-ink-soft'}`}>{name}</div>
       </Link>
     </li>
   )

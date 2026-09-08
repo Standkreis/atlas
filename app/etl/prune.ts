@@ -69,6 +69,36 @@ export const foldKind = (type: string): Kind | null => KIND[type] ?? null
 /** GloBI target names worth resolving: a Latin genus, species or family, not "detritus" or "no name". */
 export const usableTargetName = (name: string | undefined | null, source: string) => !!name && name !== source && /^[A-Z][a-z]+( [a-z-]+){0,2}$/.test(name)
 
+/**
+ * 0027 F1: studies that list *potential* trophic links, not observed ones: species paired by guild, body size or
+ * co-occurrence. A json.v2 record carries `study` (= `study_title`, the citation string) and no DOI field; matched by name
+ * on the citation, case-insensitive. The two 0026 found by hand, then the brief's keywords. Note: "Reji Chacko" is
+ * trophiCH v1, a food web for Switzerland (2024), not a European metaweb; 25 657 of the 72 578 cached rows come from it.
+ */
+export const METAWEB = [
+  /reji chacko/i, // Reji Chacko et al. (2024) trophiCH v1 – a food web for Switzerland, EnviDat 10.16904/envidat.467
+  /maiorano/i, // Maiorano et al. (2020) TETRA-EU 1.0: a species-level trophic meta-web of European tetrapods
+  /metaweb|meta-web/i, /potential/i, /tetra-eu/i, /eurotrophic/i, /trophich/i, /food web for/i,
+]
+export const isMetaweb = (study: string) => METAWEB.some((re) => re.test(study))
+
+export type ProseDrop = 'F1' | 'F2' | null
+/**
+ * 0027 F1/F2 on one edge with its studies (`{ citation: records }`) and its real (non-metaweb) record count; the rule that
+ * drops it from the prose sheet, or null. The tile keeps every edge (0026 decision); `content.ts` writes `prose: false`.
+ *   F1  eats/eatenBy whose studies are all metawebs → out (the Feuersalamander's duck predators)
+ *   F2  ≤ 1 real record from ≤ 1 real study, in-set or not → out (Hirschkäfer eats Vogelkirsche: 1 record; Rana eaten by
+ *       Kuckuck: 1 real record + 6 metaweb copies; 0 records = the DB edge was not in GloBI's answer at all)
+ * An edge fetched before 0028 has `{}` studies and `real` 0 and would be F2: the caller keeps those out (`unfetched`).
+ */
+export function pruneForProse(edge: { kind: Kind; studies: Record<string, number>; real: number }): ProseDrop {
+  const studies = Object.keys(edge.studies)
+  const metaweb = studies.filter(isMetaweb)
+  const metawebOnly = studies.length > 0 && metaweb.length === studies.length
+  if ((edge.kind === 'eats' || edge.kind === 'eatenBy') && metawebOnly) return 'F1'
+  return edge.real <= 1 && studies.length - metaweb.length <= 1 ? 'F2' : null
+}
+
 export const EDGE_CAP = 200
 /**
  * The cap of handoff 0006: unique (kind, target) pairs, targets in any region's set first (stable order), then the rest,

@@ -1,5 +1,7 @@
 # 🎬 [0013] Handoff — onboarding, second pass (M9 friction O1–O10)
 
+> Updated 2026-09-08: the owner explicitly wants discovery content, including exact locations, collected on the server. The local-only promise below has been superseded; see [0029](0029-audit-reliability.md).
+
 > A handoff, not a spec. Child of [handoff 0012](0012-first-walk.md) and its [findings §🚶](0012-first-walk-findings.md) "Owner's friction log · Onboarding". Read the documents in §⬆️ before anything else; nothing here overrides them.
 
 | 🗓️ Written | 👤 Owner | ⬆️ Parent | ⏱️ Budget |
@@ -32,7 +34,7 @@ The owner's first look before the walk: the onboarding does not catch them. Ten 
 | O6 | Step 1 offers the **available regions as buttons** from `dex.regions` (`status = ready`; one today), plus the location button, which resolves via `lookupRegion(lat, lng)` and snaps to the nearest available region or says `notAvailableHere` with the buttons still there. The search input is gone from the screen (code stays, gated behind `regions.length >= 2` or a constant `SEARCH = false`) | do not delete the search code or its tests; the second region brings it back |
 | O8a | Tile cards redrawn: the tile's colour token, the group's silhouette or the set's lead image as a small round thumb (pick one, say why in the findings), the count as the only number, a clear on/off state that reads in sunlight. Same card language as the atlas grid | no new icon set, no emoji |
 | O9a | Ready screen shows two numbers: the whole set (`setSize` from `dex.set` with `nowOnly: false`) and this month's (`nowOnly: true`); the sentence around them stays the owner's job (O9b), so render both numbers in the existing sentence's slots for now | |
-| O1 O10 | A fourth slide **"Zwei Versprechen"** before "Los geht's": ours (no account, no leaderboard, your data stays on this device until you want it elsewhere; only the Landkreis is stored, exact places never leave the phone) and yours (below). Button "Bin dabei". `noAccount` leaves step 3 | no checkbox, no legal tone |
+| O1 O10 | A fourth slide **"Zwei Versprechen"** before "Los geht's": ours (no account required, no leaderboard; discoveries, photos and exact locations are stored on our server; recovery methods restore access on another device) and yours (below). Button "Bin dabei". `noAccount` leaves step 3 | no checkbox, no legal tone |
 
 The owner's promise, German first, English mirrored:
 

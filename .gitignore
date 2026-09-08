@@ -28,3 +28,6 @@ docs/drafts/
 
 # 0026 prose grill: Anthropic and GloBI answers
 app/scripts/prose-grill/.cache/
+
+# 0028 prose: prompt and answer files of a run (regenerable from the DB; the texts live in Taxon.prose)
+app/etl/prose/runs/

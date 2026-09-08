@@ -1,10 +1,9 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import type { InteractionKind } from '@/generated/prisma/enums'
-import { get, q, UA } from '../../../etl/fetch'
-import { gbifSpecies } from '../../../etl/gbif'
-import { isNow, nowRatio, perMille, tileOf } from '../../../etl/rules'
-import { background } from '../jobs'
+import { get, q, UA, gbifSpecies } from '../http'
+import { isNow, nowRatio, perMille, tileOf } from '@/domain/rules'
+import { parseProseForRegion } from '../prose'
 import { takeSearchToken } from '../searchCap'
 import { publicProcedure, router } from '../trpc'
 
@@ -56,25 +55,6 @@ async function regionCentre(gadmGid: string): Promise<{ lat: number; lng: number
   if (pts.length < 10) return null
   const lats = pts.map((p) => p.decimalLatitude), lngs = pts.map((p) => p.decimalLongitude)
   return { lat: (Math.min(...lats) + Math.max(...lats)) / 2, lng: (Math.min(...lngs) + Math.max(...lngs)) / 2 }
-}
-
-// In-process content kicks for out-of-set species (handoff 0008 Track A), cached on globalThis like the region jobs so a
-// dev reload or a double tap never runs the same key twice at once (0025 A9: the second `ensure` for a running key returns at
-// once, the job is one per key per process; across serverless instances this is best effort, two cold instances both kick). Not awaited by the caller; on Vercel the promise
-// goes to `waitUntil` (handoff 0011 Track B, `server/jobs.ts`) so the function is not frozen with the kick half done.
-const kicks: Map<number, Promise<void>> = ((globalThis as unknown as { __dexContentKicks?: Map<number, Promise<void>> }).__dexContentKicks ??= new Map())
-function kickContent(gbifKey: number) {
-  if (kicks.has(gbifKey)) return
-  const log = (s: string) => console.log(`[content ${gbifKey}] ${s}`)
-  const job = (async () => {
-    const { runContent } = await import('../../../etl/content')
-    const r = await runContent({ keys: [gbifKey], log })
-    log(`done: ${r.done} filled, ${r.failed} failed in ${r.seconds.toFixed(1)} s`)
-  })()
-    .catch((e) => log(`failed: ${e instanceof Error ? e.message : String(e)}`))
-    .finally(() => kicks.delete(gbifKey))
-  kicks.set(gbifKey, job)
-  background(job)
 }
 
 export type SearchRow = { gbifKey: number; sciName: string; names: Record<string, string>; tile: string }
@@ -148,8 +128,8 @@ export const taxonRouter = router({
             ctx.db.plausibility.findMany({ where: { regionId, taxonId: { in: t.interactionsFrom.map((i) => i.targetId) } }, select: { taxonId: true } }).then((rows) => new Set(rows.map((r) => r.taxonId))),
           ])
         : [null, [], new Set<string>()]
-      const grouped: Partial<Record<InteractionKind, (ReturnType<typeof card> & { inSet: boolean })[]>> = {}
-      for (const i of t.interactionsFrom) (grouped[i.kind] ??= []).push({ ...card(i.target), inSet: inSet.has(i.targetId) })
+      const grouped: Partial<Record<InteractionKind, (ReturnType<typeof card> & { inSet: boolean; evidence: { realRecords: number; studyCount: number; origin: string } })[]>> = {}
+      for (const i of t.interactionsFrom.filter((edge) => edge.prose && edge.real > 0)) (grouped[i.kind] ??= []).push({ ...card(i.target), inSet: inSet.has(i.targetId), evidence: { realRecords: i.real, studyCount: Object.keys((i.studies ?? {}) as object).length, origin: i.origin } })
       return {
         id: t.id,
         gbifKey: t.gbifKey,
@@ -165,6 +145,8 @@ export const taxonRouter = router({
         tags: t.tags,
         intro: t.intro as { text: string; lang: string; source: string; licence: string } | null,
         facts: t.facts as Record<string, { value: string; source: string }> | null,
+        // `parseProseForRegion` guards the shape: a persisted query may hold an old row without it (0025 lesson).
+        prose: parseProseForRegion(t.prose, regionId),
         contentAt: t.contentAt,
         assets: t.assets.map((a) => ({ id: a.id, kind: a.kind, url: a.url, author: a.author, licence: a.licence, licenceUrl: a.licenceUrl, sourceUrl: a.sourceUrl, origin: a.origin, caption: a.caption, meta: a.meta as { xcId: number; type: string; length: number; quality: string } | null })),
         plausibility: p
@@ -201,7 +183,6 @@ export const taxonRouter = router({
           const names = await gbifVernacular(input.gbifKey)
           if (Object.keys(names).length) commonNames = (await ctx.db.taxon.update({ where: { id: existing.id }, data: { commonNames: names }, select: { commonNames: true } })).commonNames
         }
-        kickContent(input.gbifKey)
       }
       return { ...existing, commonNames, lead: existing.assets[0]?.url ?? null, created: false }
     }
@@ -217,7 +198,6 @@ export const taxonRouter = router({
       raced = true
       return ctx.db.taxon.findUniqueOrThrow({ where: { gbifKey: s.key }, select: ensureSelect })
     })
-    kickContent(s.key)
     return { ...created, lead: created.assets[0]?.url ?? null, created: !raced }
   }),
 

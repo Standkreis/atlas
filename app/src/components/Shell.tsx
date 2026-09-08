@@ -6,10 +6,10 @@ import { Link, usePathname } from '@/i18n/navigation'
 import { FilledIcon, Icon, type FilledIconName } from './Marks'
 import { LogSheet } from './LogSheet'
 
-// Spec §🎨 6: Atlas · Quests · ＋ · Tagebuch · Du. Four destinations and the centred action, which opens the chooser (spec §🎨 4).
+// The five-slot product navigation: four destinations around the central logging action. Quests keeps its place while
+// the route holds the promised coming-soon state.
 // The bar is a card-coloured slab with rounded top corners; the ＋ sits with its centre on the top edge, in a paper-coloured cradle.
-// No labels (handoff 0014 G3): active = the filled glyph in ink with a moss dot under it, inactive = the outline in ink-soft;
-// the names stay as aria-labels. Handoff 0014b A3: outline and filled glyph are stacked and cross-fade (globals.css `.tab-glyph`);
+// Visible labels accompany the icon and active marker. Handoff 0014b A3: outline and filled glyph are stacked and cross-fade (globals.css `.tab-glyph`);
 // the moss dot is one element in the row that slides to the active tab's placeholder (`.tab-dot`, measured in a layout effect).
 const tabs = [
   { id: 'dex', href: '/', icon: 'grid' },
@@ -23,12 +23,13 @@ const isActive = (tab: (typeof tabs)[number], pathname: string) => pathname === 
 function Tab({ tab, active }: { tab: (typeof tabs)[number]; active: boolean }) {
   const t = useTranslations('nav')
   return (
-    <Link href={tab.href} aria-label={t(tab.id)} aria-current={active ? 'page' : undefined} data-testid={`tab-${tab.id}`} className={`motion-toggle flex h-12 w-16 flex-col items-center justify-center gap-1 ${active ? 'text-ink' : 'text-ink-soft'}`}>
+    <Link href={tab.href} aria-label={t(tab.id)} aria-current={active ? 'page' : undefined} data-testid={`tab-${tab.id}`} className={`motion-toggle flex h-14 w-16 flex-col items-center justify-center gap-1 ${active ? 'text-ink' : 'text-ink-soft'}`}>
       <span className="grid size-6 place-items-center">
         <span className="tab-glyph col-start-1 row-start-1 flex" data-on={!active}><Icon name={tab.icon} size={24} /></span>
         <span className="tab-glyph tab-fill col-start-1 row-start-1 flex" data-on={active}><FilledIcon name={tab.icon} size={24} /></span>
       </span>
-      <span className="h-1.5 w-1.5" aria-hidden data-dot-slot />
+      <span className="text-[11px] leading-none font-semibold">{t(tab.id)}</span>
+      <span className="h-1 w-1" aria-hidden data-dot-slot />
     </Link>
   )
 }
@@ -72,9 +73,9 @@ export function Shell() {
             ＋
           </button>
           <div className="relative flex items-center justify-around px-2 pt-2 pb-1">
-            <Tab tab={tabs[0]} active={isActive(tabs[0], pathname)} /><Tab tab={tabs[1]} active={isActive(tabs[1], pathname)} />
-            <span className="w-14" aria-hidden />
-            <Tab tab={tabs[2]} active={isActive(tabs[2], pathname)} /><Tab tab={tabs[3]} active={isActive(tabs[3], pathname)} />
+            <div className="flex w-2/5 justify-around"><Tab tab={tabs[0]} active={isActive(tabs[0], pathname)} /><Tab tab={tabs[1]} active={isActive(tabs[1], pathname)} /></div>
+            <span className="w-1/5 pt-4 text-center text-[11px] font-semibold text-ink-soft" aria-hidden>{t('log')}</span>
+            <div className="flex w-2/5 justify-around"><Tab tab={tabs[2]} active={isActive(tabs[2], pathname)} /><Tab tab={tabs[3]} active={isActive(tabs[3], pathname)} /></div>
             <Dot pathname={pathname} />
           </div>
         </div>

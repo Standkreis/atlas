@@ -15,11 +15,13 @@ import { SourceInfo, useImageSource } from './SourceInfo'
 import { tileIcon, useName } from './SpeciesCard'
 import { SightingMap } from './SightingMap'
 import { rememberSpeciesOrigin } from './SpeciesOrigin'
+import { expectedIdentity } from './ClientIdentity'
+import { radioKeys } from './ChoiceKeyboard'
 import { Sheet, useSheetClose } from './Sheet'
 
 type Wildness = 'wild' | 'captive' | 'cultivated'
 
-/** A Date as the value of `<input type="datetime-local">` in local time. */
+/** A Date as the value of `<input aria-label={t('when')} type="datetime-local">` in local time. */
 const toLocalInput = (d: Date) => { const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}` }
 
 /**
@@ -35,6 +37,7 @@ export function SightingDetail({ id, mode, origin, onGone }: { id: string; mode:
   const ts = useTranslations('species')
   const tc = useTranslations('common')
   const tsc = useTranslations('scan')
+  const tsources = useTranslations('sourcesPage')
   const format = useFormatter()
   const name = useName()
   const imageSource = useImageSource()
@@ -43,7 +46,7 @@ export function SightingDetail({ id, mode, origin, onGone }: { id: string; mode:
   const qc = useQueryClient()
 
   const s = useQuery(trpc.journal.get.queryOptions({ id }))
-  const invalidate = () => Promise.all([qc.invalidateQueries({ queryKey: trpc.journal.pathKey() }), qc.invalidateQueries({ queryKey: trpc.identity.progress.queryKey() })])
+  const invalidate = () => Promise.all([qc.invalidateQueries({ queryKey: trpc.journal.pathKey() }), qc.invalidateQueries({ queryKey: trpc.identity.progress.queryKey() }), qc.invalidateQueries({ queryKey: trpc.sighting.photos.queryKey() }), qc.invalidateQueries({ queryKey: trpc.sighting.outside.pathKey() }), qc.invalidateQueries({ queryKey: trpc.sighting.fill.queryKey({ id }) })])
   const update = useMutation(trpc.journal.update.mutationOptions({ onSuccess: () => invalidate() }))
   const remove = useMutation(trpc.journal.remove.mutationOptions({ onSuccess: async () => { await invalidate(); onGone() } }))
   const attach = useMutation(trpc.sighting.attachPhoto.mutationOptions())
@@ -61,18 +64,20 @@ export function SightingDetail({ id, mode, origin, onGone }: { id: string; mode:
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
+    const identityId = expectedIdentity()
     setPhotoState('busy')
     try {
       const blob = await shrinkToJpeg(file)
       if (navigator.onLine) {
         try {
-          const p = await uploadPhoto(blob)
+          const p = await uploadPhoto(blob, identityId)
           await attach.mutateAsync({ sightingId: id, photoId: p.id })
           await invalidate()
           setPhotoState('idle')
           return
         } catch (err) { if (!(err instanceof TypeError)) throw err } // a TypeError is fetch's "no answer"; a status is the server's
       }
+      if (identityId !== expectedIdentity()) throw new Error('Identity changed')
       await enqueue({ id: crypto.randomUUID(), kind: 'photo', payload: { forSighting: id }, blob })
       setQueued(URL.createObjectURL(blob))
       void flush()
@@ -157,7 +162,7 @@ export function SightingDetail({ id, mode, origin, onGone }: { id: string; mode:
         </p>
       )}
       {editWhen && (
-        <input type="datetime-local" value={at} max={toLocalInput(new Date())} onChange={(e) => setAt(e.target.value)} data-testid="at" autoFocus
+        <input aria-label={t('when')} type="datetime-local" value={at} max={toLocalInput(new Date())} onChange={(e) => setAt(e.target.value)} data-testid="at" autoFocus
           className="mt-2 w-full rounded-xl bg-paper px-3 py-2 text-[15px] outline-none ring-1 ring-tile focus:ring-moss" />
       )}
 
@@ -167,7 +172,7 @@ export function SightingDetail({ id, mode, origin, onGone }: { id: string; mode:
       </Link>
 
       <Section title={t('note')}>
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} rows={3} placeholder={t('notePlaceholder')} data-testid="note"
+        <textarea aria-label={t('note')} value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} rows={3} placeholder={t('notePlaceholder')} data-testid="note"
           className="w-full resize-none rounded-xl bg-paper px-3 py-2 text-[15px] outline-none ring-1 ring-tile placeholder:text-ink-faint focus:ring-moss" />
       </Section>
 
@@ -183,9 +188,9 @@ export function SightingDetail({ id, mode, origin, onGone }: { id: string; mode:
       </Section>
 
       <Section title={t('wildness')}>
-        <div className="flex gap-2" role="radiogroup">
+        <div className="flex gap-2" role="radiogroup" onKeyDown={radioKeys}>
           {options.map((w) => (
-            <button key={w} type="button" role="radio" aria-checked={wildness === w} onClick={() => setWildness(w)} data-testid={`wildness-${w}`}
+            <button key={w} type="button" role="radio" aria-checked={wildness === w} tabIndex={wildness === w ? 0 : -1} onClick={() => setWildness(w)} data-testid={`wildness-${w}`}
               className={`motion-toggle flex-1 rounded-full px-4 py-2 text-[15px] font-semibold ${wildness === w ? (w === 'wild' ? 'bg-moss text-white' : 'bg-ink text-paper') : 'bg-tile text-ink-soft'}`}>
               {t(w)}
             </button>
@@ -196,6 +201,10 @@ export function SightingDetail({ id, mode, origin, onGone }: { id: string; mode:
 
       {update.isError && <p className="mt-4 text-[13px] text-amber-deep">{tc('error')}</p>}
       {update.isSuccess && !dirty && <p className="mt-4 text-[13px] text-moss-deep" data-testid="saved">{t('saved')}</p>}
+
+      <p className="mt-8 text-[14px]" data-testid="sources">
+        <Link href="/sources" className="font-semibold text-moss-deep underline underline-offset-4">{tsources('title')}</Link>
+      </p>
 
       <div className="mt-8 border-t border-tile pt-4">
         {confirm ? (

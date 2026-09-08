@@ -2,13 +2,16 @@
 //   navigations        network-first, 3 s timeout; offline: the page under its own path, then (species) the "wartet
 //                      aufs Netz" page, then (sighting) the precached placeholder shell, then the shell of the same locale
 //   /_next/static/**   cache-first (hashed in a build; a new build is a new worker and a new cache)
-//   reference images   cache-first in one cache capped at 2,000 entries: the three image hosts, /api/photo/ and /api/tiles/
+//   reference images   cache-first in one cache capped at 2,000 entries: the three image hosts and /api/tiles/
 // Everything else (tRPC, RSC payloads, GBIF, OSM tiles, HMR) passes through untouched. An RSC payload that fails offline
 // makes the Next router fall back to a full navigation, which the first route answers from cache.
 // Registered as /sw.js?v=<build id>, so every build is a new worker: the shell and static caches carry the version
 // and the old ones are dropped on activate; the image cache is shared across versions and survives.
 
 const VERSION = new URL(self.location.href).searchParams.get('v') || 'dev'
+// Port 3001 is the repository's collaborative development preview. It may still be controlled by a worker whose URL
+// contains the previous production build id, so the port is the recovery signal for that already-installed worker.
+const DEV = VERSION === 'dev' || self.location.port === '3001'
 const SHELL = `dex-shell-${VERSION}`
 const STATIC = `dex-static-${VERSION}`
 const IMAGES = 'dex-images'
@@ -22,28 +25,54 @@ const IMAGE_HOSTS = ['inaturalist-open-data.s3.amazonaws.com', 'thumb.wikimedia.
 // a sighting page never opened online, and the page reads the id from the URL (SightingPage) and `journal.get` from the store.
 const PAGES = ['/', '/de', '/en', '/de/log', '/de/journal', '/de/you', '/de/sighting/_', '/en/log', '/en/journal', '/en/you', '/en/sighting/_']
 const ASSETS = ['/manifest.webmanifest', '/icon.svg', '/brand/standkreis-mark.svg', '/apple-touch-icon.png', '/brand/atlas-icon-192.png', '/brand/atlas-icon-512.png', '/brand/atlas-icon-maskable.png']
+// Small local category thumbnails belong to the versioned shell so replacements refresh with the app.
+ASSETS.push(...['bird', 'insect', 'plant', 'fungus', 'mammal', 'amphibian', 'reptile', 'fish'].map((tile) => `/onboarding/${tile}.webp`))
 // 0025 B10: the onboarding's splash (618 + 194 KB) lives in the version-free image cache, fetched once, not per build.
 const SPLASH = ['/splash.jpg', '/splash-720.jpg']
 // Every client file of this build, written by scripts/m8a/sw-manifest.mjs after `next build`. Missing in `next dev`.
 const MANIFEST = `/_next/static/${VERSION}/sw-manifest.json`
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(precache().then(() => self.skipWaiting()))
+  event.waitUntil(DEV ? self.skipWaiting() : precache().then(() => self.skipWaiting()))
 })
 
 self.addEventListener('activate', (event) => {
+  if (DEV) {
+    event.waitUntil(
+      caches.keys()
+        .then((keys) => Promise.all(keys.filter((k) => k.startsWith('dex-shell-') || k.startsWith('dex-static-')).map((k) => caches.delete(k))))
+        .then(() => self.registration.unregister())
+        .then(() => self.clients.claim()),
+    )
+    return
+  }
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => (k.startsWith('dex-shell-') || k.startsWith('dex-static-')) && k !== SHELL && k !== STATIC).map((k) => caches.delete(k))))
+      .then(async () => {
+        for (const name of await caches.keys()) {
+          const cache = await caches.open(name)
+          for (const key of await cache.keys()) if (new URL(key.url).pathname.startsWith('/api/photo/')) await cache.delete(key)
+        }
+      })
       .then(() => self.clients.claim()),
   )
 })
 
 self.addEventListener('fetch', (event) => {
+  // Development always reaches Next directly. This also makes an older registered worker harmless during the one
+  // navigation in which the updated `?v=dev` worker installs and unregisters itself.
+  if (DEV) return
   const req = event.request
   if (req.method !== 'GET') return
   const url = new URL(req.url)
   const own = url.origin === self.location.origin
+  // Private assets must reach the ownership check on every request. Bypass both
+  // Cache Storage and the browser HTTP cache, including old immutable responses.
+  if (own && url.pathname.startsWith('/api/photo/') && !url.pathname.endsWith('.mp3')) {
+    event.respondWith(fetch(req, { cache: 'no-store' }))
+    return
+  }
   if (req.mode === 'navigate') {
     const nav = navigate(req, url)
     event.respondWith(nav.then((n) => n.response))
@@ -60,7 +89,7 @@ self.addEventListener('fetch', (event) => {
   else if (own && req.headers.get('RSC') === '1' && !req.headers.get('Next-Router-Prefetch') && isPagePath(url.pathname)) event.waitUntil(rememberPage(url))
 })
 
-const isImage = (url, own) => IMAGE_HOSTS.includes(url.hostname) || (own && ((url.pathname.startsWith('/api/photo/') && !url.pathname.endsWith('.mp3')) || url.pathname.startsWith('/api/tiles/') || SPLASH.includes(url.pathname)))
+const isImage = (url, own) => IMAGE_HOSTS.includes(url.hostname) || (own && (url.pathname.startsWith('/api/tiles/') || SPLASH.includes(url.pathname)))
 const isPagePath = (p) => !p.startsWith('/_next/') && !p.startsWith('/api/') && !p.includes('.')
 const pageKey = (url) => `${url.origin}${url.pathname}`
 
@@ -189,6 +218,12 @@ async function cacheFirst(name, req) {
 let puts = 0
 async function image(req) {
   const c = await caches.open(IMAGES)
+  for (const name of await caches.keys()) {
+    if (!name.startsWith('dex-pack-')) continue
+    const pack = await caches.open(name)
+    const saved = await pack.match(req.url)
+    if (saved?.ok) return saved
+  }
   const hit = await c.match(req.url)
   if (hit) return hit
   // A CORS answer of any status is the answer (a 429 stays a 429, not an opaque copy nobody can read); only a host
