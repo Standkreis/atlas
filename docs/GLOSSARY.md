@@ -6,7 +6,7 @@
 
 | Code | 🇩🇪 UI | 🇬🇧 UI | Means | Defined in |
 | --- | --- | --- | --- | --- |
-| `standkreis` | Standkreis | Standkreis | The brand. The circle around where you stand | [README](../README.md) |
+| `standkreis` | Standkreis | Standkreis | The organisation and master brand. The circle around where you stand; Atlas is its first product | [Brand](BRAND.md) |
 | `dex`, `nav.dex` | **Atlas**, "Dein Atlas" | Atlas, "Your Atlas" | The home tab: the plausible set of the active filter, each species in its state. "Dex" stays in code and specs, "Pokédex für die Natur" stays in the pitch | [spec §Navigation](specs/0001-standkreis-dex-the-first-walk.md#navigation) |
 | `nav.quests` | Quests | Quests | Bridges between studied and seen across seasons. "kommt bald" in slice one | spec §🚶 |
 | `nav.log` | Eintragen | Log | The centred ＋. An action, not a tab | spec §Navigation |
