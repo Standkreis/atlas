@@ -25,7 +25,7 @@ at 31 December 2024. The number is source-controlled rather than hard-coded as a
 
 | Purpose | Authority | Pinned input | Licence and attribution |
 | --- | --- | --- | --- |
-| User-facing Kreisregion membership and geometry | BKG **GE250**, layer `KRG250`, built from BBSR and Destatis classifications | Topic date `31.12.2024`; 362 unique `SN_KRG` rows in the release downloaded 2026-09-08; archive SHA-256 `ff4e2c3c0e675cc06d8a13f0769fca73ae53b2f8a1bf0b67cb5a30c8a31b51e3` | [Datenlizenz Deutschland – Namensnennung 2.0](https://www.govdata.de/dl-de/by-2-0); publish the BKG source notice and change notice required by the [GE250 product page](https://gdz.bkg.bund.de/index.php/default/gebietseinheiten-1-250-000-ge250.html) |
+| User-facing Kreisregion membership and geometry | BKG **GE250**, layer `KRG250`, built from BBSR and Destatis classifications | Topic date `31.12.2024`; 362 unique `SN_KRG` rows in the [2025 archive](https://daten.gdz.bkg.bund.de/produkte/sonstige/ge250/2025/ge250.utm32s.shape.zip) downloaded 2026-09-08; archive SHA-256 `ff4e2c3c0e675cc06d8a13f0769fca73ae53b2f8a1bf0b67cb5a30c8a31b51e3` | [Datenlizenz Deutschland – Namensnennung 2.0](https://www.govdata.de/dl-de/by-2-0); publish the BKG source notice and change notice required by the [GE250 product page](https://gdz.bkg.bund.de/index.php/default/gebietseinheiten-1-250-000-ge250.html) |
 | Constituent Kreis names, keys and land boundaries | BKG **VG250**, layer `vg250_krs`, aligned to the same reference date | [Pinned 31.12.2024 GeoPackage archive](https://daten.gdz.bkg.bund.de/produkte/vg/vg250_ebenen_1231/2024/vg250_12-31.utm32s.gpkg.ebenen.zip); SHA-256 `07e1342f3e163ebeeaecb6b028914c9fc81e854f10e05633423740a5f074f4e8`; filter `GF = 4` yields 400 unique land rows/AGS values; `GF = 2` water geometries are excluded | Same licence and source-notice obligation; see the [VG250 31.12 product page](https://gdz.bkg.bund.de/index.php/default/verwaltungsgebiete-1-250-000-stand-31-12-vg250-31-12.html) |
 | Occurrence-query bridge only | GBIF GADM geocoder and the GADM identifiers accepted by GBIF occurrence search | Explicit mapping evidence stored operationally with the registry version; no GADM geometry or archive is imported | [GADM terms](https://gadm.org/license.html) permit this free, non-commercial product's use but prohibit redistribution/commercial use; a GADM id is never the product's region id or boundary authority |
 
@@ -73,10 +73,18 @@ second product region.
 
 ### Query and aggregation
 
-Each constituent Kreis maps to a disjoint, pinned set of GBIF-supported GADM query units. Missing,
-ambiguous or overlapping mappings are import failures, not silently approximated boundaries.
-Official BKG geometry drives display and point-in-region decisions; GADM drives only occurrence
-queries because that is the regional key supported by GBIF.
+Each constituent Kreis maps to a disjoint, pinned set of GBIF-supported GADM 4.1 query units. The
+reviewed snapshot assigns all **402 land query units** to all 400 Kreise exactly once. Göttingen and
+Wartburgkreis each absorb two historical GADM units; every other Kreis has one. Missing units,
+duplicate assignments or an unresolved best match are import failures.
+
+The mapping is nevertheless a reviewed **query approximation**, not a claim that GADM and current
+BKG boundaries are identical. The crosswalk chooses the current Kreis with the largest polygon
+overlap and records its evidence; administrative changes leave some secondary overlap across a
+current boundary. Official BKG geometry alone drives display and point-in-region decisions. GADM
+drives occurrence queries only because it is the regional key supported by GBIF. A registry audit
+reports material overlap changes and coverage limitations rather than silently presenting provider
+boundaries as authoritative German geography.
 
 For a singleton region the existing plausible-set algorithm is unchanged. For a composite:
 
