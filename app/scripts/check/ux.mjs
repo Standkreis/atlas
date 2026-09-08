@@ -12,16 +12,19 @@ if (!['localhost', '127.0.0.1'].includes(new URL(base).hostname)) throw new Erro
 const profile = mkdtempSync(join(tmpdir(), 'dex-ux-'))
 const port = 9300 + Math.floor(Math.random() * 500)
 const chrome = process.env.CHROME ?? (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome')
-const proc = spawn(chrome, ['--headless=new', '--disable-gpu', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
+const proc = spawn(chrome, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+let chromeFailure
+proc.on('error', (error) => { chromeFailure = error })
+proc.on('exit', (code, signal) => { if (!chromeFailure) chromeFailure = new Error(`Chrome exited before connecting (${signal ?? code})`) })
 let ws
 try {
   let target
-  for (let i = 0; i < 60 && !target; i++) {
+  for (let i = 0; i < 200 && !target && !chromeFailure; i++) {
     target = await fetch(`http://127.0.0.1:${port}/json`).then((r) => r.json()).then((rows) => rows.find((r) => r.type === 'page')).catch(() => null)
     if (!target) await sleep(100)
   }
-  assert.ok(target, 'Chrome starts')
+  assert.ok(target, chromeFailure?.message ?? 'Chrome starts within 20 seconds')
   ws = new WebSocket(target.webSocketDebuggerUrl)
   await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject })
   let id = 0
