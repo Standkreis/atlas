@@ -159,18 +159,18 @@ function TilesScreen({ onBack, of, region, tiles, setTiles, onNext }: { onBack: 
           return (
             <li key={x} className="relative">
               {/* Multi-select mirrors the region choice: its checkbox leads on the left and the whole card is clickable. */}
-              <label className={`motion-toggle flex w-full cursor-pointer items-center gap-3 rounded-2xl p-3 text-left ${on ? 'bg-white text-night' : 'bg-white/10 text-white/60'}`}>
+              <label className={`motion-toggle flex h-full w-full cursor-pointer flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl p-3 text-left ${on ? 'bg-white text-night' : 'bg-white/10 text-white/60'}`}>
                 <input type="checkbox" checked={on} onChange={() => toggle(x)} data-tile={x} className="peer sr-only" />
                 <span aria-hidden className={`motion-toggle flex size-6 shrink-0 items-center justify-center rounded-md border-2 peer-focus-visible:ring-2 peer-focus-visible:ring-sky peer-focus-visible:ring-offset-2 ${on ? 'border-sky bg-white text-sky' : 'border-white/45 bg-transparent text-transparent'}`}>
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M5 12.5l4.5 4.5L19 7.5" />
                   </svg>
                 </span>
-                <span className="min-w-0 flex-1">
+                <span className="order-3 w-full min-w-0">
                   <span className="block text-[15px] leading-tight font-bold [overflow-wrap:anywhere]">{tt(x)}</span>
                   <span className={`mt-1 block text-[13px] leading-tight ${on ? 'text-ink-soft' : ''}`}>{n === undefined ? (ready ? '' : t('countsPending')) : t('speciesHere', { n })}</span>
                 </span>
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-tile" aria-hidden>
+                <span className="order-2 ml-auto flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-tile" aria-hidden>
                   <span className={`flex h-full w-full items-center justify-center overflow-hidden rounded-full ${on ? 'bg-tile' : 'bg-white/10'}`}>
                     {/* eslint-disable-next-line @next/next/no-img-element -- pre-optimized local 3x thumbnails, also served by the static export */}
                     <img src={`/onboarding/${x}.webp`} width={144} height={144} alt="" decoding="async" className={`motion-toggle h-full w-full object-cover ${on ? '' : 'opacity-45 grayscale'}`} />
