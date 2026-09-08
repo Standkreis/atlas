@@ -1,4 +1,6 @@
 import { commonsRejected, inatLicence, inatLicenceUrl, inatLicensed } from './prune'
+import { normalizedRemoteUrl, commonsLicenceFamily, commonsLicenceUrlMatches } from '../src/domain/referenceImages'
+export { normalizedRemoteUrl, commonsLicenceFamily, commonsLicenceUrlMatches } from '../src/domain/referenceImages'
 
 export const GALLERY_LIMIT = 12
 
@@ -81,43 +83,6 @@ const httpsUrl = (value: string | null | undefined) => {
   }
 }
 
-/** A comparison key only: stored render URLs retain the provider's exact URL. */
-export function normalizedRemoteUrl(value: string) {
-  const url = new URL(value)
-  url.hash = ''
-  url.search = ''
-  url.hostname = url.hostname.toLowerCase()
-  url.pathname = url.pathname
-    .replace(/\/{2,}/g, '/')
-    .replace(/\/(square|small|medium|large|original)\.([a-z0-9]+)$/i, '/{size}.$2')
-  if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/$/, '')
-  return url.toString()
-}
-
-type CommonsLicence = { family: 'cc0' | 'public-domain' | 'cc-by' | 'cc-by-sa'; version?: string; jurisdiction?: string }
-
-export function commonsLicenceFamily(value: string): CommonsLicence | null {
-  const licence = clean(value)
-  if (/^CC0(?: 1\.0)?$/i.test(licence)) return { family: 'cc0', version: '1.0' }
-  // Commons LicenseShortName values are provider data, not a trusted licence assertion.
-  // Accept the public-domain templates we understand and fail closed on invented PD-* labels.
-  if (/^(?:Public domain|Public domain mark|PD-(?:old(?:-(?:50|70|80|95|100))?(?:-expired)?|old-auto(?:-expired)?|US(?:Gov)?|Art|self|ineligible|textlogo|shape|chem|NASA))$/i.test(licence)) {
-    return { family: 'public-domain' }
-  }
-  const cc = /^CC BY(-SA)? (1\.0|2\.0|2\.5|3\.0|4\.0)(?: ([a-z]{2,3}))?$/i.exec(licence)
-  return cc ? { family: cc[1] ? 'cc-by-sa' : 'cc-by', version: cc[2], jurisdiction: cc[3]?.toLowerCase() } : null
-}
-
-export function commonsLicenceUrlMatches(licence: string, value: string) {
-  const family = commonsLicenceFamily(licence)
-  const url = httpsUrl(value)
-  if (!family || !url || url.hostname !== 'creativecommons.org') return false
-  const path = url.pathname.replace(/\/$/, '').toLowerCase()
-  if (family.family === 'cc0') return path === '/publicdomain/zero/1.0'
-  if (family.family === 'public-domain') return path === '/publicdomain/mark/1.0'
-  const jurisdiction = family.jurisdiction ? `/${family.jurisdiction}` : ''
-  return path === `/licenses/${family.family === 'cc-by-sa' ? 'by-sa' : 'by'}/${family.version}${jurisdiction}`
-}
 
 function reject(rejections: GalleryRejection[], source: string, reason: GalleryRejectionReason) {
   rejections.push({ source, reason })

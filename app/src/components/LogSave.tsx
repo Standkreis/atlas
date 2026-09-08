@@ -1,5 +1,7 @@
 'use client'
 
+import { taxonDisplayName } from '@/domain/taxonNames'
+
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useFormatter, useLocale, useTranslations } from 'next-intl'
@@ -54,7 +56,7 @@ export function LogSave({ gbifKey, photoId, fromSpecies }: { gbifKey: number; ph
       ? { id: ensure.data.id, gbifKey, sciName: ensure.data.sciName, names: (ensure.data.commonNames ?? {}) as Record<string, string>, tile: ensure.data.tile, lead: ensure.data.lead }
       : null
   const state: DexState = card && progress ? (progress.seen.includes(card.id) ? 'seen' : progress.studied.includes(card.id) ? 'studied' : 'none') : 'none'
-  const name = card ? card.names[locale] ?? card.names.de ?? card.names.en ?? card.sciName : ''
+  const name = card ? taxonDisplayName(card, locale) : ''
 
   // An offline snap (0016 B5) is a `scan` row of the outbox behind this photo: its time and point are the sighting's, and the save removes it.
   const scanRow = useMemo(() => scanRowFor(photoId), [photoId]) // read once: the row is gone after the save

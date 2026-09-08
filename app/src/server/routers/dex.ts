@@ -5,6 +5,8 @@ import { isNow, nowRatio, perMille } from '@/domain/rules'
 import { publicProcedure, router } from '../trpc'
 import { legacyRegions } from '../regionCompatibility'
 import { locateRegion, regionSearchInput, searchRegions } from '../regionSearch'
+import { leadAsset, leadAssetSelection } from '../leadAssetSelection'
+import { taxonNames } from '@/domain/taxonNames'
 
 const tile = z.enum(Object.values(Tile) as [Tile, ...Tile[]])
 
@@ -44,25 +46,28 @@ export const dexRouter = router({
       const tiles = input.tiles.filter((t) => t !== 'fish' || (present.get('fish') ?? 0) > 0)
       const rows = await ctx.db.plausibility.findMany({
         where: { regionId: region.id, taxon: { tile: { in: tiles } } },
-        include: { taxon: { include: { assets: { where: { kind: 'image' }, orderBy: { createdAt: 'asc' }, take: 1 } } } },
+        include: { taxon: { select: { gbifKey: true, sciName: true, commonNames: true, tile: true, contentAt: true, assets: leadAssetSelection } } },
       })
       const species = rows
-        .map((p) => ({
-          taxonId: p.taxonId,
-          gbifKey: p.taxon.gbifKey,
-          sciName: p.taxon.sciName,
-          names: p.taxon.commonNames as Record<string, string>,
-          tile: p.taxon.tile,
-          obs: p.obs,
-          monthShare: p.monthShare.map(perMille),
-          peak: perMille(p.peak),
-          nowRatio: +nowRatio(p.monthShare, p.peak, month).toFixed(3),
-          now: isNow(p.monthShare, p.peak, month),
-          words: p.words,
-          lead: p.taxon.assets[0] ?? null,
-          leadSmall: p.taxon.assets[0] ? smallVariant(p.taxon.assets[0].url) : null,
-          hasContent: p.taxon.contentAt !== null,
-        }))
+        .map((p) => {
+          const lead = leadAsset(p.taxon.assets)
+          return {
+            taxonId: p.taxonId,
+            gbifKey: p.taxon.gbifKey,
+            sciName: p.taxon.sciName,
+            names: taxonNames(p.taxon.commonNames),
+            tile: p.taxon.tile,
+            obs: p.obs,
+            monthShare: p.monthShare.map(perMille),
+            peak: perMille(p.peak),
+            nowRatio: +nowRatio(p.monthShare, p.peak, month).toFixed(3),
+            now: isNow(p.monthShare, p.peak, month),
+            words: p.words,
+            lead,
+            leadSmall: lead ? smallVariant(lead.url) : null,
+            hasContent: p.taxon.contentAt !== null,
+          }
+        })
         .filter((s) => !input.nowOnly || s.now)
         .sort((a, b) => b.nowRatio - a.nowRatio || b.obs - a.obs)
       return {

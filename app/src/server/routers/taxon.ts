@@ -6,13 +6,15 @@ import { isNow, nowRatio, perMille, tileOf } from '@/domain/rules'
 import { parseProseForRegion } from '../prose'
 import { takeSearchToken } from '../searchCap'
 import { publicProcedure, router } from '../trpc'
+import { leadAsset, leadAssetSelection, referenceAssetOrder, referenceImageWhere } from '../leadAssetSelection'
+import { referenceGallery, type ReferenceRow } from '@/domain/referenceImages'
+import { taxonNames } from '@/domain/taxonNames'
 
 const thisMonth = () => new Date().getMonth() + 1
 // A card on the species page (look-alike, ecology chip) carries its first image, greyscaled by dex state (handoff 0007 Track B),
 // with its attribution for the section's ⓘ sheet (handoff 0014 D3: attribution per image view, spec §⚖️).
-const leadSelect = { url: true, author: true, licence: true, licenceUrl: true, sourceUrl: true, origin: true } as const
-const taxonCard = { id: true, gbifKey: true, sciName: true, commonNames: true, tile: true, contentAt: true, assets: { where: { kind: 'image' }, orderBy: { createdAt: 'asc' }, take: 1, select: leadSelect } } as const
-const ensureSelect = { id: true, gbifKey: true, sciName: true, commonNames: true, tile: true, contentAt: true, assets: { where: { kind: 'image', sightingId: null }, orderBy: { createdAt: 'asc' }, take: 1, select: { url: true } } } as const
+const taxonCard = { id: true, gbifKey: true, sciName: true, commonNames: true, tile: true, contentAt: true, assets: leadAssetSelection } as const
+const ensureSelect = taxonCard
 const BACKBONE = 'd7dddbf4-2cf0-4f39-9b2a-bb099caae36c'
 type SearchHit = { key: number; nubKey?: number; canonicalName?: string; rank?: string; vernacularNames?: { vernacularName: string; language?: string }[] }
 /** One GBIF `species/search` call, uncached: a typed query is new every time. Empty on any failure. */
@@ -43,9 +45,12 @@ async function gbifVernacular(gbifKey: number): Promise<Record<string, string>> 
   }
   return names
 }
-type LeadRow = { url: string; author: string; licence: string; licenceUrl: string | null; sourceUrl: string; origin: string }
-type Card = { id: string; gbifKey: number; sciName: string; commonNames: unknown; tile: string; assets: LeadRow[] }
-const card = (t: Card) => ({ id: t.id, gbifKey: t.gbifKey, sciName: t.sciName, names: t.commonNames as Record<string, string>, tile: t.tile, lead: t.assets[0]?.url ?? null, leadInfo: t.assets[0] ? { author: t.assets[0].author, licence: t.assets[0].licence, licenceUrl: t.assets[0].licenceUrl, sourceUrl: t.assets[0].sourceUrl, origin: t.assets[0].origin } : null })
+type Card = { id: string; gbifKey: number; sciName: string; commonNames: unknown; tile: string; assets: ReferenceRow[] }
+const card = (t: Card) => {
+  const lead = leadAsset(t.assets)
+  return { id: t.id, gbifKey: t.gbifKey, sciName: t.sciName, names: taxonNames(t.commonNames), tile: t.tile, lead: lead?.url ?? null,
+    leadInfo: lead ? { author: lead.author, licence: lead.licence, licenceUrl: lead.licenceUrl, sourceUrl: lead.sourceUrl, origin: lead.origin } : null }
+}
 
 type Occurrences = { results: { decimalLatitude?: number; decimalLongitude?: number }[] }
 /** A stand-in centroid for a GADM unit (no geometry column, record 0002 E1): the midpoint of the bbox of 300 GBIF records inside it. Cached on disk by the fetch layer. */
@@ -117,7 +122,7 @@ export const taxonRouter = router({
       const month = input.month ?? thisMonth()
       const t = await ctx.db.taxon.findUnique({
         where: { gbifKey: input.gbifKey },
-        include: { assets: { orderBy: { createdAt: 'asc' } }, interactionsFrom: { include: { target: { select: taxonCard } } } },
+        include: { assets: { where: { OR: [referenceImageWhere, { kind: 'sound', ownerId: null, sightingId: null, avatarOf: null }] }, orderBy: [...referenceAssetOrder] }, interactionsFrom: { include: { target: { select: taxonCard } } } },
       })
       if (!t) return null
       const regionId = input.regionId
@@ -135,7 +140,7 @@ export const taxonRouter = router({
         gbifKey: t.gbifKey,
         wikidataId: t.wikidataId,
         sciName: t.sciName,
-        names: t.commonNames as Record<string, string>,
+        names: taxonNames(t.commonNames),
         rank: t.rank,
         tile: t.tile,
         class: t.class,
@@ -148,7 +153,7 @@ export const taxonRouter = router({
         // `parseProseForRegion` guards the shape: a persisted query may hold an old row without it (0025 lesson).
         prose: parseProseForRegion(t.prose, regionId),
         contentAt: t.contentAt,
-        assets: t.assets.map((a) => ({ id: a.id, kind: a.kind, url: a.url, author: a.author, licence: a.licence, licenceUrl: a.licenceUrl, sourceUrl: a.sourceUrl, origin: a.origin, caption: a.caption, meta: a.meta as { xcId: number; type: string; length: number; quality: string } | null })),
+        assets: [...referenceGallery(t.assets), ...t.assets.filter((a) => a.kind === 'sound')].map((a) => ({ id: a.id, kind: a.kind, position: a.position, url: a.url, author: a.author, licence: a.licence, licenceUrl: a.licenceUrl, sourceUrl: a.sourceUrl, origin: a.origin, caption: a.caption, meta: a.meta as { xcId: number; type: string; length: number; quality: string } | null })),
         plausibility: p
           ? { obs: p.obs, monthShare: p.monthShare.map(perMille), peak: perMille(p.peak), words: p.words, month, nowRatio: +nowRatio(p.monthShare, p.peak, month).toFixed(3), now: isNow(p.monthShare, p.peak, month) }
           : null,
@@ -184,7 +189,7 @@ export const taxonRouter = router({
           if (Object.keys(names).length) commonNames = (await ctx.db.taxon.update({ where: { id: existing.id }, data: { commonNames: names }, select: { commonNames: true } })).commonNames
         }
       }
-      return { ...existing, commonNames, lead: existing.assets[0]?.url ?? null, created: false }
+      return { id: existing.id, gbifKey: existing.gbifKey, sciName: existing.sciName, tile: existing.tile, contentAt: existing.contentAt, commonNames: taxonNames(commonNames), lead: leadAsset(existing.assets)?.url ?? null, leadInfo: card(existing).leadInfo, created: false }
     }
     const [s, names] = await Promise.all([gbifSpecies(input.gbifKey), gbifVernacular(input.gbifKey)])
     if (!s) throw new Error(`GBIF has no taxon ${input.gbifKey}`)
@@ -198,7 +203,7 @@ export const taxonRouter = router({
       raced = true
       return ctx.db.taxon.findUniqueOrThrow({ where: { gbifKey: s.key }, select: ensureSelect })
     })
-    return { ...created, lead: created.assets[0]?.url ?? null, created: !raced }
+    return { id: created.id, gbifKey: created.gbifKey, sciName: created.sciName, tile: created.tile, contentAt: created.contentAt, commonNames: taxonNames(created.commonNames), lead: leadAsset(created.assets)?.url ?? null, leadInfo: card(created).leadInfo, created: !raced }
   }),
 
   /** The typed search, capped per identity (handoff 0009 Track B); the work is `backboneSearch`. `locale` is accepted for the client's cache key. */
