@@ -211,8 +211,8 @@ A coordinate-less wild sighting can fill discovery when its taxon is in the Germ
 selection, place text and legacy region are not promoted to location evidence: it cannot count as a
 German sighting or region visit. A sighting outside German land likewise contributes only to the
 catalogue-scoped discovery state, not to German sightings or visits. BKG land geometry decides
-containment; marine/coastal-water membership is deferred. Boundary ties use one deterministic
-registry lookup and are tested.
+containment; marine, coastal-water and standalone open-water membership are deferred. Boundary ties
+use one deterministic registry lookup and are tested.
 
 Germany progress returns its registry/catalogue version and denominator. A catalogue refresh can
 change the denominator and both discovered-in-catalogue and studied-in-catalogue counts; the
@@ -251,7 +251,10 @@ The migration is additive first and operates from an explicit, reviewed successo
 
 ## 🚫 Explicit deferrals
 
-- German coastal waters, offshore/marine regions and marine catalogue rules.
+- German coastal waters, offshore/marine regions and standalone open-water catalogue rules. This
+  explicitly includes the unassigned GBIF/GADM Bodensee water-body unit: freshwater observations
+  inside official land Kreis boundaries remain eligible, but open-lake records are not arbitrarily
+  assigned to one or several shore regions in this Epic.
 - Selectable countries or regions outside Germany, including Kyoto and Schagen.
 - A global progress surface, even though global taxon identity and user records remain reusable.
 - Complete prose, sounds, facts and interactions for every indexed taxon.
