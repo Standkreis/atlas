@@ -448,6 +448,14 @@
     "notFound": "We do not know this species yet.",
     "toAtlas": "To the Atlas",
     "noImage": "No image yet",
+    "gallery": {
+      "label": "Image gallery",
+      "image": "Image",
+      "previous": "Previous image",
+      "next": "Next image",
+      "position": "Image {current} of {total}",
+      "unavailable": "This image cannot be loaded right now."
+    },
     "origin": {
       "inat": "iNaturalist",
       "commons": "Wikimedia Commons",

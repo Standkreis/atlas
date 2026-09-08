@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { verifiedAt } from './OfflinePack'
+import { regionalPackUrls, verifiedAt } from './OfflinePack'
 
 const at = '2026-09-08T12:00:00.000Z'
 const urls = ['https://images.test/a.jpg', 'https://images.test/b.jpg']
@@ -15,6 +15,16 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('offline pack readiness', () => {
+  it('includes at most one lead per taxon regardless of detail-gallery cardinality', () => {
+    const gallery = Array.from({ length: 12 }, (_, index) => ({ url: `https://images.test/gallery-${index}.jpg` }))
+    expect(regionalPackUrls([
+      { leadSmall: 'https://images.test/lead-a-small.jpg', lead: gallery[0], assets: gallery },
+      { lead: { url: 'https://images.test/lead-b.jpg' }, assets: gallery },
+      { leadSmall: 'https://images.test/lead-a-small.jpg', assets: gallery },
+      { lead: null, assets: gallery },
+    ])).toEqual(['https://images.test/lead-a-small.jpg', 'https://images.test/lead-b.jpg'])
+  })
+
   it('requires every current image to be present and successful', async () => {
     expect(await verifiedAt('region', urls)).toBe(at)
     images.delete(urls[1]!)
