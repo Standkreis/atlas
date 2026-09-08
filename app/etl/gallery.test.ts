@@ -78,6 +78,7 @@ describe('licensed gallery selection', () => {
   it('accepts recognized Commons public-domain and jurisdictional BY-SA terms', () => {
     expect(selectGallery({ scientificName: 'Turdus merula', commons: commons({ licence: 'PD-old-100', licenceUrl: 'https://creativecommons.org/publicdomain/mark/1.0/' }) }).assets).toHaveLength(1)
     expect(selectGallery({ scientificName: 'Turdus merula', commons: commons({ licence: 'CC BY-SA 3.0 DE', licenceUrl: 'https://creativecommons.org/licenses/by-sa/3.0/de/' }) }).assets).toHaveLength(1)
+    expect(selectGallery({ scientificName: 'Turdus merula', commons: commons({ licence: 'PD-made-up', licenceUrl: 'https://creativecommons.org/publicdomain/mark/1.0/' }) }).rejections[0]?.reason).toBe('unsupported-licence')
   })
 
   it('rejects invalid stable source identities', () => {

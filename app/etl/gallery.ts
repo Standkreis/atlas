@@ -99,7 +99,11 @@ type CommonsLicence = { family: 'cc0' | 'public-domain' | 'cc-by' | 'cc-by-sa'; 
 export function commonsLicenceFamily(value: string): CommonsLicence | null {
   const licence = clean(value)
   if (/^CC0(?: 1\.0)?$/i.test(licence)) return { family: 'cc0', version: '1.0' }
-  if (/^(?:Public domain|Public domain mark|PD(?:-[a-z0-9 .+()-]+)?)$/i.test(licence)) return { family: 'public-domain' }
+  // Commons LicenseShortName values are provider data, not a trusted licence assertion.
+  // Accept the public-domain templates we understand and fail closed on invented PD-* labels.
+  if (/^(?:Public domain|Public domain mark|PD-(?:old(?:-(?:50|70|80|95|100))?(?:-expired)?|old-auto(?:-expired)?|US(?:Gov)?|Art|self|ineligible|textlogo|shape|chem|NASA))$/i.test(licence)) {
+    return { family: 'public-domain' }
+  }
   const cc = /^CC BY(-SA)? (1\.0|2\.0|2\.5|3\.0|4\.0)(?: ([a-z]{2,3}))?$/i.exec(licence)
   return cc ? { family: cc[1] ? 'cc-by-sa' : 'cc-by', version: cc[2], jurisdiction: cc[3]?.toLowerCase() } : null
 }
