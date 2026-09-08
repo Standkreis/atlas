@@ -11,15 +11,10 @@ import { Brand } from './Brand'
 import { Icon, SeenMark, StudiedMark } from './Marks'
 import { OnboardingSilhouette } from './OnboardingSilhouette'
 import { RegionPicker } from './RegionPicker'
+import { useOffline } from './OfflineBanner'
 
-// Four screens: choose a ready region intentionally, select groups, preview the set and review the promises.
-// Later steps have explicit back controls.
-// then the two promises (ours and yours) before the atlas. No skip, no account. Rendered over the shell (z-30) so the
-// bottom bar stays out of the first minute. "?change=1" is the drawer's Ändern: three screens (no promises), a way
-// back, the current tiles kept.
-//
-// Only regions the ETL has prepared (status ready) can be chosen (owner, 2026-09-05). dex.requestRegion stays in place
-// and unreachable from here until the loop is whole.
+// A quiet welcome precedes the four setup steps. Change mode starts directly at region discovery,
+// keeps the current groups and skips the promises. Only prepared regions can be selected.
 
 // The splash (handoff 0013 O2): the owner's licensed image (Adobe Stock, no credit line), local, behind every step.
 // The `photo` string stays in the JSON for a CC BY splash from the set one day. Focus on the lit moss, lower third.
@@ -28,7 +23,7 @@ const SPLASH = { src: '/splash.jpg', srcSet: '/splash-720.jpg 720w, /splash.jpg 
 const allTiles = Object.values(Tile) as Tile[]
 // The tiles screen's order: the big groups first, as findings 0006 C2 lists them, fish last.
 const tileOrder: Tile[] = ['bird', 'insect', 'plant', 'fungus', 'mammal', 'amphibian', 'reptile', 'fish']
-type Step = 'region' | 'tiles' | 'ready' | 'promises'
+type Step = 'welcome' | 'region' | 'tiles' | 'ready' | 'promises'
 type Region = { id: string; name: string; status: string }
 
 export function Onboarding() {
@@ -36,13 +31,18 @@ export function Onboarding() {
   const trpc = useTRPC()
   const router = useRouter()
   const progress = useQuery(trpc.identity.progress.queryOptions(undefined, { enabled: change }))
-  const [step, setStep] = useState<Step>('region')
+  const [step, setStep] = useState<Step>(() => change ? 'region' : 'welcome')
+  const screen = useRef<HTMLDivElement>(null)
   const [region, setRegion] = useState<Region | null>(null)
   const [tiles, setTiles] = useState<Set<Tile>>(() => new Set(allTiles))
   const of = change ? 3 : 4
   // In change mode the tiles screen starts from the current filter, not from "all on".
-  const chosen = (r: Region) => { setRegion(r); if (change && progress.data?.tiles.length) setTiles(new Set(progress.data.tiles)); setStep('tiles') }
+  const chosen = (r: Region) => { setRegion(r); if (change && !region && progress.data?.tiles.length) setTiles(new Set(progress.data.tiles)); setStep('tiles') }
   const go = () => router.replace('/')
+  useEffect(() => {
+    screen.current?.scrollTo(0, 0)
+    screen.current?.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true })
+  }, [step])
   // O4: the page's bottom edge is the splash's bottom edge, so Safari's bar blends with it. Only while this route shows.
   useEffect(() => {
     const els = [document.documentElement, document.body]
@@ -52,14 +52,10 @@ export function Onboarding() {
   }, [])
   return (
     <div className="fixed inset-0 z-30 bg-night-deep text-white" data-testid={`onboarding-${step}`}>
-      {/* The image once, behind every step; the content scrolls over it under the scrim. First paint is not blocked: async decode, high priority. */}
-      <div className="absolute inset-0" aria-hidden>
-        {/* eslint-disable-next-line @next/next/no-img-element -- local image, static export, no optimiser */}
-        <img src={SPLASH.src} srcSet={SPLASH.srcSet} sizes="100vw" alt="" fetchPriority="high" decoding="async" className="h-full w-full object-cover" style={{ objectPosition: SPLASH.position }} data-testid="splash" />
-        <div className="absolute inset-0 bg-gradient-to-b from-night/15 via-night/60 via-45% to-night-deep to-90%" />
-      </div>
-      <div className="relative h-full overflow-y-auto">
-        {step === 'region' && <RegionScreen change={change} initialRegion={region} onChosen={chosen} />}
+      <Splash />
+      <div ref={screen} className="relative h-full overflow-y-auto">
+        {step === 'welcome' && <WelcomeScreen onNext={() => setStep('region')} />}
+        {step === 'region' && <RegionScreen change={change} initialRegion={region} onChosen={chosen} onBack={() => setStep('welcome')} of={of} canContinue={!change || !!progress.data} progressError={change && progress.isError} onRetry={() => void progress.refetch()} />}
         {step === 'tiles' && region && <TilesScreen onBack={() => setStep('region')} of={of} region={region} tiles={tiles} setTiles={setTiles} onNext={() => setStep('ready')} />}
         {step === 'ready' && region && <ReadyScreen onBack={() => setStep('tiles')} of={of} region={region} tiles={tiles} onNext={change ? go : () => setStep('promises')} />}
         {step === 'promises' && <PromisesScreen onBack={() => setStep('ready')} of={of} onNext={go} />}
@@ -68,9 +64,39 @@ export function Onboarding() {
   )
 }
 
+// The static shell paints the same welcome while the URL-dependent change mode hydrates.
+export function OnboardingFallback() {
+  return <div className="fixed inset-0 z-30 bg-night-deep text-white"><Splash /><div className="relative h-full overflow-y-auto"><WelcomeScreen /></div></div>
+}
+
+function Splash() {
+  return <div className="absolute inset-0" aria-hidden>
+    {/* eslint-disable-next-line @next/next/no-img-element -- local image, static export, no optimiser */}
+    <img src={SPLASH.src} srcSet={SPLASH.srcSet} sizes="100vw" alt="" fetchPriority="high" decoding="async" className="h-full w-full object-cover" style={{ objectPosition: SPLASH.position }} data-testid="splash" />
+    <div className="absolute inset-0 bg-gradient-to-b from-night/15 via-night/60 via-45% to-night-deep to-90%" />
+  </div>
+}
+
+function WelcomeScreen({ onNext }: { onNext?: () => void }) {
+  const t = useTranslations('onboarding')
+  return (
+    <div className="mx-auto flex min-h-full w-full max-w-[520px] flex-col px-6 pt-[max(2rem,env(safe-area-inset-top))]">
+      <Brand label={t('eyebrow')} inverse />
+      <div className="flex flex-1 flex-col justify-center py-10">
+        <h1 tabIndex={-1} className="text-[clamp(2.25rem,6vw,3rem)] leading-[1.08] font-bold tracking-tight outline-none">{t('headline')}</h1>
+        <p className="mt-5 text-[20px] leading-snug text-white/85">{t('promise')}</p>
+      </div>
+      <div className="pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <p className="mb-4 text-[15px] leading-snug text-white/75">{t('welcomeHint')}</p>
+        <button type="button" onClick={onNext} disabled={!onNext} data-testid="welcome-next" className="min-h-14 w-full rounded-2xl bg-moss px-4 py-3 text-[18px] font-bold text-white">{t('welcomeNext')}</button>
+      </div>
+    </div>
+  )
+}
+
 // ── 1 · Region ────────────────────────────────────────────────────────────────
 
-function RegionScreen({ change, initialRegion, onChosen }: { change: boolean; initialRegion: Region | null; onChosen: (r: Region) => void }) {
+function RegionScreen({ change, initialRegion, onChosen, onBack, of, canContinue, progressError, onRetry }: { change: boolean; initialRegion: Region | null; onChosen: (r: Region) => void; onBack: () => void; of: number; canContinue: boolean; progressError: boolean; onRetry: () => void }) {
   const t = useTranslations('onboarding')
   const trpc = useTRPC()
   const router = useRouter()
@@ -80,13 +106,9 @@ function RegionScreen({ change, initialRegion, onChosen }: { change: boolean; in
   // The picker never renders this list wholesale; it is only searched when the canonical registry is unavailable.
   const regions = useQuery(trpc.dex.regions.queryOptions())
   return (
-    <div className="relative mx-auto flex min-h-full w-full max-w-[520px] flex-col px-6 pt-[max(2rem,env(safe-area-inset-top))]">
-      {change && <button type="button" onClick={() => router.back()} data-testid="cancel" className="min-h-11 self-end px-3 text-[15px] font-semibold">{t('cancel')}</button>}
-      <div className="flex-1 pt-[6vh]">
-        <Brand label={t('eyebrow')} inverse />
-        <h1 className="mt-5 text-[34px] leading-[1.1] font-bold tracking-tight">{t('headline')}</h1>
-        <p className="mt-3 text-[17px] leading-snug text-white/85">{t('promise')}</p>
-        <div className="mt-6">
+    <StepFrame onBack={change ? () => router.back() : onBack} backLabel={change ? t('cancel') : undefined} backTestId={change ? 'cancel' : undefined} step={1} of={of} title={t('regionTitle')} body={t('regionBody')}
+      action={<button type="button" disabled={!selected || !canContinue} data-testid="region-next" onClick={() => selected && onChosen(selected)} className="h-14 w-full rounded-2xl bg-moss text-[18px] font-bold text-white disabled:opacity-60">{t('chooseRegion')}</button>}>
+        <div className="mt-5">
           <RegionPicker
             selectedId={picked}
             fallbackRegions={regions.data ?? []}
@@ -97,11 +119,8 @@ function RegionScreen({ change, initialRegion, onChosen }: { change: boolean; in
             }}
           />
         </div>
-      </div>
-      <div className="sticky bottom-0 -mx-6 mt-4 bg-gradient-to-t from-night-deep from-70% to-transparent px-6 pt-5" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
-        <button type="button" disabled={!selected} data-testid="region-next" onClick={() => selected && onChosen(selected)} className="h-14 w-full rounded-2xl bg-moss text-[18px] font-bold text-white disabled:opacity-60">{t('chooseRegion')}</button>
-      </div>
-    </div>
+        {progressError && <LoadError onRetry={onRetry} />}
+    </StepFrame>
   )
 }
 
@@ -112,6 +131,7 @@ function TilesScreen({ onBack, of, region, tiles, setTiles, onNext }: { onBack: 
   const tt = useTranslations('dex.tile')
   const trpc = useTRPC()
   const qc = useQueryClient()
+  const offline = useOffline()
   const ready = region.status === 'ready'
   const set = useQuery(trpc.dex.set.queryOptions({ regionId: region.id, tiles: allTiles, nowOnly: false }, { enabled: ready }))
   const counts = new Map(set.data?.tiles.map((x) => [x.tile, x.count]) ?? [])
@@ -126,27 +146,31 @@ function TilesScreen({ onBack, of, region, tiles, setTiles, onNext }: { onBack: 
   const chosen = shown.filter((x) => tiles.has(x))
 
   return (
-    <StepFrame onBack={onBack} step={2} of={of} title={t('tilesTitle')} body={t('tilesBody')}
-      action={<button type="button" disabled={!chosen.length || setFilter.isPending} data-testid="tiles-next" onClick={() => setFilter.mutate({ regionId: region.id, regionIds, tiles: chosen, nowOnly: false })} className="h-14 w-full rounded-2xl bg-moss text-[18px] font-bold text-white disabled:opacity-50">{t('next')}</button>}>
-      <ul className="mt-5 grid grid-cols-2 gap-3" data-testid="tiles">
+    <StepFrame onBack={onBack} backDisabled={setFilter.isPending} step={2} of={of} title={t('tilesTitle')} body={t('tilesBody')}
+      action={<button type="button" disabled={!chosen.length || !set.data || !me.data || setFilter.isPending || offline} data-testid="tiles-next" onClick={() => setFilter.mutate({ regionId: region.id, regionIds, tiles: chosen, nowOnly: false })} className="h-14 w-full rounded-2xl bg-moss text-[18px] font-bold text-white disabled:opacity-50">{setFilter.isPending ? t('working') : t('next')}</button>}>
+      <p className="mt-4 text-[15px] font-semibold" data-testid="chosen-region">{region.name}</p>
+      {(!set.data || !me.data) && !set.isError && !me.isError && <p role="status" className="mt-3 text-white/80">{offline ? t('offlineSetup') : t('working')}</p>}
+      {(set.isError || (set.isSuccess && !set.data)) && <LoadError onRetry={() => void set.refetch()} />}
+      {me.isError && <LoadError onRetry={() => void me.refetch()} />}
+      <ul className="mt-3 grid grid-cols-2 gap-3" data-testid="tiles" aria-busy={set.isLoading}>
         {shown.map((x) => {
           const on = tiles.has(x)
           const n = counts.get(x)
           return (
             <li key={x} className="relative">
               {/* Multi-select mirrors the region choice: its checkbox leads on the left and the whole card is clickable. */}
-              <label className={`motion-toggle flex w-full cursor-pointer items-center gap-3 rounded-2xl p-3 text-left ${on ? 'bg-white text-night' : 'bg-white/10 text-white/60'}`}>
+              <label className={`motion-toggle flex h-full w-full cursor-pointer flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl p-3 text-left ${on ? 'bg-white text-night' : 'bg-white/10 text-white/60'}`}>
                 <input type="checkbox" checked={on} onChange={() => toggle(x)} data-tile={x} className="peer sr-only" />
                 <span aria-hidden className={`motion-toggle flex size-6 shrink-0 items-center justify-center rounded-md border-2 peer-focus-visible:ring-2 peer-focus-visible:ring-sky peer-focus-visible:ring-offset-2 ${on ? 'border-sky bg-white text-sky' : 'border-white/45 bg-transparent text-transparent'}`}>
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M5 12.5l4.5 4.5L19 7.5" />
                   </svg>
                 </span>
-                <span className="min-w-0 flex-1">
+                <span className="order-3 w-full min-w-0">
                   <span className="block text-[15px] leading-tight font-bold [overflow-wrap:anywhere]">{tt(x)}</span>
                   <span className={`mt-1 block text-[13px] leading-tight ${on ? 'text-ink-soft' : ''}`}>{n === undefined ? (ready ? '' : t('countsPending')) : t('speciesHere', { n })}</span>
                 </span>
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-tile" aria-hidden>
+                <span className="order-2 ml-auto flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-tile" aria-hidden>
                   <span className={`flex h-full w-full items-center justify-center overflow-hidden rounded-full ${on ? 'bg-tile' : 'bg-white/10'}`}>
                     {/* eslint-disable-next-line @next/next/no-img-element -- pre-optimized local 3x thumbnails, also served by the static export */}
                     <img src={`/onboarding/${x}.webp`} width={144} height={144} alt="" decoding="async" className={`motion-toggle h-full w-full object-cover ${on ? '' : 'opacity-45 grayscale'}`} />
@@ -157,7 +181,8 @@ function TilesScreen({ onBack, of, region, tiles, setTiles, onNext }: { onBack: 
           )
         })}
       </ul>
-      {setFilter.isError && <p className="mt-3 text-[14px] text-[#f0a030]">{t('error')}</p>}
+      {offline && set.data && <p role="status" className="mt-3 text-white/85">{t('offlineSetup')}</p>}
+      {setFilter.isError && <p role="alert" className="mt-3 text-[15px] text-[#f0a030]">{t('saveError')}</p>}
     </StepFrame>
   )
 }
@@ -184,11 +209,12 @@ function ReadyScreen({ onBack, of, region, tiles, onNext }: { onBack: () => void
   const last = of === 3
 
   return (
-    <StepFrame onBack={onBack} step={3} of={of} title={t('readyTitle')}
+    <StepFrame onBack={onBack} step={3} of={of} title={set.data ? t('readyTitle') : t('previewTitle')}
       body={ready && set.data
         ? t.rich('readyBody', { n: now.length, total: set.data.setSize, month, region: region.name, b: (c) => <strong className="text-white" data-testid="number">{c}</strong> })
-        : status === 'failed' ? t('readyFailed', { region: region.name }) : t('readyPreparing', { region: region.name })}
-      action={<button type="button" data-testid={last ? 'go' : 'ready-next'} onClick={onNext} className="h-14 w-full rounded-2xl bg-moss text-[18px] font-bold text-white">{last ? t('go') : t('next')}</button>}>
+        : set.isError || set.isSuccess ? null : status === 'failed' ? t('readyFailed', { region: region.name }) : t('working')}
+      action={<button type="button" disabled={!set.data} data-testid={last ? 'go' : 'ready-next'} onClick={onNext} className="h-14 w-full rounded-2xl bg-moss text-[18px] font-bold text-white disabled:opacity-50">{last ? t('go') : t('next')}</button>}>
+      {(set.isError || (set.isSuccess && !set.data)) && <LoadError onRetry={() => void set.refetch()} />}
       <div className="mt-5 flex flex-col gap-4" data-testid="preview">
         {/* Studying is the usual first step: learn what to notice, then discover it outdoors. */}
         <DemoCard demo={demo} state="studied" title={t('axisStudyTitle')} text={t('axisStudy', { action: species('study.mark') })} />
@@ -264,16 +290,14 @@ function PromisesScreen({ onBack, of, onNext }: { onBack: () => void; of: number
   )
 }
 
-// One frame for steps 2–4 over the splash: white on the scrim, theme-stable tokens only; the action sticks to the
+// One frame for setup steps over the splash: white on the scrim, theme-stable tokens only; the action sticks to the
 // bottom on a fade to the page's bottom colour so the list scrolls under it.
-function StepFrame({ onBack, step, of, title, body, children, action }: { onBack: () => void; step: number; of: number; title: string; body: React.ReactNode; children: React.ReactNode; action: React.ReactNode }) {
+function StepFrame({ onBack, backLabel, backTestId = 'onboarding-back', backDisabled = false, step, of, title, body, children, action }: { onBack: () => void; backLabel?: string; backTestId?: string; backDisabled?: boolean; step: number; of: number; title: string; body: React.ReactNode; children: React.ReactNode; action: React.ReactNode }) {
   const t = useTranslations('onboarding')
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => { ref.current?.scrollIntoView() }, [])
   return (
-    <div ref={ref} className="mx-auto flex min-h-full max-w-[520px] flex-col px-5" style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top))' }}>
-      <div className="flex items-center justify-between text-[15px] text-white/85"><button type="button" onClick={onBack} data-testid="onboarding-back" className="min-h-11 pr-4 underline">{t('back')}</button><span>{t('stepOf', { step, of })}</span></div>
-      <h1 className="mt-1 text-[32px] leading-[1.1] font-bold tracking-tight">{title}</h1>
+    <div className="mx-auto flex min-h-full max-w-[520px] flex-col px-5" style={{ paddingTop: 'calc(1.25rem + env(safe-area-inset-top))' }}>
+      <div className="flex items-center justify-between text-[15px] text-white/85"><button type="button" disabled={backDisabled} onClick={onBack} data-testid={backTestId} className="min-h-11 pr-4 underline disabled:opacity-50">{backLabel ?? t('back')}</button><span>{t('stepOf', { step, of })}</span></div>
+      <h1 tabIndex={-1} className="mt-1 text-[32px] leading-[1.1] font-bold tracking-tight outline-none">{title}</h1>
       {body && <p className="mt-2 text-[18px] leading-snug text-white/80">{body}</p>}
       <div className="flex-1">{children}</div>
       {/* The safe-area padding lives in the sticky footer, not the container: `bottom: 0` ignores the container's padding,
@@ -281,4 +305,10 @@ function StepFrame({ onBack, step, of, title, body, children, action }: { onBack
       <div className="sticky bottom-0 -mx-5 mt-6 bg-gradient-to-t from-night-deep from-70% to-transparent px-5 pt-6" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>{action}</div>
     </div>
   )
+}
+
+function LoadError({ onRetry }: { onRetry: () => void }) {
+  const t = useTranslations('onboarding')
+  const tc = useTranslations('common')
+  return <p role="alert" className="mt-3 text-[15px] text-white/85">{t('loadError')} <button type="button" onClick={onRetry} className="min-h-11 px-2 font-semibold underline">{tc('retry')}</button></p>
 }
