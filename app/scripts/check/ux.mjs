@@ -184,9 +184,14 @@ try {
   assert.equal(await evaluate(`${selector('[data-testid=germany-studied] dd')}.textContent.trim()`), '0', 'studied is separately labelled')
   assert.match(await evaluate(`${selector('[data-testid=germany-denominator]')}.textContent`), locale === 'de' ? /Arten in deutschen Regionalatlanten/ : /species in German regional atlases/, 'denominator is qualified')
   assert.equal(requests.some(({ url }) => /taxon\.page|sighting\.photos|gallery|asset/i.test(url)), false, 'summary requests no gallery or image payload')
-  assert.equal(await evaluate(`document.documentElement.scrollWidth <= document.documentElement.clientWidth`), true, 'phone profile has no horizontal overflow')
-  await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
-  assert.equal(await evaluate(`document.documentElement.scrollWidth <= document.documentElement.clientWidth && ${selector('[data-testid=germany-progress]')}.getBoundingClientRect().width <= 520`), true, 'desktop profile stays concise and bounded')
+  for (const [width, height, mobile] of [[320, 568, true], [390, 844, true], [1280, 900, false]]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile })
+    assert.equal(await evaluate(`document.documentElement.scrollWidth <= innerWidth && ${selector('[data-testid=germany-progress]')}.getBoundingClientRect().width <= Math.min(innerWidth, 520)`), true, `Profile stays bounded at ${width}x${height}`)
+    if (evidenceDir) {
+      const { data } = await send('Page.captureScreenshot', { format: 'png' })
+      writeFileSync(join(evidenceDir, `${locale}-germany-progress-${width}.png`), Buffer.from(data, 'base64'))
+    }
+  }
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
   await click('[data-testid=tab-dex]')
   await wait(selector('[data-testid=grid]'))
