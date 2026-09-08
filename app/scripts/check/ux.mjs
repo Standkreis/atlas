@@ -3,7 +3,7 @@
 // CHROME=/path/to/chrome supports Linux CI. No paid API calls or external messages.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -35,6 +35,12 @@ try {
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data), task = pending.get(data.id)
     if (data.method === 'Network.requestWillBeSent') requests.push({ url: data.params.request.url, type: data.params.type })
+    if (data.method === 'Fetch.requestPaused') {
+      // Validated reference metadata points at this reserved test host. Serve local fixture bytes;
+      // the browser never contacts an upstream image API during the regression check.
+      const body = readFileSync(new URL('../../public/onboarding/bird.webp', import.meta.url)).toString('base64')
+      void send('Fetch.fulfillRequest', { requestId: data.params.requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'image/webp' }, { name: 'Access-Control-Allow-Origin', value: '*' }], body })
+    }
     if (task) { pending.delete(data.id); if (data.error) task.reject(new Error(JSON.stringify(data.error))); else task.resolve(data.result) }
   }
   const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => { const key = ++id; pending.set(key, { resolve, reject }); ws.send(JSON.stringify({ id: key, method, params, sessionId })) })
@@ -60,6 +66,7 @@ try {
       await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile })
       assert.equal(await evaluate(`(() => { const r = ${selector(`[data-testid=${testId}]`)}.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && document.documentElement.scrollWidth <= innerWidth })()`), true, `${testId} reachable at ${width}x${height}`)
       if (evidenceDir) {
+        await evaluate(`Promise.all([...document.images].map(image => image.decode().catch(() => {}))).then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
         const { data } = await send('Page.captureScreenshot', { format: 'png' })
         writeFileSync(join(evidenceDir, `${locale}-${testId}-${width}.png`), Buffer.from(data, 'base64'))
       }
@@ -68,6 +75,7 @@ try {
   }
   await send('Page.enable')
   await send('Network.enable')
+  await send('Fetch.enable', { patterns: [{ urlPattern: 'https://atlas-fixture.invalid/*' }] })
   await send('Browser.setPermission', { permission: { name: 'geolocation' }, setting: 'denied', origin: base })
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `
     window.__dexHydrationErrors = []
