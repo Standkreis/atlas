@@ -1,0 +1,20 @@
+name: harness
+on:
+  push:
+    paths: ['AGENTS.md', 'CLAUDE.md', 'app/AGENTS.md', 'app/CLAUDE.md', '.agents/**', '.codex/**', 'docs/agents/**', 'scripts/**', '.github/workflows/harness.yml']
+  pull_request:
+    paths: ['AGENTS.md', 'CLAUDE.md', 'app/AGENTS.md', 'app/CLAUDE.md', '.agents/**', '.codex/**', 'docs/agents/**', 'scripts/**', '.github/workflows/harness.yml']
+permissions:
+  contents: read
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      - run: python3 scripts/check-harness.py
+      - run: python3 -m unittest discover -s scripts/harness/tests -v
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
