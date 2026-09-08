@@ -104,30 +104,190 @@ enum Tile {
 }
 
 enum RegionStatus {
+  unprepared
   queued
   ready
   failed
 }
 
-/// One GADM level-2 polygon (Landkreis, city, county). No grid, no geometry column (record 0002 E1).
+/// One application-facing region. Legacy rows retain their UUID and may have only a GADM bridge;
+/// versioned registries attach stable product identity and composite source/query units additively.
 model Region {
-  id          String       @id @default(uuid())
-  /// GBIF's gadmGid, e.g. "DEU.11.19_1".
-  gadmGid     String       @unique
-  name        String
+  id           String       @id @default(uuid())
+  /// Legacy single-query bridge. New registry regions use RegionQueryUnit rows instead.
+  gadmGid      String?      @unique
+  /// Stable public identity such as `de-krg-07340000`; null until a legacy row is mapped.
+  canonicalKey String?      @unique
+  /// ISO 3166-1 alpha-2 code; null on unmapped legacy rows.
+  countryCode  String?
+  name         String
   /// country › state, e.g. "Deutschland › Rheinland-Pfalz".
-  higher      String
+  higher       String
   /// All observations per month, 12 entries; the denominator of every month share.
-  monthTotals Int[]        @default([])
-  status      RegionStatus @default(queued)
+  monthTotals  Int[]        @default([])
+  status       RegionStatus @default(queued)
   /// The last failed facet's message; null when ready.
-  error       String?
-  refreshedAt DateTime?
-  createdAt   DateTime     @default(now())
+  error        String?
+  refreshedAt  DateTime?
+  createdAt    DateTime     @default(now())
 
-  plausibility Plausibility[]
-  lookalikes   Lookalike[]
-  filters      Filter[]
+  plausibility    Plausibility[]
+  lookalikes      Lookalike[]
+  filters         Filter[]
+  registryEntries RegionRegistryEntry[]
+
+  @@index([countryCode])
+}
+
+enum RegionRegistrySourceRole {
+  regions
+  kreisUnits
+  queryMappings
+}
+
+enum RegionAliasKind {
+  displayName
+  sourceName
+  sourceUnit
+  state
+  variant
+}
+
+enum RegionQueryProvider {
+  gbifGadm
+}
+
+enum RegionQueryReviewStatus {
+  pending
+  verified
+  rejected
+}
+
+/// One immutable, importable snapshot of a country's official region registry.
+/// A raw partial unique index in the migration permits at most one active version per country.
+model RegionRegistryVersion {
+  id                  String    @id @default(uuid())
+  countryCode         String
+  version             String
+  artifactSha256      String
+  expectedRegions     Int
+  expectedSourceUnits Int
+  active              Boolean   @default(false)
+  importedAt          DateTime  @default(now())
+  activatedAt         DateTime?
+
+  sources     RegionRegistrySource[]
+  entries     RegionRegistryEntry[]
+  sourceUnits RegionSourceUnit[]
+  queryUnits  RegionQueryUnit[]
+
+  @@unique([countryCode, version])
+  @@index([countryCode, active])
+}
+
+/// A pinned input and its complete provenance/licence record within one registry version.
+model RegionRegistrySource {
+  id                String                   @id @default(uuid())
+  registryVersion   RegionRegistryVersion    @relation(fields: [registryVersionId], references: [id], onDelete: Restrict)
+  registryVersionId String
+  role              RegionRegistrySourceRole
+  name              String
+  url               String
+  topicDate         DateTime                 @db.Date
+  downloadedAt      DateTime
+  sha256            String
+  licenceId         String
+  licenceUrl        String?
+  attribution       String
+  metadata          Json?
+
+  entries     RegionRegistryEntry[]
+  sourceUnits RegionSourceUnit[]
+  queryUnits  RegionQueryUnit[]
+
+  @@unique([id, registryVersionId])
+  @@unique([registryVersionId, role])
+}
+
+/// A selectable region as it appears in one registry version.
+model RegionRegistryEntry {
+  id                String                @id @default(uuid())
+  registryVersion   RegionRegistryVersion @relation(fields: [registryVersionId], references: [id], onDelete: Restrict)
+  registryVersionId String
+  source            RegionRegistrySource  @relation(fields: [sourceId, registryVersionId], references: [id, registryVersionId], onDelete: Restrict)
+  sourceId          String
+  region            Region                @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  regionId          String
+  sourceCode        String
+  sourceName        String
+  displayName       String
+  stateCode         String
+  stateName         String
+
+  aliases     RegionRegistryAlias[]
+  sourceUnits RegionSourceUnit[]
+
+  @@unique([id, registryVersionId])
+  @@unique([registryVersionId, sourceCode])
+  @@unique([registryVersionId, regionId])
+  @@index([sourceId])
+}
+
+/// One normalized search term for a versioned selectable region.
+model RegionRegistryAlias {
+  id              String              @id @default(uuid())
+  registryEntry   RegionRegistryEntry @relation(fields: [registryEntryId], references: [id], onDelete: Restrict)
+  registryEntryId String
+  kind            RegionAliasKind
+  name            String
+  normalizedName  String
+
+  @@unique([registryEntryId, normalizedName])
+  @@index([normalizedName])
+}
+
+/// One authoritative constituent Kreis assigned to exactly one region in a registry version.
+model RegionSourceUnit {
+  id                String                @id @default(uuid())
+  registryVersion   RegionRegistryVersion @relation(fields: [registryVersionId], references: [id], onDelete: Restrict)
+  registryVersionId String
+  registryEntry     RegionRegistryEntry   @relation(fields: [registryEntryId, registryVersionId], references: [id, registryVersionId], onDelete: Restrict)
+  registryEntryId   String
+  source            RegionRegistrySource  @relation(fields: [sourceId, registryVersionId], references: [id, registryVersionId], onDelete: Restrict)
+  sourceId          String
+  canonicalKey      String
+  sourceCode        String
+  name              String
+  kind              String
+
+  queryUnits RegionQueryUnit[]
+
+  @@unique([id, registryVersionId])
+  @@unique([registryVersionId, canonicalKey])
+  @@unique([registryVersionId, sourceCode])
+  @@index([registryEntryId])
+  @@index([sourceId])
+}
+
+/// One provider-specific occurrence query unit mapped to a constituent Kreis.
+model RegionQueryUnit {
+  id                String                  @id @default(uuid())
+  registryVersion   RegionRegistryVersion   @relation(fields: [registryVersionId], references: [id], onDelete: Restrict)
+  registryVersionId String
+  sourceUnit        RegionSourceUnit        @relation(fields: [sourceUnitId, registryVersionId], references: [id, registryVersionId], onDelete: Restrict)
+  sourceUnitId      String
+  source            RegionRegistrySource    @relation(fields: [sourceId, registryVersionId], references: [id, registryVersionId], onDelete: Restrict)
+  sourceId          String
+  provider          RegionQueryProvider
+  providerVersion   String
+  providerKey       String
+  reviewStatus      RegionQueryReviewStatus @default(pending)
+  reviewedAt        DateTime?
+  evidence          Json
+
+  @@unique([registryVersionId, provider, providerVersion, providerKey], map: "RegionQueryUnit_registry_provider_key")
+  @@index([sourceUnitId])
+  @@index([sourceId])
 }
 
 /// One row per GBIF backbone taxon the app has touched: set members and species logged outside every set (E13).

@@ -15,7 +15,7 @@ export const dataRouter = router({
     const id = ctx.identity.id
     const [devices, filter, sightings, studies] = await Promise.all([
       ctx.db.passkey.count({ where: { identityId: id } }),
-      ctx.db.filter.findUnique({ where: { identityId: id }, include: { region: { select: { gadmGid: true, name: true } } } }),
+      ctx.db.filter.findUnique({ where: { identityId: id }, include: { region: { select: { canonicalKey: true, gadmGid: true, name: true } } } }),
       ctx.db.sighting.findMany({
         where: { identityId: id },
         orderBy: { at: 'asc' },
@@ -35,7 +35,7 @@ export const dataRouter = router({
         displayName: ctx.identity.displayName,
         avatarUrl: ctx.identity.avatarAssetId ? photoUrl(ctx.identity.avatarAssetId) : null,
       },
-      filter: filter ? { region: filter.region, regionId: filter.regionId, regionIds: filter.regionIds, regions: await ctx.db.region.findMany({ where: { id: { in: filter.regionIds } }, select: { id: true, gadmGid: true, name: true } }), tiles: filter.tiles, nowOnly: filter.nowOnly } : null,
+      filter: filter ? { region: filter.region, regionId: filter.regionId, regionIds: filter.regionIds, regions: await ctx.db.region.findMany({ where: { id: { in: filter.regionIds } }, select: { id: true, canonicalKey: true, gadmGid: true, name: true } }), tiles: filter.tiles, nowOnly: filter.nowOnly } : null,
       sightings: sightings.map((s) => ({
         id: s.id,
         at: s.at,

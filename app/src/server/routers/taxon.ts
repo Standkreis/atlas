@@ -164,7 +164,7 @@ export const taxonRouter = router({
   mapCentre: publicProcedure.input(z.object({ regionId: z.string().uuid() })).query(async ({ ctx, input }) => {
     const region = await ctx.db.region.findUnique({ where: { id: input.regionId }, select: { gadmGid: true, name: true } })
     if (!region) return null
-    const centre = await regionCentre(region.gadmGid)
+    const centre = region.gadmGid ? await regionCentre(region.gadmGid) : null
     return centre && { name: region.name, ...centre }
   }),
 

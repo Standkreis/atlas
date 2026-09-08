@@ -4,6 +4,7 @@ TypeScript on `tsx`, the app's Prisma client, and `ffmpeg-static` (dev dependenc
 
 | Command | Does | Calls |
 | --- | --- | --- |
+| `npm run etl -- registry --mapping /absolute/path/to/reviewed-mapping.json` | Validates and imports the source-controlled BKG/BBSR snapshot as an inactive registry: 362 Kreisregionen, 400 land Kreis units, aliases and source/licence records. The separately reviewed local mapping supplies 402 GBIF/GADM query ids and is persisted with its source digests and review evidence. New application `Region` rows stay `unprepared`; legacy Mainz-Bingen and Südwestpfalz UUIDs are reused through explicit successor ids. The whole import is transactional and an identical rerun verifies rather than rewrites it | 0 |
 | `npm run etl -- region "Mainz-Bingen"` (or a gid `DEU.11.19_1`) `[--month 9]` | GADM search → `Region` · 13 GBIF facets (year + 12 months, 2016–2026, observation records) → cut per tile (90 %, floor 10) → `Taxon`, `Plausibility` (shares, peak, words), `Lookalike` (same genus in the set). One transaction; a failed facet leaves the region `failed` | ≈ 1,600 GBIF, 30 s cold, 1 s warm |
 | `npm run etl -- refresh [--days 30]` | The region job again for every region older than `days` | as above per region |
 | `npm run etl -- content [--region <name>] [--purge <gbifKey>] [--limit n]` | For every taxon in a set (or with a sighting) and `contentAt` null: GBIF `species/{key}` → Wikidata batch (P846, then exact name; rank check) → image ladder (iNat default photo if licensed → Commons P18 unless specimen/plate/larva/egg/map → next licensed iNat photo → none) → Wikipedia `page/summary` de → en → AnAge (P4024) → GloBI edges folded to six kinds, in-set targets first, ≤ 200 per species; out-of-set targets become `Taxon` rows without plausibility. One transaction per taxon, `contentAt` set; a failing taxon logs and the run continues. `--purge` re-fetches one taxon | ≈ 8 per species + 1 GBIF match per new target; one region ≈ 20 min, bounded by iNaturalist at 1/s |
@@ -16,6 +17,8 @@ TypeScript on `tsx`, the app's Prisma client, and `ffmpeg-static` (dev dependenc
 
 | File | Holds |
 | --- | --- |
+| `registry/germany-regions.json` · `registry/registry.ts` | Pinned BKG/BBSR region and Kreis-unit snapshot, complete source/licence metadata and strict invariant validation. No GADM ids, geometry or crosswalk are redistributed in Git |
+| `registry-mapping.ts` · `registry-import.ts` | Strict local-only GBIF/GADM mapping validation and the transactional, idempotent Postgres importer. Mapping provenance and reviewed query ids live only in the operational database |
 | `fetch.ts` | `get` with cache, per-host budget (`ETL_BUDGET`, 50,000/run), gaps as reserved slots (iNat 1,100 ms, Wikidata and GloBI 300 ms, else 100 ms; GBIF none but 6 in flight), 5 attempts with backoff, one User-Agent · `requests()` counters (`misses` = network calls) · `pool` · `q` |
 | `gbif.ts` | `resolveRegion`, `gbifFacet`, `gbifSpecies`, `gbifMatch`, the occurrence window (`ETL_YEARS`, default `2016,2026`) |
 | `rules.ts` | Pure: `tileOf`, `cutTile`, `monthShares` (per 100,000), `words`, `nowRatio`, `isNow`. Shared with the read routers |
@@ -36,6 +39,22 @@ TypeScript on `tsx`, the app's Prisma client, and `ffmpeg-static` (dev dependenc
 | `data/` | The four vertebrate trait datasets, 8.5 MB, with their licences ([README](data/README.md)) |
 | `cli.ts` | Argument parsing |
 | `fixtures/` | `fixture-mainz-bingen.json` (929), `fixture-kyoto.json` (303): the grill's sets, the seed's input |
+
+### German registry import
+
+The committed artifact in `registry/` is BKG-only and reproducible under `dl-de/by-2-0`. Its file
+digest is asserted in tests. The mapping argument is a separately reviewed, local JSON document
+with one sorted row per `de-krs-<AGS>`, a sorted array of GBIF-supported GADM ids, the pinned GADM
+and GBIF evidence digests, resolution/review timestamps, largest-overlap method and explicit
+exclusions. The importer requires exact coverage of every committed Kreis and rejects duplicate
+query ids. Do not commit or expose that national mapping: GADM permits the current non-commercial
+server-side use but not redistribution.
+
+The registry is imported inactive. New region rows are `unprepared`, so neither `refresh`, the
+hourly sweep nor the existing region list can start 362 cold jobs. Issue #17 adds composite
+calculation; later catalogue activation/cutover issues decide when ready German regions become
+selectable. Re-running the same artifact and mapping verifies immutable metadata, membership,
+aliases and counts without changing import timestamps.
 
 Why the region job precedes the content job: a species enters a set first, content follows. GloBI targets outside every set get a `Taxon` row (tile from GBIF's ranks, `contentAt` null) and are never picked up by the content job unless they gain a plausibility row or a sighting (record 0002 E13).
 
