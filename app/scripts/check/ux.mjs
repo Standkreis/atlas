@@ -3,13 +3,15 @@
 // CHROME=/path/to/chrome supports Linux CI. No paid API calls or external messages.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const [base = 'http://localhost:3002', locale = 'en'] = process.argv.slice(2)
 if (!['localhost', '127.0.0.1'].includes(new URL(base).hostname)) throw new Error('Run UX checks against a local disposable server only')
 const profile = mkdtempSync(join(tmpdir(), 'dex-ux-'))
+const evidenceDir = process.env.BROWSER_EVIDENCE_DIR
+if (evidenceDir) mkdirSync(evidenceDir, { recursive: true })
 const port = 9300 + Math.floor(Math.random() * 500)
 const chrome = process.env.CHROME ?? (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome')
 const proc = spawn(chrome, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
@@ -29,8 +31,10 @@ try {
   await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject })
   let id = 0
   const pending = new Map()
+  const requests = []
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data), task = pending.get(data.id)
+    if (data.method === 'Network.requestWillBeSent') requests.push({ url: data.params.request.url, type: data.params.type })
     if (task) { pending.delete(data.id); if (data.error) task.reject(new Error(JSON.stringify(data.error))); else task.resolve(data.result) }
   }
   const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => { const key = ++id; pending.set(key, { resolve, reject }); ws.send(JSON.stringify({ id: key, method, params, sessionId })) })
@@ -51,7 +55,19 @@ try {
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: name, code: name, modifiers, ...native })
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: name, code: name, modifiers, ...native, text: undefined })
   }
+  const actionFits = async (testId) => {
+    for (const [width, height, mobile] of [[320, 568, true], [390, 844, true], [1440, 900, false]]) {
+      await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile })
+      assert.equal(await evaluate(`(() => { const r = ${selector(`[data-testid=${testId}]`)}.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && document.documentElement.scrollWidth <= innerWidth })()`), true, `${testId} reachable at ${width}x${height}`)
+      if (evidenceDir) {
+        const { data } = await send('Page.captureScreenshot', { format: 'png' })
+        writeFileSync(join(evidenceDir, `${locale}-${testId}-${width}.png`), Buffer.from(data, 'base64'))
+      }
+    }
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
+  }
   await send('Page.enable')
+  await send('Network.enable')
   await send('Browser.setPermission', { permission: { name: 'geolocation' }, setting: 'denied', origin: base })
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `
     window.__dexHydrationErrors = []
@@ -67,10 +83,20 @@ try {
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] })
   await send('Page.navigate', { url: `${base}/${locale}/onboarding` })
+  await wait(`${selector('[data-testid=welcome-next]')} && Object.keys(${selector('[data-testid=welcome-next]')}).some(k => k.startsWith('__reactProps'))`, 'hydrated branded welcome')
+  assert.equal(await evaluate(`!!${selector('[data-testid=region-picker]')}`), false, 'first impression contains no region picker')
+  await actionFits('welcome-next')
+  await key('Tab')
+  assert.equal(await evaluate('document.activeElement?.dataset.testid'), 'welcome-next', 'welcome primary action follows heading in keyboard order')
+  await key('Enter')
   await wait(`${selector('[data-testid=region-search]')} && Object.keys(${selector('[data-testid=region-search]')}).some(k => k.startsWith('__reactProps'))`, 'hydrated region search')
+  assert.equal(await evaluate('document.activeElement?.tagName'), 'H1', 'new screen heading receives focus')
+  await click('[data-testid=onboarding-back]')
+  await wait(selector('[data-testid=onboarding-welcome]'))
+  await click('[data-testid=welcome-next]')
   assert.equal(await evaluate(`document.querySelectorAll('[data-testid=region-result]').length`), 0, 'picker does not render the regional catalogue by default')
   assert.equal(await evaluate(`${selector('[data-testid=region-next]')}.disabled`), true, 'region selection is intentional')
-  assert.equal(await evaluate(`(() => { const r = ${selector('[data-testid=region-next]')}.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight })()`), true, 'first action fits the viewport')
+  await actionFits('region-next')
   assert.ok(await evaluate(`${selector('[data-testid=region-location]')}.previousElementSibling.textContent.length > 20`), 'location explanation precedes its action')
   await click('[data-testid=region-location]')
   await wait(`/location|standort/i.test(${selector('[role=alert]')}?.textContent ?? '')`, 'denied location is explained')
@@ -81,21 +107,51 @@ try {
   await key('Tab')
   assert.equal(await evaluate(`document.activeElement?.getAttribute('data-testid')`), 'region-result', 'search result is keyboard reachable')
   await key('Enter')
+  await send('Network.setBlockedURLs', { urls: ['*dex.set*'] })
   await click('[data-testid=region-next]')
   await wait(selector('[data-testid=onboarding-tiles]'))
+  await wait(selector('[data-testid=onboarding-tiles] [role=alert] button'), 'failed group counts offer retry')
+  assert.equal(await evaluate(`${selector('[data-testid=tiles-next]')}.disabled`), true, 'missing group counts cannot be saved')
+  await send('Network.setBlockedURLs', { urls: [] })
+  await click('[data-testid=onboarding-tiles] [role=alert] button')
+  await wait(`!${selector('[data-testid=tiles-next]')}.disabled`, 'group count retry restores continuation')
+  await actionFits('tiles-next')
   await click('[data-testid=onboarding-back]')
   await wait(selector('[data-testid=onboarding-region]'))
   await wait(`JSON.parse(localStorage.getItem('dex.queries') || 'null')?.json?.clientState?.queries?.some(q => q.queryKey[0].join('.') === 'dex.regions' && q.state.data?.length)`, 'regions persisted')
   await send('Page.reload')
+  await wait(selector('[data-testid=onboarding-welcome]'))
+  await click('[data-testid=welcome-next]')
   await wait(`${selector('[data-region]')} && Object.keys(${selector('[data-region]')}).some(k => k.startsWith('__reactProps'))`, 'recent region hydrates without the national list')
   assert.deepEqual(await evaluate('window.__dexHydrationErrors'), [], 'persisted regions hydrate without a server/client mismatch')
   await click('[data-region]')
   await click('[data-testid=region-next]')
+  await wait(`${selector('[data-testid=tiles-next]')} && !${selector('[data-testid=tiles-next]')}.disabled`, 'region counts and identity available')
+  assert.match(await evaluate(`${selector('[data-testid=chosen-region]')}.textContent`), /Mainz-Bingen/, 'selected region labels group counts')
+  await send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 })
+  await wait(`${selector('[data-testid=tiles-next]')}.disabled`, 'offline save is unavailable')
+  assert.match(await evaluate(`${selector('[data-testid=onboarding-tiles]')}.textContent`), /offline/i, 'onboarding explains offline limitation')
+  await send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 })
+  await click('[data-testid=tiles-next]')
+  await wait(`${selector('[data-testid=preview]')} && !${selector('[data-testid=ready-next]')}.disabled`, 'ready preview loads')
+  await actionFits('ready-next')
+  const previewSources = await evaluate(`Array.from(new Set([...document.querySelectorAll('[data-testid=preview] img')].map(image => image.currentSrc || image.src)))`)
+  assert.equal(previewSources.length, 1, 'preview uses one shared lead image per demo taxon')
+  assert.match(previewSources[0], /onboarding-lead-fixture/, 'preview uses the position-zero fixture lead')
+  assert.equal(requests.some(({ url }) => /\/api\/trpc\/[^?]*taxon\./.test(url)), false, 'onboarding never requests full species or gallery data')
+  assert.equal(requests.some(({ url }) => url.includes('onboarding-nonlead-sentinel')), false, 'onboarding does not fetch the non-lead fixture image')
+  await click('[data-testid=onboarding-back]')
+  await wait(selector('[data-testid=onboarding-tiles]'))
   await click('[data-testid=tiles-next]')
   await click('[data-testid=ready-next]')
+  await actionFits('go')
   assert.equal(await evaluate(`/never leave|verlassen.*nie/.test(${selector('[data-testid=promises]')}.textContent)`), false, 'onboarding contains no false device-only location promise')
   await click('[data-testid=go]')
   await wait(selector('[data-testid=grid]'))
+  await send('Page.navigate', { url: `${base}/${locale}/onboarding?change=1` })
+  await wait(selector('[data-testid=onboarding-region]'), 'change mode skips the welcome')
+  await click('[data-testid=cancel]')
+  await wait(selector('[data-testid=grid]'), 'cancelling change mode returns to the atlas')
   assert.equal(await evaluate(`!!${selector('[data-testid=tab-quests]')}`), true, 'quests destination present')
   assert.ok(await evaluate(`${selector('[data-testid=tab-journal]')}.textContent.trim()`), 'navigation has visible labels')
   await click('[data-testid=tab-quests]')
