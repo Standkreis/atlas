@@ -528,6 +528,7 @@ async function publishRegionCalculation(calculation: RegistryRegionCalculation) 
       where: { id: regionId },
       data: { status: 'ready', error: null, monthTotals: calculation.monthTotals, refreshedAt: new Date() },
     })
+    await tx.$executeRaw`SELECT refresh_region_picker_summary(${regionId})`
   }, { maxWait: 10_000, timeout: 120_000 })
 }
 

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "registryVersion": "de-krg-2024-12-31",
+  "registrySha256": "5f118de7d4a2bf97f5bb8ecf11232ed02a2a26aa6e0739ff5cdaa7efbe7cbe18",
+  "geometrySha256": "039390e34fb03d9dc8ab28063b64a4bfe9048e1d55ecb2f1ce5522b882191a05",
+  "regionCount": 362,
+  "source": {
+    "id": "bkg-ge250-2025-krg250",
+    "role": "regions",
+    "authority": "Bundesamt für Kartographie und Geodäsie (BKG)",
+    "product": "GE250",
+    "layer": "KRG250",
+    "topicDate": "2024-12-31",
+    "archiveUrl": "https://daten.gdz.bkg.bund.de/produkte/sonstige/ge250/2025/ge250.utm32s.shape.zip",
+    "downloadedOn": "2026-09-08",
+    "archiveSha256": "ff4e2c3c0e675cc06d8a13f0769fca73ae53b2f8a1bf0b67cb5a30c8a31b51e3",
+    "productUrl": "https://gdz.bkg.bund.de/index.php/default/gebietseinheiten-1-250-000-ge250.html",
+    "licence": {
+      "id": "dl-de/by-2-0",
+      "name": "Datenlizenz Deutschland – Namensnennung 2.0",
+      "url": "https://www.govdata.de/dl-de/by-2-0"
+    },
+    "attribution": "© GeoBasis-DE / BKG (2026) dl-de/by-2-0",
+    "dataSourcesUrl": "https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_ge250.pdf",
+    "changeNotice": "Bearbeitet durch Standkreis: SN_KRG auf acht Stellen aufgefüllt, Suchaliasnamen und geprüfter Anzeigename für Südwestpfalz ergänzt; Geometrie nicht in diesem Artefakt enthalten."
+  },
+  "changeNotice": "Transformed from EPSG:25832 to EPSG:4326; coordinates rounded to 7 decimal degrees; no simplification. gzip-compressed GeoJSON-style MultiPolygon rings with bounding boxes; original BKG land boundaries, islands and holes retained."
+}

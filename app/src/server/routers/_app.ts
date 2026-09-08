@@ -6,6 +6,7 @@ import { journalRouter } from './journal'
 import { sightingRouter } from './sighting'
 import { studyRouter } from './study'
 import { taxonRouter } from './taxon'
+import { regionsRouter } from './regions'
 
-export const appRouter = router({ identity: identityRouter, dex: dexRouter, taxon: taxonRouter, data: dataRouter, study: studyRouter, sighting: sightingRouter, journal: journalRouter })
+export const appRouter = router({ identity: identityRouter, dex: dexRouter, regions: regionsRouter, taxon: taxonRouter, data: dataRouter, study: studyRouter, sighting: sightingRouter, journal: journalRouter })
 export type AppRouter = typeof appRouter

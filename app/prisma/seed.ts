@@ -44,6 +44,7 @@ async function main() {
   await prisma.identity.upsert({ where: { id: DEV_IDENTITY_ID }, update: {}, create: { id: DEV_IDENTITY_ID, displayName: 'dev' } })
   console.log(`seeded identity ${DEV_IDENTITY_ID}`)
   for (const file of FIXTURES) await seedFixture(prisma, file)
+  await prisma.$executeRaw`SELECT refresh_region_picker_summary()`
   await prisma.$disconnect()
 }
 main()

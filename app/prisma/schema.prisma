@@ -125,6 +125,8 @@ model Region {
   higher       String
   /// All observations per month, 12 entries; the denominator of every month share.
   monthTotals  Int[]        @default([])
+  /// Compatibility picker counts refreshed with live regional publication, never during reads.
+  pickerSummary Json?
   status       RegionStatus @default(queued)
   /// The last failed facet's message; null when ready.
   error        String?
@@ -374,6 +376,8 @@ model CatalogueRegionBuild {
   totalObservations   Int?
   monthTotals         Int[]                      @default([])
   regionSize          Int?
+  /// Precomputed seasonal membership counts; empty on older builds until regenerated.
+  nowCounts           Int[]                      @default([])
   perTile             Json?
   rejectedTaxa        Json?
   requestStats        Json?

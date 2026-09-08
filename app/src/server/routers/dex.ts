@@ -1,24 +1,10 @@
 import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
 import { Tile } from '@/generated/prisma/enums'
-import { get, q } from '../http'
 import { isNow, nowRatio, perMille } from '@/domain/rules'
 import { publicProcedure, router } from '../trpc'
-
-const GBIF = 'https://api.gbif.org/v1'
-type GadmHit = { id: string; name: string; gadmLevel: number; type?: string[]; englishType?: string[]; higherRegions?: { id: string; name: string }[] }
-type GadmSearch = { results: GadmHit[] }
-type ReverseHit = { id: string; type: string; title: string; distance: number }
-
-const gadmSearch = (params: Record<string, string | number>) => get<GadmSearch>(`${GBIF}/geocode/gadm/search?${q({ ...params, limit: 10 })}`).then((j) => j?.results ?? [])
-const gadmById = (gid: string) => gadmSearch({ gadmGid: gid }).then((r) => r.find((h) => h.id === gid) ?? null)
-
-/** One level-2 unit as the onboarding shows it: name · type, parent. `type` is GADM's native word (Landkreis), `typeEn` the English one (District). */
-const toUnit = (h: GadmHit) => {
-  const higher = h.higherRegions ?? []
-  return { gadmGid: h.id, name: h.name, higher: higher.map((x) => x.name).join(' › '), parent: higher.at(-1)?.name ?? null, type: h.type?.[0] ?? null, typeEn: h.englishType?.[0] ?? null }
-}
-type Unit = ReturnType<typeof toUnit>
+import { legacyRegions } from '../regionCompatibility'
+import { locateRegion, regionSearchInput, searchRegions } from '../regionSearch'
 
 const tile = z.enum(Object.values(Tile) as [Tile, ...Tile[]])
 
@@ -121,16 +107,7 @@ export const dexRouter = router({
       return { region, total: rows.length, byTile, seen, studied }
     }),
 
-  /**
-   * Regions the ETL knows, for the onboarding picker and the filter drawer, with the honesty line of record 0002 E12:
-   * `content` = set members the content job has run for, `introEn` = intros only in English, `noGermanName` = set
-   * members without a German name. Shares are of `setSize`; the UI shows "N % nur auf Englisch" when it matters.
-   */
-  /**
-   * The onboarding's region lookup, both paths through GBIF (record 0002 E1): a place name via `geocode/gadm/search`,
-   * a point via `geocode/reverse`. Only level-2 units come back; a level-3 hit (Bingen am Rhein) is folded into its
-   * level-2 parent (Mainz-Bingen). Each unit carries the Region row's id and status when the ETL already knows it.
-   */
+  /** Compatibility alias. `gadmGid` now holds the canonical public key; use regions.search/locate for new clients. */
   lookupRegion: publicProcedure
     .input(
       z
@@ -138,26 +115,9 @@ export const dexRouter = router({
         .refine((i) => i.q !== undefined || (i.lat !== undefined && i.lng !== undefined), 'q or lat+lng'),
     )
     .query(async ({ ctx, input }) => {
-      const units: Unit[] = []
-      const seen = new Set<string>()
-      const push = (u: Unit | null) => { if (u && !seen.has(u.gadmGid)) { seen.add(u.gadmGid); units.push(u) } }
-      if (input.q !== undefined) {
-        const hits = await gadmSearch({ q: input.q })
-        for (const h of hits) {
-          if (h.gadmLevel === 2) push(toUnit(h))
-          else if (h.gadmLevel === 3) {
-            const parent = h.higherRegions?.at(-1)
-            if (parent && !seen.has(parent.id)) push(await gadmById(parent.id).then((p) => (p ? toUnit(p) : null)))
-          }
-        }
-      } else {
-        const hits = (await get<ReverseHit[]>(`${GBIF}/geocode/reverse?${q({ lat: input.lat!, lng: input.lng! })}`)) ?? []
-        const nearest = hits.filter((h) => h.type === 'GADM2').sort((a, b) => a.distance - b.distance)[0]
-        if (nearest) push(await gadmById(nearest.id).then((p) => (p ? toUnit(p) : null)))
-      }
-      const known = units.length ? await ctx.db.region.findMany({ where: { gadmGid: { in: units.map((u) => u.gadmGid) } }, select: { id: true, gadmGid: true, status: true } }) : []
-      const byGid = new Map(known.flatMap((r) => (r.gadmGid ? [[r.gadmGid, { id: r.id, status: r.status }] as const] : [])))
-      return units.map((u) => ({ ...u, region: byGid.get(u.gadmGid) ?? null }))
+      const located = input.q === undefined ? await locateRegion(ctx.db, { permission: 'granted', lat: input.lat!, lng: input.lng! }) : null
+      const regions = input.q !== undefined ? (await searchRegions(ctx.db, regionSearchInput.parse({ q: input.q }))).results : located?.region ? [located.region] : []
+      return regions.map((region) => ({ gadmGid: region.canonicalKey, name: region.name, higher: region.higher, parent: region.stateName, type: 'Kreisregion', typeEn: 'District region', region: { id: region.id, status: region.status } }))
     }),
 
   /**
@@ -173,22 +133,5 @@ export const dexRouter = router({
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Region preparation is available only through the operator CLI.' })
   }),
 
-  regions: publicProcedure.query(async ({ ctx }) => {
-    const regions = await ctx.db.region.findMany({ where: { status: { not: 'unprepared' } }, orderBy: { name: 'asc' }, select: { id: true, gadmGid: true, name: true, higher: true, status: true, refreshedAt: true } })
-    const month = thisMonth()
-    return Promise.all(
-      regions.map(async (r) => {
-        const inSet = { plausibility: { some: { regionId: r.id } } }
-        // `nowCount` (handoff 0018 R3): the set members at ≥ 25 % of their peak this month, the "nur jetzt" chip's number.
-        const [setSize, nowCount, content, introEn, noGermanName] = await Promise.all([
-          ctx.db.taxon.count({ where: inSet }),
-          ctx.db.plausibility.findMany({ where: { regionId: r.id }, select: { monthShare: true, peak: true } }).then((rows) => rows.filter((p) => isNow(p.monthShare, p.peak, month)).length),
-          ctx.db.taxon.count({ where: { ...inSet, contentAt: { not: null } } }),
-          ctx.db.taxon.count({ where: { ...inSet, intro: { path: ['lang'], equals: 'en' } } }),
-          ctx.db.taxon.count({ where: { ...inSet, contentAt: { not: null }, NOT: { commonNames: { path: ['de'], string_contains: '' } } } }),
-        ])
-        return { ...r, setSize, nowCount, content, introEn, noGermanName, introEnShare: setSize ? +(introEn / setSize).toFixed(3) : 0 }
-      }),
-    )
-  }),
+  regions: publicProcedure.query(({ ctx }) => legacyRegions(ctx.db, ctx.identity.id, thisMonth())),
 })

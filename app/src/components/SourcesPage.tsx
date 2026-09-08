@@ -5,6 +5,7 @@ import { useRouter } from '@/i18n/navigation'
 
 const GROUPS = [
   { key: 'atlas', sources: [
+    ['bkg', 'BKG / BBSR · GE250', 'https://gdz.bkg.bund.de/index.php/default/gebietseinheiten-1-250-000-ge250.html'],
     ['gbif', 'GBIF', 'https://www.gbif.org'],
   ] },
   { key: 'identity', sources: [

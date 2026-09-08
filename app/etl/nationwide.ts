@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { Prisma } from '../src/generated/prisma/client'
 import { OBSERVATION_WINDOW } from '../src/domain/observationWindow'
+import { isNow } from '../src/domain/rules'
 import { resolveAcceptedSpecies, type AcceptedTaxonomyResult, type SpeciesLookup } from './accepted-taxonomy'
 import { db } from './db'
 import { failedCaptureRequests, withFreshCache, withResponseCapture, type RequestStats } from './fetch'
@@ -720,6 +721,7 @@ const prismaStore: NationwideStore = {
           totalObservations: calculation.total,
           monthTotals: calculation.monthTotals,
           regionSize: calculation.plausibility.length,
+          nowCounts: Array.from({ length: 12 }, (_, month) => calculation.plausibility.filter((row) => isNow(row.monthShare, row.peak, month + 1)).length),
           perTile: calculation.perTile as Prisma.InputJsonValue,
           rejectedTaxa: calculation.rejectedTaxa as unknown as Prisma.InputJsonValue,
           requestStats: addRequestStats([requestStats(build.requestStats), staged.requestStats]) as unknown as Prisma.InputJsonValue,

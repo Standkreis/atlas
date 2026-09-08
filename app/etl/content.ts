@@ -156,6 +156,7 @@ export async function runContent(opts: ContentOpts): Promise<ContentResult> {
   }
   r.seconds = (Date.now() - t0) / 1000
   r.requests = requests()
+  await db.$executeRaw`SELECT refresh_region_picker_summary()`
   return r
 }
 

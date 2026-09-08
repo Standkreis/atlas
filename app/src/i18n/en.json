@@ -93,6 +93,7 @@
       "identification": { "title": "Photo identification" }
     },
     "sources": {
+      "bkg": "Official district regions and land boundaries (31 December 2024). © GeoBasis-DE / BKG (2026), Data Licence Germany – Attribution 2.0 (dl-de/by-2-0). Coordinates transformed and rounded; boundaries not simplified.",
       "gbif": "Provides the taxonomic backbone and occurrence records used to assemble regional species lists, seasonal likelihood and maps.",
       "wikidata": "Provides identifiers, common names and selected structured facts such as wingspan and fungal characteristics. Data is published under CC0.",
       "wikipedia": "Provides the optional background text on species pages. The text keeps Wikipedia's licence and is not independently reviewed by us.",
