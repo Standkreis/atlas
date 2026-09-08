@@ -9,7 +9,8 @@ const [base = 'http://localhost:3002', identityId] = process.argv.slice(2)
 if (!identityId || !['localhost', '127.0.0.1'].includes(new URL(base).hostname)) throw new Error('A local test identity and localhost server are required')
 const profile = mkdtempSync(join(tmpdir(), 'dex-offline-review-'))
 const port = 9600 + Math.floor(Math.random() * 300)
-const chrome = spawn(process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--disable-gpu', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
+const executable = process.env.CHROME ?? (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome')
+const chrome = spawn(executable, ['--headless=new', '--disable-gpu', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 let ws
 try {
