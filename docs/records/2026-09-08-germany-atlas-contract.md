@@ -274,6 +274,28 @@ The migration is additive first and operates from an explicit, reviewed successo
   single-image surfaces and regional offline packs stay bounded to the lead.
 - Personal evidence survives both catalogue churn and the removal of legacy selectable regions.
 
+## 🧾 Implementation addendum — 2026-09-09
+
+The global enrichment and reference-gallery portion of this contract was delivered and audited in
+[issue #20](https://github.com/Standkreis/atlas/issues/20) through four reviewable changes:
+
+- [PR #41](https://github.com/Standkreis/atlas/pull/41) added the ordered storage migration and
+  fail-closed licensed candidate selector;
+- [PR #44](https://github.com/Standkreis/atlas/pull/44) added the unique-taxon, resumable local
+  enrichment workflow and atomic media-safe publication;
+- [PR #45](https://github.com/Standkreis/atlas/pull/45) unified defensive gallery reads, lead
+  selection and the taxon-name fallback; and
+- [PR #51](https://github.com/Standkreis/atlas/pull/51) completed the accessible zero-to-12 image
+  gallery and proved that explicit regional offline packs remain lead-only.
+
+The integrated close-out audit reran the database, unit, export, server-build and production-browser
+gates from the merged default branch against a fresh disposable local Postgres database. It also
+rechecked the complete issue contract, including licence/source rejection, source/page/URL
+deduplication before the cap, deterministic ordering, failure-preserving refreshes, protected-media
+isolation, bounded reporting, malformed legacy rows and the zero/one/two/12-image UI states. No
+production gallery population or production-data transformation occurred here; those remain with
+the Germany data and release work in issues #21 and #29.
+
 ## 🔥 Reasoning and rejected alternatives
 
 - **Raw Kreise:** rejected as the user-facing list. BBSR's composites keep smaller independent cities
