@@ -21,3 +21,7 @@ That review reproduced three defects with in-memory probes: a foreign PR sharing
 This is an independent scenario review plus deterministic script testing, not a measured model success-rate benchmark. Hook JSON payloads were exercised, but this session did not modify Codex's trust store or prove hooks active in a newly started host session. Codex requires review/trust through `/hooks`. No paid model API or application production key was used.
 
 The live draft/merge outcome is recorded on the pilot issue and PR, rather than mirrored as mutable state in this document. Application builds are outside this harness-only diff; the application workflow now detects app-code changes while the separate harness job validates instructions and tooling.
+
+## Communication preference review · 2026-09-08
+
+The owner's concise, visual and ADHD-friendly review preference now lives in the shared root contract loaded by Claude and repository agents. Manual scenario review covered a one-line answer, a multi-part code review, an issue, a handoff and a delivery report. The rule keeps simple answers short; puts outcomes, actions and blockers first in larger responses; and uses purposeful emoji headings plus whitespace, lists or tables as navigation landmarks. It does not change authorization, evidence, testing or delivery requirements. No model success-rate benchmark was claimed.
