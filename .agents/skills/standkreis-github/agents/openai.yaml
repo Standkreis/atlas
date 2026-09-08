@@ -1,0 +1,4 @@
+interface:
+  display_name: "Standkreis GitHub"
+  short_description: "Deliver tracked work through GitHub and verify it"
+  default_prompt: "Use $standkreis-github to carry this issue through the requested delivery stage."
