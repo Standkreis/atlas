@@ -117,8 +117,17 @@ async function fetchAndWrite(regionId: string, gadmGid: string, log: (s: string)
 
 /** Re-run the region job for every region older than `days` (E11: cached 30 days). */
 export async function refresh(days = 30, log: (s: string) => void = console.log) {
-  const stale = await db.region.findMany({ where: { OR: [{ refreshedAt: null }, { refreshedAt: { lt: new Date(Date.now() - days * 86_400_000) } }] } })
+  const stale = await db.region.findMany({
+    where: {
+      status: { not: 'unprepared' },
+      gadmGid: { not: null },
+      OR: [{ refreshedAt: null }, { refreshedAt: { lt: new Date(Date.now() - days * 86_400_000) } }],
+    },
+  })
   log(`${stale.length} region(s) older than ${days} days`)
-  for (const r of stale) await withFreshCache(() => runRegion(r.gadmGid, log))
+  for (const r of stale) {
+    const gadmGid = r.gadmGid
+    if (gadmGid) await withFreshCache(() => runRegion(gadmGid, log))
+  }
   return stale.length
 }

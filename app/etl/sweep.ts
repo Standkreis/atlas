@@ -12,9 +12,10 @@ export async function sweep(log: (s: string) => void = console.log) {
     const { rows: [{ locked }] } = await client.query('SELECT pg_try_advisory_lock(233135852) AS locked')
     if (!locked) return null
     const started = Date.now()
-    const queued = await db.region.findMany({ where: { status: 'queued', createdAt: { lt: new Date(Date.now() - 300_000) } }, select: { gadmGid: true } })
+    const queued = await db.region.findMany({ where: { status: 'queued', gadmGid: { not: null }, createdAt: { lt: new Date(Date.now() - 300_000) } }, select: { gadmGid: true } })
     const regions: string[] = []
     for (const region of queued) {
+      if (!region.gadmGid) continue
       await runRegion(region.gadmGid, log)
       regions.push(region.gadmGid)
     }

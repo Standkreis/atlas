@@ -1,5 +1,6 @@
 // The ETL CLI (handoff 0006 Track A). npm run etl -- <command> [args]
 //   region <name | gadmGid>   GADM → 13 GBIF facets → cut per tile → Region, Taxon, Plausibility, Lookalike rows
+//   registry --mapping <path> checked-in BKG registry + locally reviewed GADM mapping → versioned region rows
 //   refresh [--days 30]       re-run the region job for regions older than 30 days
 //   content [--region <name>] [--purge <key>] [--limit n] [--force]
 //                             fill Taxon content (names, intro, facts, assets, interactions) once per taxon; --force refetches only the GloBI edges of filled taxa (0028)
@@ -23,6 +24,17 @@ const TILE_ICON: Record<string, string> = { bird: '🐦', mammal: '🦌', amphib
 
 async function main() {
   switch (cmd) {
+    case 'registry': {
+      const mappingPath = flag('mapping')
+      if (!mappingPath) throw new Error('usage: etl registry --mapping <reviewed-local-json>')
+      const { readFile } = await import('node:fs/promises')
+      const { parseRegionQueryMapping } = await import('./registry-mapping')
+      const { importRegionRegistry } = await import('./registry-import')
+      const mapping = parseRegionQueryMapping(JSON.parse(await readFile(mappingPath, 'utf8')))
+      const r = await importRegionRegistry({ mapping, log: console.log })
+      console.log(`registry ${r.registryId}: ${r.regions} regions · ${r.sourceUnits} Kreis units · ${r.aliases} aliases · ${r.queryUnits} query units · ${r.created ? 'created' : 'verified'}`)
+      break
+    }
     case 'region': {
       const { runRegion } = await import('./region')
       const query = positional[0]
@@ -96,7 +108,7 @@ async function main() {
       break
     }
     default:
-      console.log('usage: npm run etl -- region <name | gadmGid> [--month m] | refresh [--days 30] | content [--region <name>] [--purge <gbifKey>] [--limit n] [--force [--keys k1,k2]] | facts [--region <name>] [--purge] [--force] [--limit n] | sounds [--region <name>] [--limit n] | prose --region <name> [--driver files|api] [--run <name>] | prose --load --run <name> | prose --purge [--region <name>] | sweep')
+      console.log('usage: npm run etl -- registry --mapping <reviewed-local-json> | region <name | gadmGid> [--month m] | refresh [--days 30] | content [--region <name>] [--purge <gbifKey>] [--limit n] [--force [--keys k1,k2]] | facts [--region <name>] [--purge] [--force] [--limit n] | sounds [--region <name>] [--limit n] | prose --region <name> [--driver files|api] [--run <name>] | prose --load --run <name> | prose --purge [--region <name>] | sweep')
       process.exitCode = 1
   }
 }

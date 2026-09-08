@@ -156,7 +156,7 @@ export const dexRouter = router({
         if (nearest) push(await gadmById(nearest.id).then((p) => (p ? toUnit(p) : null)))
       }
       const known = units.length ? await ctx.db.region.findMany({ where: { gadmGid: { in: units.map((u) => u.gadmGid) } }, select: { id: true, gadmGid: true, status: true } }) : []
-      const byGid = new Map(known.map((r) => [r.gadmGid, { id: r.id, status: r.status }]))
+      const byGid = new Map(known.flatMap((r) => (r.gadmGid ? [[r.gadmGid, { id: r.id, status: r.status }] as const] : [])))
       return units.map((u) => ({ ...u, region: byGid.get(u.gadmGid) ?? null }))
     }),
 
@@ -174,7 +174,7 @@ export const dexRouter = router({
   }),
 
   regions: publicProcedure.query(async ({ ctx }) => {
-    const regions = await ctx.db.region.findMany({ orderBy: { name: 'asc' }, select: { id: true, gadmGid: true, name: true, higher: true, status: true, refreshedAt: true } })
+    const regions = await ctx.db.region.findMany({ where: { status: { not: 'unprepared' } }, orderBy: { name: 'asc' }, select: { id: true, gadmGid: true, name: true, higher: true, status: true, refreshedAt: true } })
     const month = thisMonth()
     return Promise.all(
       regions.map(async (r) => {
