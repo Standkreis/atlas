@@ -23,9 +23,8 @@ const toLocalInput = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() *
 const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString()
 
 /**
- * The save screen (spec §🎨 4, findings 0002 §4 L3): species, when, where, photo slot, note, and the two buttons that ARE
- * the wild/captive answer. The location is asked here, explained before the browser prompt (spec §🎨 1's pattern);
- * refusal leaves lat/lng null. No confirm step: the fill is the confirmation.
+ * The save screen (spec §🎨 4, findings 0002 §4 L3): species, when, where, wildness, photo slot and note. Wildness is a
+ * form choice; one final button submits the sighting. Location is optional and refusal leaves lat/lng null.
  */
 export function LogSave({ gbifKey, photoId, fromSpecies }: { gbifKey: number; photoId: string | null; fromSpecies: boolean }) {
   const t = useTranslations('log')
@@ -61,6 +60,7 @@ export function LogSave({ gbifKey, photoId, fromSpecies }: { gbifKey: number; ph
   const scanRow = useMemo(() => scanRowFor(photoId), [photoId]) // read once: the row is gone after the save
   const [at, setAt] = useState(() => (scanRow ? new Date(scanRow.payload.at) : new Date()))
   const [note, setNote] = useState('')
+  const [wildness, setWildness] = useState<'wild' | 'kept' | null>(null)
   // The photo slot: the id rides in the URL (from the chooser or the search strip), so back and reload keep it.
   const picker = useRef<HTMLInputElement>(null)
   const [photoState, setPhotoState] = useState<PhotoState>('idle')
@@ -73,7 +73,7 @@ export function LogSave({ gbifKey, photoId, fromSpecies }: { gbifKey: number; ph
   useEffect(() => () => { if (localUrl) URL.revokeObjectURL(localUrl) }, [localUrl])
   const dropPhoto = () => { if (local) void removeRow(local.id).then(() => router.replace(here(null))); else if (photoId) removePhoto.mutate({ photoId }) }
 
-  // Location: if the browser already granted it, take it silently; if it is still a question, explain first and ask on a tap.
+  // Location: if the browser already granted it, take it silently; otherwise ask only after a tap.
   const [loc, setLoc] = useState<Loc>(() => (scanRow?.payload.lat != null && scanRow.payload.lng != null ? { status: 'granted', lat: scanRow.payload.lat, lng: scanRow.payload.lng } : { status: 'idle' }))
   const ask = () => {
     if (!('geolocation' in navigator)) return setLoc({ status: 'denied' })
@@ -101,12 +101,12 @@ export function LogSave({ gbifKey, photoId, fromSpecies }: { gbifKey: number; ph
     const again = `again=${r.id}${r.wildness === 'wild' ? '' : '&kept=1'}` // a kept sighting gets its own toast line, never "Wiedergesehen"
     router.replace(r.first ? `/?fill=${r.id}` : fromSpecies ? `/species/${gbifKey}?${again}` : `/?${again}`)
   }
-  const save = async (kind: 'wild' | 'kept') => {
-    if (!card) return
+  const save = async () => {
+    if (!card || !wildness) return
     // "Gehalten" is captive for animals and fungi, cultivated for plants (schema Wildness; spec §⚖️ wild only).
-    const wildness = kind === 'wild' ? 'wild' : card.tile === 'plant' ? 'cultivated' : 'captive'
+    const savedWildness = wildness === 'wild' ? 'wild' : card.tile === 'plant' ? 'cultivated' : 'captive'
     const id = crypto.randomUUID()
-    const first = wildness === 'wild' && !progress?.seen.includes(card.id) && !queuedWild(outbox, card.id)
+    const first = savedWildness === 'wild' && !progress?.seen.includes(card.id) && !queuedWild(outbox, card.id)
     const placeNow = (loc.status === 'granted' ? place.data?.place : null) ?? region?.name ?? null
     const lead: Lead = inSet?.lead ?? null
     const taxon = { id: card.id, gbifKey, sciName: card.sciName, names: card.names, tile: card.tile, lead }
@@ -117,7 +117,7 @@ export function LogSave({ gbifKey, photoId, fromSpecies }: { gbifKey: number; ph
     setSaving('busy')
     setProblem(null)
     try {
-      await enqueue({ id, kind: 'sighting', payload: { taxonId: card.id, at: at.toISOString(), lat: loc.lat, lng: loc.lng, note: note.trim() || undefined, wildness, photoId: assetId, photoRow: local?.id, taxon, place: placeNow, first, idAssisted: idAssisted || undefined } })
+      await enqueue({ id, kind: 'sighting', payload: { taxonId: card.id, at: at.toISOString(), lat: loc.lat, lng: loc.lng, note: note.trim() || undefined, wildness: savedWildness, photoId: assetId, photoRow: local?.id, taxon, place: placeNow, first, idAssisted: idAssisted || undefined } })
       bindScan(id, photoId, gbifKey)
       if (scanNow) await removeRow(scanNow.id) // the "unbestimmt" row is this sighting now
     } catch (e) {
@@ -132,7 +132,7 @@ export function LogSave({ gbifKey, photoId, fromSpecies }: { gbifKey: number; ph
     if (r) return go(r)
     // No answer: seed what the sheet and the toast read, so the grid needs no server. The flush invalidates it when the row lands.
     const photo = local ? { id: local.id, url: URL.createObjectURL(local.blob) } : photoId ? { id: photoId, url: `/api/photo/${photoId}` } : null
-    const seeded = { id, offerPasskey: false, at, place: placeNow, wildness, evidence: photo ? 'photographed' : 'claimed', first, photo, taxon, pending: true }
+    const seeded = { id, offerPasskey: false, at, place: placeNow, wildness: savedWildness, evidence: photo ? 'photographed' : 'claimed', first, photo, taxon, pending: true }
     qc.setQueryData(trpc.sighting.fill.queryKey({ id }), seeded as unknown as FillOut) // `tile` is a string here, an enum there; `photo` may be null on both sides
     go({ id, first, wildness })
   }
@@ -177,15 +177,35 @@ export function LogSave({ gbifKey, photoId, fromSpecies }: { gbifKey: number; ph
               ) : loc.status === 'denied' ? (
                 <span className="mt-1 block text-[13px] leading-snug text-ink-soft" data-testid="save-denied">{t('locationDenied')}</span>
               ) : (
-                <>
-                  <span className="mt-1 block text-[13px] leading-snug text-ink-soft">{t('locationWhy')}</span>
-                  <button type="button" onClick={ask} disabled={loc.status === 'asking'} className="mt-2 text-[15px] font-semibold text-moss-deep disabled:opacity-60" data-testid="save-locate">
-                    {loc.status === 'asking' ? t('locating') : t('useLocation')}
-                  </button>
-                </>
+                <button type="button" onClick={ask} disabled={loc.status === 'asking'} className="mt-2 text-[15px] font-semibold text-moss-deep disabled:opacity-60" data-testid="save-locate">
+                  {loc.status === 'asking' ? t('locating') : t('useLocation')}
+                </button>
               )}
             </div>
           </div>
+
+          <fieldset className={`mt-3 px-4 py-3 ${cardCls}`} data-testid="wildness">
+            <legend className="sr-only">{t('wildQuestion')}</legend>
+            <div className="text-[13px] text-ink-soft">{t('wildQuestion')}</div>
+            <div className="mt-2 grid grid-cols-2 gap-3">
+              {(['wild', 'kept'] as const).map((choice) => {
+                const selected = wildness === choice
+                return (
+                  <label key={choice} className={`motion-toggle flex min-h-14 cursor-pointer items-center gap-3 rounded-2xl border-2 px-3 py-2 ${selected ? 'border-sky bg-sky-soft text-sky-deep' : 'border-ink/20 bg-transparent'}`} data-testid={`wildness-${choice}`}>
+                    <input type="radio" name="wildness" value={choice} checked={selected} onChange={() => setWildness(choice)} disabled={busy} className="sr-only" />
+                    <span aria-hidden className={`grid size-6 shrink-0 place-items-center rounded-full border-2 ${selected ? 'border-sky' : 'border-ink/25'}`}>
+                      {selected && <span className="size-3 rounded-full bg-sky" />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[17px] leading-tight font-bold">{t(choice === 'wild' ? 'wild' : 'captive')}</span>
+                      <span className={`block text-[13px] leading-tight ${selected ? 'text-sky-deep/75' : 'text-ink-soft'}`}>{t(choice === 'wild' ? 'wildSub' : 'captiveSub')}</span>
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+            <p className="mt-2 text-[13px] leading-snug text-ink-faint">{t('captiveHint')}</p>
+          </fieldset>
 
           {photoId ? (
             <div className={`mt-3 flex items-center gap-4 px-4 py-4 ${cardCls}`} data-testid="save-photo" data-photo={photoId}>
@@ -209,26 +229,15 @@ export function LogSave({ gbifKey, photoId, fromSpecies }: { gbifKey: number; ph
           )}
           <PhotoInput ref={picker} source="gallery" onPhoto={(p) => router.replace(here(p.id))} onState={setPhotoState} testId="photo-input" />
 
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('notePlaceholder')} maxLength={500} data-testid="save-note"
+          <input value={note} onChange={(e) => setNote(e.target.value)} aria-label={t('notePlaceholder')} placeholder={t('notePlaceholder')} maxLength={500} data-testid="save-note"
             className={`mt-3 h-13 w-full px-4 text-[17px] outline-none placeholder:text-ink-faint ${cardCls}`} />
 
           <div className="flex-1" />
-
-          <p className="mt-8 text-center text-[15px] text-ink-soft">{t('wildQuestion')}</p>
-          <div className="mt-2 grid grid-cols-2 gap-3">
-            <button type="button" onClick={() => save('wild')} disabled={busy} data-testid="save-wild"
-              className="flex h-20 flex-col items-center justify-center rounded-3xl bg-moss text-white shadow-md disabled:opacity-60">
-              <span className="text-[22px] leading-tight font-bold"><span aria-hidden>🌳 </span>{t('wild')}</span>
-              <span className="text-[15px] text-white/85">{busy ? t('saving') : t('wildSub')}</span>
-            </button>
-            <button type="button" onClick={() => save('kept')} disabled={busy} data-testid="save-captive"
-              className="flex h-20 flex-col items-center justify-center rounded-3xl bg-card shadow-[0_2px_12px_rgba(30,42,35,0.06)] disabled:opacity-60">
-              <span className="text-[22px] leading-tight font-bold"><span aria-hidden>🏠 </span>{t('captive')}</span>
-              <span className="px-2 text-center text-[13px] leading-tight text-ink-soft">{t('captiveSub')}</span>
-            </button>
-          </div>
-          <p className="mt-3 text-center text-[13px] leading-snug text-ink-faint">{t('captiveHint')}</p>
           {problem && <p className="mt-2 text-center text-[13px] text-amber-deep" data-testid="save-problem">{problem === 'full' ? tq('full') : tc('error')}</p>}
+          <button type="button" onClick={save} disabled={busy || !wildness} data-testid="save-submit"
+            className="mt-8 flex h-14 w-full items-center justify-center rounded-full bg-moss text-[18px] font-bold text-white shadow-md transition-colors active:bg-moss-deep disabled:bg-tile disabled:text-ink-faint disabled:shadow-none">
+            {busy ? t('saving') : t('saveTitle')}
+          </button>
         </>
       )}
     </main>

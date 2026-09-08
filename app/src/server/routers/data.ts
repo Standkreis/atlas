@@ -1,7 +1,8 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { IDENTITY_COOKIE, publicProcedure, router } from '../trpc'
-import { deletePhotoFilesOfIdentity } from '../photos'
+import { queuePhotoDeletes, retryPendingPhotoDeletes, photoUrl } from '../photos'
+import { lock } from '../quotas'
 import { signToken, verifyToken } from '../webauthn'
 
 const DELETE_TTL = 300
@@ -23,16 +24,18 @@ export const dataRouter = router({
       ctx.db.study.findMany({ where: { identityId: id }, orderBy: { at: 'asc' }, include: { taxon: { select: { gbifKey: true, sciName: true, commonNames: true } } } }),
     ])
     return {
-      format: 'standkreis-dex/1',
+      format: 'standkreis-dex/2',
+      scope: 'JSON records and media references; photo bytes are not included. Private URLs require this identity and stop working after deletion.',
       exportedAt: new Date(),
       identity: {
         id,
         createdAt: ctx.identity.createdAt,
         devices,
         email: ctx.identity.emailVerifiedAt ? ctx.identity.email : null, // the verified address (handoff 0020 E7); PII, yours to take along
-        ...(devices > 0 || ctx.identity.emailVerifiedAt ? { displayName: ctx.identity.displayName } : {}),
+        displayName: ctx.identity.displayName,
+        avatarUrl: ctx.identity.avatarAssetId ? photoUrl(ctx.identity.avatarAssetId) : null,
       },
-      filter: filter ? { region: filter.region, tiles: filter.tiles, nowOnly: filter.nowOnly } : null,
+      filter: filter ? { region: filter.region, regionId: filter.regionId, regionIds: filter.regionIds, regions: await ctx.db.region.findMany({ where: { id: { in: filter.regionIds } }, select: { id: true, gadmGid: true, name: true } }), tiles: filter.tiles, nowOnly: filter.nowOnly } : null,
       sightings: sightings.map((s) => ({
         id: s.id,
         at: s.at,
@@ -58,8 +61,13 @@ export const dataRouter = router({
     }
     const payload = verifyToken<DeleteToken>(input.token)
     if (!payload || payload.purpose !== 'delete' || payload.identityId !== id) throw new TRPCError({ code: 'BAD_REQUEST', message: 'token invalid or expired' })
-    await deletePhotoFilesOfIdentity(id) // the files first: the cascade below drops the Asset rows the file names come from
-    await ctx.db.identity.delete({ where: { id } }) // cascade: passkeys, email codes, filter, sightings (and their photos), studies, assets owned
+    await ctx.db.$transaction(async (tx) => {
+      await lock(tx, `identity:${id}`)
+      const assets = await tx.asset.findMany({ where: { origin: 'user', ownerId: id }, select: { id: true } })
+      await queuePhotoDeletes(tx, assets.map((a) => a.id))
+      await tx.identity.delete({ where: { id } })
+    })
+    await retryPendingPhotoDeletes()
     ctx.setCookie(IDENTITY_COOKIE, '', { maxAge: 0 })
     return { step: 'done' as const }
   }),

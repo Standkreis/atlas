@@ -1,10 +1,11 @@
 // GBIF: GADM search, occurrence facets, the backbone species record (spec §🗄️).
 import { get, q } from './fetch'
+import { OBSERVATION_YEARS } from '../src/domain/observationWindow'
 
 const API = 'https://api.gbif.org/v1'
 
 /** The window and record types of record 0002 E2: last ten years, observation records with coordinates. */
-export const YEARS = process.env.ETL_YEARS ?? '2016,2026'
+export const YEARS = OBSERVATION_YEARS
 export const BASIS = ['HUMAN_OBSERVATION', 'OBSERVATION', 'MACHINE_OBSERVATION', 'OCCURRENCE']
 export const occurrenceBase = (gadmGid: string) => ({ year: YEARS, hasCoordinate: true, occurrenceStatus: 'PRESENT', basisOfRecord: BASIS, gadmGid })
 

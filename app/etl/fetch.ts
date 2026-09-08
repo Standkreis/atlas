@@ -2,7 +2,8 @@
 // cache under etl/.cache/<host>/, a per-host budget per run (50,000, `ETL_BUDGET`), per-host gaps as reserved slots, an in-flight cap for GBIF, retries with backoff, one User-Agent.
 // The probe ran ~7,000 responses on exactly these settings with zero 429s.
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -48,7 +49,10 @@ const release = (host: string) => {
 const stats = { hits: 0, misses: 0, retries: 0, tooMany: 0 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-type Opts = { headers?: Record<string, string>; text?: boolean; bytes?: boolean }
+const cachePolicy = new AsyncLocalStorage<{ refresh: boolean }>()
+export const withFreshCache = <T>(fn: () => Promise<T>): Promise<T> => cachePolicy.run({ refresh: true }, fn)
+export const CACHE_TTL_MS = 30 * 86_400_000
+type Opts = { headers?: Record<string, string>; text?: boolean; bytes?: boolean; maxAgeMs?: number; signal?: AbortSignal }
 /** An API key travels in the query string (xeno-canto v3); it never reaches a log line or an error message. */
 const redact = (url: string) => url.replace(/([?&]key=)[^&]+/, '$1…')
 
@@ -56,11 +60,11 @@ const redact = (url: string) => url.replace(/([?&]key=)[^&]+/, '$1…')
 export async function get<T = unknown>(url: string, opts?: Opts & { text?: false; bytes?: false }): Promise<T | null>
 export async function get(url: string, opts: Opts & { text: true }): Promise<string>
 export async function get(url: string, opts: Opts & { bytes: true }): Promise<Uint8Array | null>
-export async function get(url: string, { headers = {}, text = false, bytes = false }: Opts = {}): Promise<unknown> {
+export async function get(url: string, { headers = {}, text = false, bytes = false, maxAgeMs = CACHE_TTL_MS, signal }: Opts = {}): Promise<unknown> {
   const host = new URL(url).hostname
   const dir = join(CACHE, host)
   const file = join(dir, createHash('sha1').update(url).digest('hex') + (text ? '.txt' : '.json'))
-  if (DISK && !bytes && existsSync(file)) {
+  if (DISK && !bytes && !cachePolicy.getStore()?.refresh && existsSync(file) && Date.now() - statSync(file).mtimeMs < maxAgeMs) {
     stats.hits++
     const raw = readFileSync(file, 'utf8')
     return text ? raw : JSON.parse(raw)
@@ -87,7 +91,8 @@ export async function get(url: string, { headers = {}, text = false, bytes = fal
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
       await slot()
       try {
-        const r = await fetch(url, { headers: { 'User-Agent': UA, Accept: text || bytes ? '*/*' : 'application/json', ...headers } })
+        const timeout = AbortSignal.timeout(15_000)
+        const r = await fetch(url, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout, headers: { 'User-Agent': UA, Accept: text || bytes ? '*/*' : 'application/json', ...headers } })
         if (r.status === 404) {
           if (!bytes) store(dir, file, text ? '' : 'null')
           return text ? '' : null

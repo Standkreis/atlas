@@ -1,7 +1,10 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
-import { UA } from '../../../etl/fetch'
-import { identify, isJpeg, regionSet } from '../identify'
+import { UA } from '../http'
+import { createHash } from 'node:crypto'
+import sharp from 'sharp'
+import { boundedScan, lock } from '../quotas'
+import { identify, isJpeg, regionSet, MODEL, scanReservation } from '../identify'
 import { deletePhoto, readPhoto } from '../photos'
 import { shouldOfferPasskey } from '../webauthn'
 import { publicProcedure, router, type Context } from '../trpc'
@@ -38,7 +41,7 @@ const taxonSelect = { id: true, gbifKey: true, sciName: true, commonNames: true,
 async function isFirst(db: Context['db'], row: { id: string; identityId: string; taxonId: string; at: Date; createdAt: Date; wildness: string }) {
   if (row.wildness !== 'wild') return false
   const earlier = await db.sighting.count({
-    where: { identityId: row.identityId, taxonId: row.taxonId, wildness: 'wild', id: { not: row.id }, OR: [{ at: { lt: row.at } }, { at: row.at, createdAt: { lt: row.createdAt } }] },
+    where: { identityId: row.identityId, taxonId: row.taxonId, wildness: 'wild', id: { not: row.id }, OR: [{ at: { lt: row.at } }, { at: row.at, createdAt: { lt: row.createdAt } }, { at: row.at, createdAt: row.createdAt, id: { lt: row.id } }] },
   })
   return earlier === 0
 }
@@ -71,35 +74,40 @@ export const sightingRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const id = ctx.identity.id
-      if (input.id) {
-        const existing = await ctx.db.sighting.findUnique({ where: { id: input.id }, select: { id: true, identityId: true, taxonId: true, at: true, createdAt: true, place: true, wildness: true, evidence: true } })
-        if (existing && existing.identityId !== id) throw new TRPCError({ code: 'CONFLICT', message: 'id taken' })
-        if (existing) return { id: existing.id, at: existing.at, place: existing.place, wildness: existing.wildness, evidence: existing.evidence, first: await isFirst(ctx.db, existing) }
-      }
-      const [taxon, filter, photo] = await Promise.all([
-        ctx.db.taxon.findUnique({ where: { id: input.taxonId }, select: { id: true } }),
-        ctx.db.filter.findUnique({ where: { identityId: id }, select: { region: { select: { name: true } } } }),
-        input.photoId ? ctx.db.asset.findFirst({ where: { id: input.photoId, ownerId: id, sightingId: null }, select: { id: true } }) : null,
-      ])
-      if (!taxon) throw new TRPCError({ code: 'NOT_FOUND', message: 'unknown taxon' })
-      if (input.photoId && !photo) throw new TRPCError({ code: 'NOT_FOUND', message: 'unknown photo' })
-      const hasPoint = input.lat !== undefined && input.lng !== undefined
-      const place = (hasPoint ? await gemeinde(input.lat!, input.lng!) : null) ?? filter?.region?.name ?? null
-      const row = await ctx.db.sighting.create({
-        data: {
-          ...(input.id ? { id: input.id } : {}),
-          identityId: id,
-          taxonId: input.taxonId,
-          at: input.at,
-          lat: hasPoint ? input.lat : null,
-          lng: hasPoint ? input.lng : null,
-          place,
-          note: input.note || null,
-          evidence: photo && input.idAssisted ? 'idAssisted' : photo ? 'photographed' : 'claimed',
-          wildness: input.wildness,
-          ...(photo ? { photos: { connect: { id: photo.id } } } : {}),
-        },
-      })
+      const row = await ctx.db.$transaction(async (tx) => {
+        await lock(tx, `identity:${id}`)
+        if (input.id) await lock(tx, `sighting:${input.id}`)
+        if (input.id) {
+          const existing = await tx.sighting.findUnique({ where: { id: input.id }, select: { id: true, identityId: true, taxonId: true, at: true, createdAt: true, place: true, wildness: true, evidence: true } })
+          if (existing && existing.identityId !== id) throw new TRPCError({ code: 'CONFLICT', message: 'id taken' })
+          if (existing) return existing
+        }
+        const [taxon, filter, photo] = await Promise.all([
+          tx.taxon.findUnique({ where: { id: input.taxonId }, select: { id: true } }),
+          tx.filter.findUnique({ where: { identityId: id }, select: { region: { select: { name: true } } } }),
+          input.photoId ? tx.asset.findFirst({ where: { id: input.photoId, ownerId: id, sightingId: null, avatarOf: null, origin: 'user' }, select: { id: true } }) : null,
+        ])
+        if (!taxon) throw new TRPCError({ code: 'NOT_FOUND', message: 'unknown taxon' })
+        if (input.photoId && !photo) throw new TRPCError({ code: 'NOT_FOUND', message: 'unknown photo' })
+        const hasPoint = input.lat !== undefined && input.lng !== undefined
+        const place = (hasPoint ? await gemeinde(input.lat!, input.lng!) : null) ?? filter?.region?.name ?? null
+        const created = await tx.sighting.create({
+          data: {
+            ...(input.id ? { id: input.id } : {}),
+            identityId: id,
+            taxonId: input.taxonId,
+            at: input.at,
+            lat: hasPoint ? input.lat : null,
+            lng: hasPoint ? input.lng : null,
+            place,
+            note: input.note || null,
+            evidence: photo && input.idAssisted ? 'idAssisted' : photo ? 'photographed' : 'claimed',
+            wildness: input.wildness,
+            ...(photo ? { photos: { connect: { id: photo.id } } } : {}),
+          },
+        })
+        return created
+      }, { timeout: 15000, maxWait: 30000 })
       const first = await isFirst(ctx.db, row)
       return { id: row.id, at: row.at, place: row.place, wildness: row.wildness, evidence: row.evidence, first }
     }),
@@ -109,7 +117,7 @@ export const sightingRouter = router({
    * region's set through Claude Sonnet 5 (`server/identify.ts`). The set prompt is built once per region and cached
    * in this process and, for five minutes, at Anthropic. Returns the subject gate, the answer joined to the set (species
    * rank only at confidence ≥ 0.7), the outside guess, the ladder with its evidence, the hint and the cost line.
-   * Nothing is stored: the sighting is the client's next call. Every failure is a typed error (415, 429, 408, 502, 422).
+   * Successful answers are cached for this photo and prompt version; the sighting is the client's next call. Every failure is a typed error (415, 429, 408, 502, 422).
    * `locale` overrides the request's (the outbox flush and scripts); the ladder's prose comes back in that language.
    */
   identify: publicProcedure
@@ -128,22 +136,26 @@ export const sightingRouter = router({
       if (!file) throw new TRPCError({ code: 'NOT_FOUND', message: 'photo file missing' })
       const jpeg = file.body instanceof Uint8Array ? file.body : new Uint8Array(await new Response(file.body).arrayBuffer())
       if (!isJpeg(jpeg)) throw new TRPCError({ code: 'UNSUPPORTED_MEDIA_TYPE', message: 'not a JPEG' })
-      return identify({ jpeg, set, locale: input.locale ?? ctx.locale, search: backboneSearch })
+      const locale = input.locale ?? ctx.locale
+      const version = createHash('sha256').update(JSON.stringify({ model: MODEL, prompt: 2, locale, region: set.region, rows: set.rows })).digest('hex')
+      return boundedScan({ photoId: photo.id, version, identity: ctx.identity.id, network: ctx.networkKey, reserveCents: scanReservation(set, locale), run: async () => {
+        const normalized = await sharp(jpeg, { limitInputPixels: 40000000 }).rotate().resize(1600, 1600, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer()
+        return identify({ jpeg: normalized, set, locale, search: backboneSearch })
+      } })
     }),
 
   /** Bind an uploaded, still unattached photo (POST /api/photo) to one of the identity's sightings: the fill sheet's "Foto". */
   attachPhoto: publicProcedure.input(z.object({ sightingId: z.string().uuid(), photoId: z.string().uuid() })).mutation(async ({ ctx, input }) => {
     const id = ctx.identity.id
-    const [s, photo] = await Promise.all([
-      ctx.db.sighting.findFirst({ where: { id: input.sightingId, identityId: id }, select: { id: true } }),
-      ctx.db.asset.findFirst({ where: { id: input.photoId, ownerId: id, sightingId: null }, select: { id: true } }),
-    ])
-    if (!s || !photo) throw new TRPCError({ code: 'NOT_FOUND', message: s ? 'unknown photo' : 'unknown sighting' })
-    await ctx.db.$transaction([
-      ctx.db.asset.update({ where: { id: photo.id }, data: { sightingId: s.id } }),
-      ctx.db.sighting.update({ where: { id: s.id }, data: { evidence: 'photographed' } }),
-    ])
-    return { id: s.id, photoId: photo.id }
+    return ctx.db.$transaction(async (tx) => {
+      await lock(tx, `identity:${id}`)
+      const s = await tx.sighting.findFirst({ where: { id: input.sightingId, identityId: id }, select: { id: true } })
+      const photo = await tx.asset.findFirst({ where: { id: input.photoId, ownerId: id, origin: 'user', avatarOf: null }, select: { id: true, sightingId: true } })
+      if (!s || !photo || (photo.sightingId && photo.sightingId !== s.id)) throw new TRPCError({ code: 'NOT_FOUND', message: 'unknown unattached photo or sighting' })
+      await tx.asset.update({ where: { id: photo.id }, data: { sightingId: s.id } })
+      await tx.sighting.update({ where: { id: s.id }, data: { evidence: 'photographed' } })
+      return { id: s.id, photoId: photo.id }
+    })
   }),
 
   /** Remove one of the identity's photos, attached or not: the file and the row; the sighting falls back to `claimed`. */

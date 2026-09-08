@@ -1,10 +1,11 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
-import { clear, createStore, del, entries, set } from 'idb-keyval'
+import { createStore, entries } from 'idb-keyval'
 import { createTRPCClient, httpBatchLink, TRPCClientError } from '@trpc/client'
 import superjson from 'superjson'
 import type { inferRouterOutputs } from '@trpc/server'
+import { expectedIdentity } from './ClientIdentity'
 import type { AppRouter } from '@/server/routers/_app'
 
 // The sightings queue (handoff 0009 Track B). One IndexedDB store `outbox`; every save from the save screen writes a row
@@ -34,7 +35,7 @@ export type SightingPayload = {
   /** The species is the scan's answer (handoff 0016 B4): the server stores `evidence: idAssisted`. */
   idAssisted?: boolean
 }
-export type PhotoPayload = { forSighting?: string }
+export type PhotoPayload = { forSighting?: string; photoId?: string }
 export type StudyPayload = { taxonId: string; taxon: QueueTaxon }
 /**
  * A snap without signal (handoff 0016 B5): the sighting as "unbestimmt" until the flush has uploaded the photo and asked
@@ -57,7 +58,7 @@ export type ScanPayload = {
   opened?: boolean
 }
 
-export type Row = { id: string; createdAt: number; attempts: number; lastError: string | null; dead?: boolean } & (
+export type Row = { identityId: string; id: string; createdAt: number; attempts: number; lastError: string | null; dead?: boolean } & (
   | { kind: 'sighting'; payload: SightingPayload; blob?: undefined }
   | { kind: 'photo'; payload: PhotoPayload; blob: Blob }
   | { kind: 'study'; payload: StudyPayload; blob?: undefined }
@@ -74,34 +75,68 @@ const api = process.env.NEXT_PUBLIC_API_URL ?? ''
 const store = typeof indexedDB === 'undefined' ? null : createStore('dex-outbox', 'outbox')
 // A vanilla client of its own: the flush runs outside React (timers, the online event) and must not depend on the provider.
 // `x-dex-locale` (handoff 0016 A5): the flush's `identify` answers in the page's language, as the provider's client does.
-const client = createTRPCClient<AppRouter>({ links: [httpBatchLink({ url: `${api}/api/trpc`, transformer: superjson, headers: () => ({ 'x-dex-locale': document.documentElement.lang }), fetch: (url, opts) => fetch(url, { ...opts, credentials: 'include' }) })] })
+const client = createTRPCClient<AppRouter>({ links: [httpBatchLink({ url: `${api}/api/trpc`, transformer: superjson, headers: () => ({ 'x-dex-locale': document.documentElement.lang, 'x-dex-identity': activeOwner ?? '' }), fetch: (url, opts) => fetch(url, { ...opts, credentials: 'include' }) })] })
 
-// ── 0025 B9 · IndexedDB can hang (0009 A4, seen in the Simulator under the persister's load): every call races IDB_TIMEOUT.
-// A read that hangs answers with the localStorage rows only; after the first hang every write and removal also keeps a
-// snapshot of the box (rows without a blob: a photo row stays in memory for the session) in localStorage, and the next
-// load merges it back, the snapshot winning by id. A removal that hung leaves the row in IndexedDB, so it may come back
-// at the next load and be sent again: the server upserts by the client's id (0009), a repeat is not a twin. Warns once.
+// A save is acknowledged only after IndexedDB commits, including its Blob. A plain-text
+// fallback cannot preserve photos and must never make the save screen report success.
 const IDB_TIMEOUT = 5000
 export const FALLBACK_KEY = 'dex.outbox.fallback'
-const HUNG = Symbol('hung')
-let degraded = false // a call hung, or a snapshot from an earlier session exists: keep the snapshot in step from now on
-const timed = <T>(p: Promise<T>): Promise<T | typeof HUNG> => new Promise((resolve, reject) => {
-  const h = setTimeout(() => {
-    if (!degraded) console.warn(`[outbox] IndexedDB did not answer within ${IDB_TIMEOUT / 1000} s; localStorage keeps the rows`)
-    degraded = true
-    resolve(HUNG)
-  }, IDB_TIMEOUT)
-  p.then((v) => { clearTimeout(h); resolve(v) }, (e) => { clearTimeout(h); reject(e) })
+export const IDENTITY_KEY = 'dex.persist.identity'
+export class QueueStorageError extends Error { constructor() { super('Could not save on this device. Please try again.') } }
+let epoch = 0
+let activeOwner: string | null = null
+let paused = false
+let controller = new AbortController()
+const transactions = new Set<IDBTransaction>()
+const owner = () => { try { const stored = localStorage.getItem(IDENTITY_KEY); return stored === expectedIdentity() ? stored : null } catch { return null } }
+const timed = <T>(p: Promise<T>): Promise<T> => new Promise((resolve, reject) => {
+  const h = setTimeout(() => reject(new QueueStorageError()), IDB_TIMEOUT)
+  p.then(v => { clearTimeout(h); resolve(v) }, e => { clearTimeout(h); reject(e) })
 })
-const snapshotRead = (): Row[] => { try { const raw = localStorage.getItem(FALLBACK_KEY); return raw ? (JSON.parse(raw) as Row[]) : [] } catch { return [] } }
-const snapshotWrite = (all: Row[]) => { try { const plain = all.filter((r) => !r.blob); if (plain.length) localStorage.setItem(FALLBACK_KEY, JSON.stringify(plain)); else localStorage.removeItem(FALLBACK_KEY) } catch { /* private mode, or full */ } }
-const snapshotDrop = () => { try { localStorage.removeItem(FALLBACK_KEY) } catch { /* private mode */ } }
-/** IndexedDB's rows under the snapshot's: the snapshot was written later, by id it wins. */
-const mergeRows = (idb: Row[], snap: Row[]): Row[] => { const by = new Map(idb.map((r) => [r.id, r])); for (const r of snap) by.set(r.id, r); return [...by.values()].sort(byAge) }
+function cancelRun() {
+  epoch++
+  controller.abort()
+  controller = new AbortController()
+  for (const tx of transactions) { try { tx.abort() } catch { /* already finished */ } }
+}
+// One transaction commits both the upload acknowledgement and removal of its Blob.
+async function persist(put: Row[] = [], drop: string[] = [], clearAll = false, patches: { id: string; patch: (row: Row) => Row }[] = []) {
+  if (!store) throw new QueueStorageError()
+  const start = epoch
+  const deadline = Date.now() + IDB_TIMEOUT
+  if (paused && (put.length || patches.length)) throw new QueueStorageError()
+  await timed(store('readwrite', objectStore => new Promise<void>((resolve, reject) => {
+    const tx = objectStore.transaction
+    if (start !== epoch || Date.now() >= deadline || (paused && (put.length || patches.length))) { tx.abort(); reject(new QueueStorageError()); return }
+    transactions.add(tx)
+    const timer = setTimeout(() => { try { tx.abort() } catch { /* finished */ } }, Math.max(1, deadline - Date.now() - 50))
+    const finish = () => { clearTimeout(timer); transactions.delete(tx) }
+    tx.oncomplete = () => { finish(); resolve() }
+    tx.onabort = tx.onerror = () => { finish(); reject(new QueueStorageError()) }
+    if (clearAll) objectStore.clear()
+    for (const id of drop) objectStore.delete(id)
+    for (const row of put) objectStore.put(row, row.id)
+    for (const { id, patch } of patches) {
+      const request = objectStore.get(id)
+      request.onsuccess = () => {
+        const current = request.result as Row | undefined
+        if (!current || current.identityId !== owner()) { tx.abort(); return }
+        const next = patch(current)
+        put.push(next)
+        objectStore.put(next, id)
+      }
+    }
+  })))
+  if (start !== epoch) throw new QueueStorageError()
+  rows = (clearAll ? [] : rows.filter(r => !drop.includes(r.id) && !put.some(p => p.id === r.id))).concat(put).sort(byAge)
+  notify()
+}
 
 // ── The in-memory mirror: every read of the box goes through it, every write updates it and IndexedDB and tells the listeners ──
 let rows: Row[] = []
+let quarantined: Row[] = []
 let loaded: Promise<void> | null = null
+let loadedFor: string | null | undefined
 let isLoaded = typeof indexedDB === 'undefined' // no IndexedDB (SSR, a test): nothing to wait for
 const listeners = new Set<() => void>()
 const flushedListeners = new Set<(f: Flushed) => void>()
@@ -110,16 +145,18 @@ const byAge = (a: Row, b: Row) => a.createdAt - b.createdAt
 
 export function load(): Promise<void> {
   if (!store) return Promise.resolve()
-  return (loaded ??= timed(entries<string, Row>(store)).then(async (all) => {
-    const idb = all === HUNG ? [] : all.map(([, r]) => r)
-    const snap = snapshotRead()
-    rows = mergeRows(idb, snap)
-    if (!snap.length) return
-    if (all === HUNG) { degraded = true; return }
-    // IndexedDB answers again: the snapshot's rows go back into it; the snapshot stays only when one of the writes hangs.
-    const back = await Promise.all(snap.map((r) => timed(set(r.id, r, store)).catch(() => HUNG)))
-    if (back.every((b) => b !== HUNG)) snapshotDrop(); else degraded = true
-  }).catch(() => { rows = mergeRows(rows, snapshotRead()) }).then(() => { isLoaded = true; notify() }))
+  const currentOwner = owner()
+  if (loadedFor !== currentOwner) { loaded = null; loadedFor = currentOwner }
+  const start = epoch
+  return (loaded ??= timed(entries<string, Row>(store)).then(all => {
+    if (start !== epoch) return
+    // Legacy rows without an owner are quarantined: never attach somebody else's
+    // old offline discoveries to whichever cookie happens to be present today.
+    let fallback: Row[] = []
+    try { const saved: unknown = JSON.parse(localStorage.getItem(FALLBACK_KEY) ?? '[]'); if (Array.isArray(saved)) fallback = saved.filter(r => r && typeof r.id === 'string' && !r.identityId) as Row[] } catch { /* unreadable legacy snapshot */ }
+    quarantined = [...new Map([...all.map(([, r]) => r).filter(r => !r.identityId), ...fallback].map(row => [row.id, row])).values()].sort(byAge)
+    rows = all.map(([, r]) => r).filter(r => !!r.identityId && r.identityId === owner()).sort(byAge)
+  }).then(() => { isLoaded = true; notify() }).catch(e => { loaded = null; throw e }))
 }
 export const rowsNow = () => rows
 export const rowOf = (id: string) => rows.find((r) => r.id === id)
@@ -130,47 +167,68 @@ export function useOutbox(): Row[] {
   return useSyncExternalStore(subscribe, rowsNow, () => empty)
 }
 const empty: Row[] = []
+export function useQuarantinedOutbox(): Row[] { return useSyncExternalStore(subscribe, () => quarantined, () => empty) }
+/** Complete local recovery copy, including every available photo byte. No guesses
+ * about identity ownership and no requests to the server are involved. */
+export async function downloadOutboxRecovery() {
+  const legacy = await Promise.all(quarantined.map(async row => {
+    const photoDataUrl = row.blob ? await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(row.blob!)
+    }) : undefined
+    return { ...row, blob: undefined, photoDataUrl }
+  }))
+  const url = URL.createObjectURL(new Blob([JSON.stringify({ format: 'standkreis-outbox-recovery', version: 1, exportedAt: new Date().toISOString(), rows: legacy }, null, 2)], { type: 'application/json' }))
+  const link = document.createElement('a')
+  link.href = url; link.download = 'standkreis-unsent-recovery.json'; link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
 /** Has the box been read from IndexedDB once? A screen that decides on `rowOf()` at mount (the scan, the save screen's queued photo) waits for this. */
 export function useOutboxReady(): boolean {
   return useSyncExternalStore(subscribe, () => isLoaded, () => false)
 }
 
 async function write(row: Row) {
-  rows = [...rows.filter((r) => r.id !== row.id), row].sort(byAge)
-  notify()
-  if (!store) return
-  const r = await timed(set(row.id, row, store))
-  if (r === HUNG || degraded) snapshotWrite(rows)
+  if (row.identityId !== owner()) throw new QueueStorageError()
+  await persist([row])
 }
-/** Change one row in place (a scan row's point, its `opened` flag); a row that is gone stays gone. */
 export async function update(id: string, patch: (r: Row) => Row) {
-  const r = rowOf(id)
-  if (r) await write(patch(r))
+  if (rowOf(id)) await persist([], [], false, [{ id, patch }])
 }
-export async function remove(id: string) {
-  rows = rows.filter((r) => r.id !== id)
-  notify()
-  if (!store) return
-  const r = await timed(del(id, store))
-  if (r === HUNG || degraded) snapshotWrite(rows)
-}
-/** "Alles löschen" (0025, 0012 T4): the box is the identity's; memory, the snapshot and IndexedDB are emptied. */
-export async function clearOutbox() {
+export async function remove(id: string) { await persist([], [id]) }
+/** Abort in-flight work before clearing, including requests that would otherwise
+ * resurrect a cleared row when their response eventually arrives. */
+export async function clearOutbox(identityId?: string) {
+  cancelRun()
   rows = []
+  quarantined = []
+  loaded = null
   notify()
-  snapshotDrop()
-  if (store) await timed(clear(store)).catch(() => undefined)
+  try { if (!identityId) localStorage.removeItem(FALLBACK_KEY) } catch { /* private mode */ }
+  if (identityId && store) {
+    const all = await timed(entries<string, Row>(store))
+    await persist([], all.filter(([, row]) => row.identityId === identityId).map(([id]) => id))
+  } else await persist([], [], true)
 }
+export function suspendOutbox() { cancelRun(); rows = []; loaded = null; notify() }
+export function pauseOutbox() { paused = true; suspendOutbox() }
+export function resumeOutbox() { paused = false }
 
 /**
  * Put a row into the box. The 51st row is refused (`QueueFull`): iOS evicts the store after seven unused days (record
  * Q5), so the box stays small and the save screen says "Erst wieder ins Netz". A blob over 2 MB is refused the same way.
  */
-export async function enqueue(row: Omit<Row, 'createdAt' | 'attempts' | 'lastError'> & { id: string }): Promise<Row> {
+export async function enqueue(row: Omit<Row, 'identityId' | 'createdAt' | 'attempts' | 'lastError'> & { id: string }): Promise<Row> {
+  if (paused) throw new QueueStorageError()
   await load()
+  if (paused) throw new QueueStorageError()
   if (rows.filter((r) => !r.dead).length >= MAX_ROWS) throw new QueueFull()
   if (row.blob && row.blob.size > MAX_BLOB) throw new QueueFull()
-  const full = { ...row, createdAt: Date.now(), attempts: 0, lastError: null } as Row
+  const identityId = owner()
+  if (!identityId) throw new QueueStorageError()
+  const full = { ...row, identityId, createdAt: Date.now(), attempts: 0, lastError: null } as Row
   await write(full)
   return full
 }
@@ -196,31 +254,31 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e)).sli
 async function upload(blob: Blob): Promise<{ id: string; url: string }> {
   const form = new FormData()
   form.append('file', blob, 'photo.jpg')
-  const r = await fetch(`${api}/api/photo`, { method: 'POST', body: form, credentials: 'include' })
+  const r = await fetch(`${api}/api/photo`, { method: 'POST', body: form, credentials: 'include', headers: { 'x-dex-identity': activeOwner ?? '' }, signal: controller.signal })
   if (!r.ok) throw new HttpError(r.status, `upload ${r.status}`)
   return (await r.json()) as { id: string; url: string }
 }
 
-/** Send one row. A sighting with a queued photo uploads it first; a photo that the server refuses (4xx) is dropped and the sighting goes without it. */
+/** Send the saved payload unchanged; a refused photo keeps its parent visible for retry. */
+function assertActive(row: Row) {
+  if (row.identityId !== owner() || row.identityId !== activeOwner || !rowOf(row.id)) throw new Error('Identity changed')
+}
 async function send(row: Row): Promise<unknown> {
+  assertActive(row)
   if (row.kind === 'sighting') {
     const p = row.payload
     let photoId = p.photoId
     const photo = p.photoRow ? rowOf(p.photoRow) : undefined
     if (photo?.kind === 'photo') {
-      try {
-        photoId = (await upload(photo.blob)).id
-        await remove(photo.id)
-        await write({ ...row, payload: { ...p, photoRow: undefined, photoId } })
-      } catch (e) {
-        if (verdict(e) !== 'dead') throw e
-        await remove(photo.id) // the file is wrong (not a JPEG, too big); the sighting must not wait on it
-        await write({ ...row, payload: { ...p, photoRow: undefined }, lastError: message(e) })
-      }
+      photoId = (await upload(photo.blob)).id
+      assertActive(row)
+      await persist([], [photo.id], false, [{ id: row.id, patch: current => current.kind === row.kind ? { ...current, payload: { ...current.payload, photoRow: undefined, photoId } } as Row : current }])
     }
-    return client.sighting.create.mutate({ id: row.id, taxonId: p.taxonId, at: new Date(p.at), lat: p.lat, lng: p.lng, note: p.note, wildness: p.wildness, photoId, idAssisted: p.idAssisted && !!photoId ? true : undefined })
+    if (p.photoRow && !photoId) throw new HttpError(410, 'photo gone')
+    assertActive(row)
+    return client.sighting.create.mutate({ id: row.id, taxonId: p.taxonId, at: new Date(p.at), lat: p.lat, lng: p.lng, note: p.note, wildness: p.wildness, photoId, idAssisted: p.idAssisted && !!photoId ? true : undefined }, { signal: controller.signal })
   }
-  if (row.kind === 'study') return client.study.mark.mutate({ taxonId: row.payload.taxonId })
+  if (row.kind === 'study') return client.study.mark.mutate({ taxonId: row.payload.taxonId }, { signal: controller.signal })
   if (row.kind === 'scan') {
     // B5: the photo first (a refused file kills the row: there is nothing to identify), then the engine; the ladder lands on the row.
     const p = row.payload
@@ -228,20 +286,23 @@ async function send(row: Row): Promise<unknown> {
     const photo = p.photoRow ? rowOf(p.photoRow) : undefined
     if (photo?.kind === 'photo') {
       photoId = (await upload(photo.blob)).id
-      await remove(photo.id)
-      await write({ ...row, payload: { ...p, photoRow: undefined, photoId } })
+      assertActive(row)
+      await persist([], [photo.id], false, [{ id: row.id, patch: current => current.kind === row.kind ? { ...current, payload: { ...current.payload, photoRow: undefined, photoId } } as Row : current }])
     }
     if (!photoId) throw new HttpError(410, 'photo gone')
-    const ladder = await client.sighting.identify.mutate({ photoId, regionId: p.regionId, locale: document.documentElement.lang === 'en' ? 'en' : 'de' })
+    const ladder = await client.sighting.identify.mutate({ photoId, regionId: p.regionId, locale: document.documentElement.lang === 'en' ? 'en' : 'de' }, { signal: controller.signal })
+    assertActive(row)
     const cur = rowOf(row.id) // the point may have landed on the row while the engine worked
     const base: Row & { kind: 'scan' } = cur?.kind === 'scan' ? cur : row
-    await write({ ...base, payload: { ...base.payload, photoRow: undefined, photoId, idPending: false, ladder }, lastError: null })
+    await update(base.id, current => current.kind === 'scan' ? { ...current, payload: { ...current.payload, photoRow: undefined, photoId, idPending: false, ladder }, lastError: null } : current)
     return ladder
   }
   // A photo row alone: bound to a sighting that already exists on the server (kind `photo` with forSighting); an unbound one waits for its sighting row.
   if (row.payload.forSighting) {
-    const a = await upload(row.blob)
-    return client.sighting.attachPhoto.mutate({ sightingId: row.payload.forSighting, photoId: a.id })
+    const photoId = row.payload.photoId ?? (await upload(row.blob)).id
+    assertActive(row)
+    await write({ ...row, payload: { ...row.payload, photoId } })
+    return client.sighting.attachPhoto.mutate({ sightingId: row.payload.forSighting, photoId }, { signal: controller.signal })
   }
   return null
 }
@@ -254,12 +315,26 @@ let running: Promise<void> | null = null
  * One run at a time; a second call while one runs joins it.
  */
 export function flush(): Promise<void> {
-  return (running ??= run().finally(() => { running = null }))
+  if (paused || typeof navigator === 'undefined' || !navigator.locks) return Promise.resolve()
+  return (running ??= navigator.locks.request('dex-outbox-flush', { ifAvailable: true }, async lock => {
+    if (lock) await run()
+  }).then(() => {}).catch(() => { /* keep durable rows for retry */ }).finally(() => { running = null; activeOwner = null }))
 }
 async function run() {
+  const start = epoch
+  loaded = null // another tab may have acknowledged rows since our last snapshot
   await load()
   if (typeof navigator !== 'undefined' && !navigator.onLine) return
-  for (const row of [...rows]) {
+  const expectedOwner = owner()
+  if (!expectedOwner || !rows.length) return // main identity.me is the only bootstrap; never mint a competing cookie
+  activeOwner = expectedOwner
+  const identity = await client.identity.me.query(undefined, { signal: controller.signal })
+  if (paused || start !== epoch || identity.id !== owner()) return
+  activeOwner = identity.id
+  for (const snapshot of [...rows]) {
+    if (paused || start !== epoch) return
+    const row = rowOf(snapshot.id)
+    if (!row || row.identityId !== activeOwner) continue
     if (row.dead) continue
     if (row.kind === 'photo' && !row.payload.forSighting) {
       // Waits for its sighting; if none ever comes (chooser → back), it goes after a day, like the server's abandoned Assets.
@@ -269,12 +344,16 @@ async function run() {
     if (row.kind === 'scan' && !row.payload.idPending) continue // answered: waits for the user, not for the signal
     try {
       const result = await send(row)
+      if (start !== epoch || !rowOf(row.id)) return
+      assertActive(row)
       if (row.kind !== 'scan') await remove(row.id) // an answered scan row stays until the save screen takes it
       for (const l of flushedListeners) l({ row, result })
     } catch (e) {
-      const current = rowOf(row.id) ?? row
+      if (start !== epoch) return
+      const current = rowOf(row.id)
+      if (!current) continue
       const dead = verdict(e) === 'dead'
-      await write({ ...current, attempts: current.attempts + 1, lastError: message(e), dead })
+      await update(current.id, saved => ({ ...saved, attempts: saved.attempts + 1, lastError: message(e), dead }))
       if (!dead) return
     }
   }

@@ -11,7 +11,9 @@ import { z } from 'zod'
 import { Tile } from '@/generated/prisma/enums'
 import { IDENTITY_COOKIE, IDENTITY_COOKIE_MAX_AGE, publicProcedure, router, type Context } from '../trpc'
 import { sendCode } from '../mail'
-import { deletePhoto, photoUrl } from '../photos'
+import { consume, lock } from '../quotas'
+import type { Prisma } from '../../generated/prisma/client'
+import { photoUrl, queuePhotoDeletes, retryPendingPhotoDeletes } from '../photos'
 import { expectedOrigin, issueChallenge, rpID, rpName, takeChallenge } from '../webauthn'
 
 // The WebAuthn response shapes come from the browser library; zod only checks the envelope, simplewebauthn checks the rest.
@@ -29,17 +31,28 @@ const hashCode = (code: string) => createHash('sha256').update(code).digest('hex
 
 /// Adoption (handoff 0006 Track B): `from` (this device's anonymous identity) folds into `into` (the identity the passkey belongs to).
 /// Sightings and studies merge by [taxonId, at] resp. [taxonId]; duplicates are dropped; assets owned move along; `from` is deleted.
-async function mergeIdentities(db: Context['db'], fromId: string, intoId: string) {
-  return db.$transaction(async (tx) => {
+export async function mergeIdentitiesInTransaction(tx: Prisma.TransactionClient, fromId: string, intoId: string) {
+    for (const id of [fromId, intoId].sort()) await lock(tx, `identity:${id}`)
     const [from, into] = await Promise.all([
-      tx.identity.findUniqueOrThrow({ where: { id: fromId }, include: { sightings: { select: { id: true, taxonId: true, at: true } }, studies: true, filter: true } }),
-      tx.identity.findUniqueOrThrow({ where: { id: intoId }, include: { sightings: { select: { taxonId: true, at: true } }, studies: true, filter: true } }),
+      tx.identity.findUniqueOrThrow({ where: { id: fromId }, include: { sightings: { select: { id: true, taxonId: true, at: true, evidence: true } }, studies: true, filter: true } }),
+      tx.identity.findUniqueOrThrow({ where: { id: intoId }, include: { sightings: { select: { id: true, taxonId: true, at: true, evidence: true } }, studies: true, filter: true } }),
     ])
 
+    if (from.emailVerifiedAt && from.email !== into.email) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'remove your address first' })
     // Sightings: same taxon at the same instant is the same encounter logged twice.
     const seen = new Set(into.sightings.map((s) => `${s.taxonId}|${s.at.toISOString()}`))
     const keep = from.sightings.filter((s) => !seen.has(`${s.taxonId}|${s.at.toISOString()}`))
     const dropSightings = from.sightings.filter((s) => seen.has(`${s.taxonId}|${s.at.toISOString()}`))
+    // Preserve duplicate encounters' photos by moving them to the retained sighting before the cascade.
+    const intoSightings = new Map(into.sightings.map((s) => [`${s.taxonId}|${s.at.toISOString()}`, s.id]))
+    for (const s of dropSightings) {
+      const retainedId = intoSightings.get(`${s.taxonId}|${s.at.toISOString()}`)!
+      const moved = await tx.asset.updateMany({ where: { sightingId: s.id }, data: { sightingId: retainedId } })
+      if (moved.count) {
+        const retained = into.sightings.find((r) => r.id === retainedId)!
+        await tx.sighting.update({ where: { id: retainedId }, data: { evidence: retained.evidence === 'idAssisted' || s.evidence === 'idAssisted' ? 'idAssisted' : 'photographed' } })
+      }
+    }
     if (dropSightings.length) await tx.sighting.deleteMany({ where: { id: { in: dropSightings.map((s) => s.id) } } })
     if (keep.length) await tx.sighting.updateMany({ where: { id: { in: keep.map((s) => s.id) } }, data: { identityId: intoId } })
 
@@ -62,11 +75,27 @@ async function mergeIdentities(db: Context['db'], fromId: string, intoId: string
     if (from.filter && !into.filter) await tx.filter.update({ where: { id: from.filter.id }, data: { identityId: intoId } })
     if (from.displayName && !into.displayName) await tx.identity.update({ where: { id: intoId }, data: { displayName: from.displayName } })
     // The avatar too (0014 P2): the asset already moved with `ownerId`; without this it would be an orphan for the sweep.
-    if (from.avatarAssetId && !into.avatarAssetId) await tx.identity.update({ where: { id: intoId }, data: { avatarAssetId: from.avatarAssetId } })
+    if (from.avatarAssetId) {
+      await tx.identity.update({ where: { id: fromId }, data: { avatarAssetId: null } })
+      if (!into.avatarAssetId) await tx.identity.update({ where: { id: intoId }, data: { avatarAssetId: from.avatarAssetId } })
+      else {
+        await queuePhotoDeletes(tx, [from.avatarAssetId])
+        await tx.asset.delete({ where: { id: from.avatarAssetId } })
+      }
+    }
+    await tx.passkey.updateMany({ where: { identityId: fromId }, data: { identityId: intoId } })
+    await tx.scanWork.updateMany({ where: { identityId: fromId }, data: { identityId: intoId } })
 
     await tx.identity.delete({ where: { id: fromId } }) // cascades whatever is left: filter, duplicate rows already gone
     return { sightingsMerged: keep.length, sightingsDropped: dropSightings.length, studiesMerged }
-  })
+}
+async function mergeIdentities(db: Context['db'], fromId: string, intoId: string) {
+  const merged = await db.$transaction(async (tx) => {
+    await lock(tx, 'identity-recovery')
+    return mergeIdentitiesInTransaction(tx, fromId, intoId)
+  }, { maxWait: 30000, timeout: 15000 })
+  await retryPendingPhotoDeletes()
+  return merged
 }
 
 export const identityRouter = router({
@@ -123,15 +152,20 @@ export const identityRouter = router({
   // like a sighting photo; this binds the unattached Asset to the identity. The previous avatar (row and file) goes with
   // it, so an identity never owns more than one, and `null` takes the photo off again. Shown in the profile, nowhere else.
   setAvatar: publicProcedure.input(z.object({ assetId: z.string().uuid().nullable() })).mutation(async ({ ctx, input }) => {
-    const previous = ctx.identity.avatarAssetId
-    if (input.assetId) {
-      const asset = await ctx.db.asset.findFirst({ where: { id: input.assetId, origin: 'user', ownerId: ctx.identity.id, sightingId: null }, select: { id: true } })
-      if (!asset) throw new TRPCError({ code: 'NOT_FOUND', message: 'not your unattached photo' })
-    }
-    if (input.assetId === previous) return { avatarUrl: previous ? photoUrl(previous) : null }
-    await ctx.db.identity.update({ where: { id: ctx.identity.id }, data: { avatarAssetId: input.assetId } })
-    if (previous) await deletePhoto(previous)
-    return { avatarUrl: input.assetId ? photoUrl(input.assetId) : null }
+    const result = await ctx.db.$transaction(async (tx) => {
+      await lock(tx, `identity:${ctx.identity.id}`)
+      const { avatarAssetId: previous } = await tx.identity.findUniqueOrThrow({ where: { id: ctx.identity.id }, select: { avatarAssetId: true } })
+      if (input.assetId) {
+        const asset = await tx.asset.findFirst({ where: { id: input.assetId, origin: 'user', ownerId: ctx.identity.id, sightingId: null }, select: { id: true } })
+        if (!asset) throw new TRPCError({ code: 'NOT_FOUND', message: 'not your unattached photo' })
+      }
+      if (input.assetId === previous) return { avatarUrl: previous ? photoUrl(previous) : null }
+      await tx.identity.update({ where: { id: ctx.identity.id }, data: { avatarAssetId: input.assetId } })
+      if (previous) { await queuePhotoDeletes(tx, [previous]); await tx.asset.delete({ where: { id: previous } }) }
+      return { avatarUrl: input.assetId ? photoUrl(input.assetId) : null }
+    })
+    await retryPendingPhotoDeletes()
+    return result
   }),
 
   // The global filter (spec §🏗️): the regions and the active one (handoff 0018 R2), the tiles from onboarding, the "nur
@@ -251,17 +285,19 @@ export const identityRouter = router({
   // that identity here, exactly like `authenticateVerify` (the device's identity folds into the address's, never the reverse).
   emailStart: publicProcedure.input(z.object({ email: z.string().trim().toLowerCase().email().max(254) })).mutation(async ({ ctx, input }) => {
     const now = Date.now()
-    const [perAddress, perIdentity] = await Promise.all([
-      ctx.db.emailCode.count({ where: { email: input.email, createdAt: { gt: new Date(now - 60 * 60 * 1000) } } }),
-      ctx.db.emailCode.count({ where: { identityId: ctx.identity.id, createdAt: { gt: new Date(now - 24 * 60 * 60 * 1000) } } }),
-    ])
-    if (perAddress >= CODES_PER_ADDRESS_PER_HOUR || perIdentity >= CODES_PER_IDENTITY_PER_DAY) throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'too many codes, try again later' })
-    const code = randomInt(0, 1_000_000).toString().padStart(6, '0')
+    const code = randomInt(0, 1000000).toString().padStart(6, '0')
     const expiresAt = new Date(now + CODE_TTL_MS)
-    await ctx.db.$transaction([
-      ctx.db.emailCode.updateMany({ where: { identityId: ctx.identity.id, usedAt: null }, data: { usedAt: new Date(now) } }), // one live code per identity
-      ctx.db.emailCode.create({ data: { identityId: ctx.identity.id, email: input.email, codeHash: hashCode(code), expiresAt, locale: ctx.locale } }),
-    ])
+    await ctx.db.$transaction(async (tx) => {
+      await lock(tx, 'email-admission')
+      await lock(tx, `identity:${ctx.identity.id}`)
+      const stamp = new Date(now).toISOString(), expiry = new Date(now + 2 * 86400000)
+      await consume(tx, `mail:address:${hashCode(input.email)}:${stamp.slice(0, 13)}`, 1, CODES_PER_ADDRESS_PER_HOUR, expiry)
+      await consume(tx, `mail:identity:${ctx.identity.id}:${stamp.slice(0, 10)}`, 1, CODES_PER_IDENTITY_PER_DAY, expiry)
+      await consume(tx, `mail:network:${ctx.networkKey}:${stamp.slice(0, 13)}`, 1, 10, expiry)
+      await consume(tx, `mail:global:${stamp.slice(0, 13)}`, 1, 100, expiry)
+      await tx.emailCode.updateMany({ where: { identityId: ctx.identity.id, usedAt: null }, data: { usedAt: new Date(now) } })
+      await tx.emailCode.create({ data: { identityId: ctx.identity.id, email: input.email, codeHash: hashCode(code), expiresAt, locale: ctx.locale } })
+    }, { maxWait: 30000 })
     try { await sendCode(input.email, code, ctx.locale) } catch (e) {
       console.error('[mail] send failed:', e instanceof Error ? e.message : e) // the provider's message, never the address
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'mail not sent' })
@@ -270,35 +306,40 @@ export const identityRouter = router({
   }),
 
   emailVerify: publicProcedure.input(z.object({ code: z.string().trim().regex(/^\d{6}$/) })).mutation(async ({ ctx, input }) => {
-    const live = await ctx.db.emailCode.findFirst({ where: { identityId: ctx.identity.id, usedAt: null }, orderBy: { createdAt: 'desc' } })
-    if (!live || live.attempts >= CODE_MAX_ATTEMPTS) throw new TRPCError({ code: 'BAD_REQUEST', message: 'no live code' })
-    if (live.expiresAt.getTime() < Date.now()) throw new TRPCError({ code: 'BAD_REQUEST', message: 'code expired' })
-    const ok = timingSafeEqual(Buffer.from(hashCode(input.code)), Buffer.from(live.codeHash))
-    if (!ok) {
-      const { attempts } = await ctx.db.emailCode.update({ where: { id: live.id }, data: { attempts: { increment: 1 } }, select: { attempts: true } })
-      throw new TRPCError({ code: 'BAD_REQUEST', message: attempts >= CODE_MAX_ATTEMPTS ? 'code dead' : 'wrong code' })
-    }
-    await ctx.db.emailCode.update({ where: { id: live.id }, data: { usedAt: new Date(), attempts: { increment: 1 } } })
-
-    const owner = await ctx.db.identity.findUnique({ where: { email: live.email }, select: { id: true, emailVerifiedAt: true } })
-    if (owner && owner.emailVerifiedAt && owner.id !== ctx.identity.id) {
-      // A verified address is never moved or dropped silently (§🔒): this device's own address would go with the merge.
-      if (ctx.identity.emailVerifiedAt) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'remove your address first' })
-      const merged = await mergeIdentities(ctx.db, ctx.identity.id, owner.id)
-      ctx.setCookie(IDENTITY_COOKIE, owner.id, { maxAge: IDENTITY_COOKIE_MAX_AGE })
-      return { id: owner.id, adopted: true as const, merged, email: live.email }
-    }
-    // A reserved-but-unverified `email` on some other row (pre-0020 there was no writer, so this is a guard, not a path).
-    if (owner && owner.id !== ctx.identity.id) await ctx.db.identity.update({ where: { id: owner.id }, data: { email: null } })
-    await ctx.db.identity.update({ where: { id: ctx.identity.id }, data: { email: live.email, emailVerifiedAt: new Date() } })
-    return { id: ctx.identity.id, adopted: false as const, email: live.email }
+    const outcome = await ctx.db.$transaction(async (tx) => {
+      await lock(tx, 'identity-recovery')
+      // Email issue/verify/removal and identity adoption share this lock. Failed attempts must COMMIT.
+      await lock(tx, `identity:${ctx.identity.id}`)
+      const live = await tx.emailCode.findFirst({ where: { identityId: ctx.identity.id, usedAt: null }, orderBy: { createdAt: 'desc' } })
+      if (!live || live.attempts >= CODE_MAX_ATTEMPTS) return { error: 'no live code' } as const
+      if (live.expiresAt.getTime() <= Date.now()) return { error: 'code expired' } as const
+      const ok = timingSafeEqual(Buffer.from(hashCode(input.code)), Buffer.from(live.codeHash))
+      if (!ok) {
+        const { attempts } = await tx.emailCode.update({ where: { id: live.id }, data: { attempts: { increment: 1 } }, select: { attempts: true } })
+        return { error: attempts >= CODE_MAX_ATTEMPTS ? 'code dead' : 'wrong code' } as const
+      }
+      const owner = await tx.identity.findUnique({ where: { email: live.email }, select: { id: true, emailVerifiedAt: true } })
+      await tx.emailCode.update({ where: { id: live.id }, data: { usedAt: new Date(), attempts: { increment: 1 } } })
+      if (owner?.emailVerifiedAt && owner.id !== ctx.identity.id) {
+        const merged = await mergeIdentitiesInTransaction(tx, ctx.identity.id, owner.id)
+        return { id: owner.id, adopted: true as const, merged, email: live.email }
+      }
+      if (owner && owner.id !== ctx.identity.id) await tx.identity.update({ where: { id: owner.id }, data: { email: null } })
+      await tx.identity.update({ where: { id: ctx.identity.id }, data: { email: live.email, emailVerifiedAt: new Date() } })
+      return { id: ctx.identity.id, adopted: false as const, email: live.email }
+    }, { maxWait: 30000, timeout: 15000 })
+    if ('error' in outcome) throw new TRPCError({ code: 'BAD_REQUEST', message: outcome.error })
+    if (outcome.adopted) ctx.setCookie(IDENTITY_COOKIE, outcome.id, { maxAge: IDENTITY_COOKIE_MAX_AGE })
+    await retryPendingPhotoDeletes()
+    return outcome
   }),
 
   emailRemove: publicProcedure.mutation(async ({ ctx }) => {
-    await ctx.db.$transaction([
-      ctx.db.identity.update({ where: { id: ctx.identity.id }, data: { email: null, emailVerifiedAt: null } }),
-      ctx.db.emailCode.deleteMany({ where: { identityId: ctx.identity.id } }),
-    ])
+    await ctx.db.$transaction(async (tx) => {
+      await lock(tx, `identity:${ctx.identity.id}`)
+      await tx.identity.update({ where: { id: ctx.identity.id }, data: { email: null, emailVerifiedAt: null } })
+      await tx.emailCode.deleteMany({ where: { identityId: ctx.identity.id } })
+    })
     return { email: null }
   }),
 

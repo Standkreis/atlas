@@ -17,7 +17,7 @@ const Group = ({ title, children }: { title: string; children: ReactNode }) => (
     <div className={`${card} divide-y divide-paper`}>{children}</div>
   </section>
 )
-const Row = ({ title, hint, value, onClick, testId }: { title: string; hint?: string; value?: string; onClick?: () => void; testId?: string }) => {
+const Row = ({ title, hint, value, href, onClick, testId }: { title: string; hint?: string; value?: string; href?: '/sources'; onClick?: () => void; testId?: string }) => {
   const inner = (
     <>
       <div className="min-w-0 flex-1">
@@ -25,10 +25,11 @@ const Row = ({ title, hint, value, onClick, testId }: { title: string; hint?: st
         {hint && <div className="mt-0.5 text-[13px] text-ink-soft">{hint}</div>}
       </div>
       {value && <div className="shrink-0 text-[17px] text-ink-soft">{value}</div>}
-      {onClick && <span className="shrink-0 text-ink-faint" aria-hidden>›</span>}
+      {(href || onClick) && <span className="shrink-0 text-ink-faint" aria-hidden>›</span>}
     </>
   )
   const cls = 'flex w-full items-center gap-3 px-4 py-3.5 text-left'
+  if (href) return <Link href={href} data-testid={testId} className={cls}>{inner}</Link>
   return onClick ? <button type="button" onClick={onClick} data-testid={testId} className={cls}>{inner}</button> : <div className={cls}>{inner}</div>
 }
 
@@ -200,7 +201,7 @@ export function IdentitySettings({ version }: { version: string }) {
       </Group>
 
       <Group title={t('about.title')}>
-        <Row title={t('about.sources')} hint={t('about.sourcesHint')} />
+        <Row title={t('about.sources')} hint={t('about.sourcesHint')} href="/sources" testId="sources-link" />
         <Row title={t('about.version')} value={version} />
       </Group>
 

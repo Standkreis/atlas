@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#183b32">
+  <meta name="description" content="An interactive field guide to the Standkreis Atlas codebase, its architecture, data models, offline flows and dependencies.">
+  <title>Standkreis · Inside the Atlas</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23183b32'/%3E%3Ccircle cx='32' cy='32' r='20' fill='none' stroke='%23bddd9c' stroke-width='2'/%3E%3Cpath d='M32 14v36M14 32h36' stroke='%23bddd9c' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+  <script defer src="data.js"></script>
+  <script defer src="content.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <aside class="sidebar">
+    <a class="brand" href="#overview"><span class="brand-mark" aria-hidden="true">✳</span><span>standkreis<span class="brand-sub">INSIDE THE ATLAS</span></span></a>
+    <div class="nav-label">A FIELD GUIDE TO THE CODE</div>
+    <nav aria-label="Guide chapters" id="nav"></nav>
+    <div class="sidebar-bottom"><span class="status-dot"></span> Local source, explained.<p id="snapshot-label"></p><button class="text-button" data-view="about">About this guide ↗</button></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><span id="breadcrumb">THE CODEBASE / OVERVIEW</span><button id="search-open" class="search-trigger">Search the codebase <kbd>⌘ K</kbd></button></header>
+    <main id="main" tabindex="-1"></main>
+    <footer>Standkreis Atlas <span>·</span> An architecture field guide <span id="footer-meta"></span></footer>
+  </div>
+  <dialog id="source-dialog" aria-labelledby="source-title"><div class="dialog-bar"><div><span class="eyebrow">SOURCE SNAPSHOT</span><h2 id="source-title"></h2></div><button class="icon-button" data-close="source-dialog" aria-label="Close source">×</button></div><div id="source-meta"></div><div id="source-code" class="source-code"></div></dialog>
+  <dialog id="search-dialog" aria-labelledby="search-title"><div class="dialog-bar"><h2 id="search-title">Find your way around</h2><button class="icon-button" data-close="search-dialog" aria-label="Close search">×</button></div><input id="global-search" type="search" placeholder="A model, procedure, package, or file…" aria-label="Search models, procedures, packages and source files"><div id="search-results"></div></dialog>
+  <noscript><p>This interactive guide needs JavaScript. The source and launch instructions are in README.md beside this page.</p></noscript>
+</body>
+</html>

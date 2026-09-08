@@ -29,6 +29,15 @@ describe('the diary merges the outbox (handoff 0009 Track B)', () => {
     const landed = day(today, [{ ...toJournalRow(row('q1', at(8).toISOString()))!, queued: undefined }])
     expect(mergeQueued([landed], [row('q1', at(8).toISOString())], 'all')[0]!.rows).toHaveLength(1)
     expect(mergeQueued([], [row('q1', at(8).toISOString())], 'studied')).toHaveLength(0)
-    expect(mergeQueued([], [{ id: 'p', kind: 'photo', payload: {}, blob: new Blob(), createdAt: 1, attempts: 0, lastError: null }], 'all')).toHaveLength(0)
+    expect(mergeQueued([], [{ identityId: 'owner', id: 'p', kind: 'photo', payload: {}, blob: new Blob(), createdAt: 1, attempts: 0, lastError: null }], 'all')).toHaveLength(0)
   })
+  it('joins a busy day split across server pages without queued rows or duplicate sightings', () => {
+    const today = key(at(9))
+    const first = toJournalRow(row('s1', at(9).toISOString()))!
+    const second = toJournalRow(row('s2', at(8).toISOString()))!
+    const result = mergeQueued([day(today, [first]), day(today, [first, second])], [], 'all')
+    expect(result).toHaveLength(1)
+    expect(result[0]!.rows.map(row => row.id)).toEqual(['s1', 's2'])
+  })
+
 })

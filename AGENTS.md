@@ -1,4 +1,4 @@
-# Atlas — agent contract
+# standkreis-dex — agent contract
 
 Personal atlas over open biodiversity data. Owner: Sven Reiser. Application code and npm commands live in `app/`; repository tooling and documents live at the root.
 

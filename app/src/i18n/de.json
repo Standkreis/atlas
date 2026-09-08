@@ -15,7 +15,12 @@
     "comingSoon": "kommt bald",
     "close": "Schließen",
     "error": "Das hat nicht geklappt.",
-    "working": "Einen Moment …"
+    "working": "Einen Moment …",
+    "retry": "Erneut versuchen",
+    "loadFailed": "Die Daten konnten nicht geladen werden.",
+    "refreshFailed": "Die Aktualisierung ist fehlgeschlagen. Du siehst die zuletzt geladenen Daten.",
+    "offlineMissing": "Offline. Diese Daten sind noch nicht auf deinem Gerät verfügbar. Verbinde dich zum Laden mit dem Internet.",
+    "usingSaved": "Offline. Du siehst die zuletzt geladenen Daten."
   },
   "dex": {
     "title": "Dein Atlas",
@@ -26,7 +31,7 @@
     "possible": "{n} möglich",
     "shown": "{n} jetzt",
     "studiedBadge": "studiert",
-    "sources": "Bilder: iNaturalist und Wikimedia Commons, Lizenz je Bild · Daten: GBIF",
+    "sources": "Mehr über unsere Quellen",
     "failed": "{region} konnte nicht vorbereitet werden.",
     "retry": "Noch einmal versuchen",
     "tile": {
@@ -70,6 +75,40 @@
   },
   "quests": {
     "title": "Quests"
+  },
+  "sourcesPage": {
+    "title": "Quellen",
+    "back": "Zurück",
+    "open": "Öffnen",
+    "intro": "Standkreis Atlas verbindet offene Biodiversitätsdaten, statt eine eigene wissenschaftliche Datenbank zu führen. Hier steht, was jede Quelle beiträgt und wo ihre Grenzen liegen.",
+    "limitsTitle": "Eine Quelle ist ein Beleg, keine Gewissheit.",
+    "limitsBody": "Datensätze können unvollständig, veraltet oder fehlerhaft sein. Das lokale Vorkommen zeigt, was in der Nähe gemeldet wurde – nie eine Garantie, dass eine Art tatsächlich da ist.",
+    "imageNote": "Bilder und Stimmen können für jedes Medium andere Urheber und Lizenzen haben. Der genaue Nachweis bleibt deshalb direkt am Bild oder an der Aufnahme, statt durch diese Seite ersetzt zu werden.",
+    "groups": {
+      "atlas": { "title": "Atlas & Vorkommen" },
+      "identity": { "title": "Namen, Texte & Status" },
+      "profile": { "title": "Steckbriefdaten" },
+      "ecology": { "title": "Ökologie" },
+      "media": { "title": "Bilder & Stimmen" },
+      "identification": { "title": "Fotobestimmung" }
+    },
+    "sources": {
+      "gbif": "Liefert die taxonomische Grundlage und Fundmeldungen, aus denen regionale Artenlisten, saisonale Chancen und Karten entstehen.",
+      "wikidata": "Liefert Kennungen, Trivialnamen und ausgewählte strukturierte Angaben wie Flügelspannweite und Pilzmerkmale. Die Daten stehen unter CC0.",
+      "wikipedia": "Liefert den optionalen Hintergrundtext auf Artseiten. Der Text behält die Wikipedia-Lizenz und wird von uns nicht unabhängig geprüft.",
+      "iucn": "Liefert die angezeigte Gefährdungskategorie, wenn eine passende Bewertung vorhanden ist.",
+      "avonet": "Liefert Körpermasse, Lebensraum und Zugverhalten von Vögeln. Veröffentlicht unter CC BY 4.0.",
+      "elton": "Liefert Angaben zu Nahrung, Aktivität und Lebensraum von Vögeln und Säugetieren. Veröffentlicht unter CC0 1.0.",
+      "pantheria": "Liefert Körpermaße von Säugetieren. Das Archiv nennt keine Lizenz; die Figshare-Hülle bezeichnet den Datensatz als CC BY 4.0.",
+      "amphibio": "Liefert Größe, Masse, Lebensraum, Nahrung und Aktivität von Amphibien. Veröffentlicht unter CC BY 4.0.",
+      "gift": "Liefert Pflanzenhöhe, Blütezeit, Bestäubung und Lebensform. Die API nennt derzeit keine Lizenz, deshalb wird das Projekt bei der Datennutzung genannt.",
+      "anage": "Liefert Angaben zu Lebensdauer und Fortpflanzung einiger Tiere. Die Seiten nennen keine Lizenz zur Weiterverwendung der Daten.",
+      "globi": "Bündelt veröffentlichte Datensätze zu ökologischen Beziehungen. Eine verzeichnete Beziehung ist ein Datenbeleg, kein Nachweis einer Begegnung in deiner Region.",
+      "inaturalist": "Liefert lizenzierte Artenfotos. Fotograf, Lizenz und Ursprungsseite stehen direkt am jeweiligen Bild.",
+      "commons": "Liefert frei lizenzierte Artenfotos. Urheber, Lizenz und ursprüngliche Dateiseite stehen direkt am jeweiligen Bild.",
+      "xenoCanto": "Liefert Tierstimmen. Aufnahmeautor, Lizenz und Ursprungsseite bleiben direkt mit jeder Aufnahme verbunden.",
+      "anthropic": "Liefert die optionale KI-gestützte Fotobestimmung. Der Vorschlag kann falsch sein und ist keine wissenschaftliche Bestimmung."
+    }
   },
   "journal": {
     "title": "Tagebuch",
@@ -119,7 +158,8 @@
     "deleteYes": "Ja, löschen",
     "deleteNo": "Behalten",
     "referenceTag": "Referenzfoto",
-    "addPhoto": "Foto hinzufügen"
+    "addPhoto": "Foto hinzufügen",
+    "when": "Datum und Uhrzeit"
   },
   "you": {
     "title": "Profil",
@@ -190,7 +230,6 @@
     "today": "Heute",
     "where": "Wo",
     "whereSub": "genau gespeichert · geteilt nur grob",
-    "locationWhy": "Der genaue Ort bleibt bei dir. In Listen steht nur die Gemeinde.",
     "useLocation": "Standort nutzen",
     "locating": "Ort wird bestimmt …",
     "locationDenied": "Ohne Standort · nur die Region",
@@ -200,9 +239,9 @@
     "notePlaceholder": "Notiz · optional",
     "wildQuestion": "War es wild?",
     "wild": "Wild",
-    "wildSub": "speichern",
+    "wildSub": "in der Natur",
     "captive": "Gehalten",
-    "captiveSub": "Zoo, Garten, Topf · speichern",
+    "captiveSub": "Zoo, Garten, Topf",
     "captiveHint": "Gehaltene Tiere und gepflanzte Pflanzen stehen im Tagebuch, zählen aber nicht als Entdeckung in der Natur.",
     "saving": "Wird gespeichert …",
     "unknown": "Diese Art kennen wir noch nicht.",
@@ -219,8 +258,8 @@
     "title": "Einstellungen",
     "back": "Profil",
     "identity": {
-      "localTitle": "Nur auf diesem Handy",
-      "localBody": "Kein Konto. Ein neues Handy fängt bei Null an, solange du keinen Passkey und keine E-Mail verknüpfst.",
+      "localTitle": "Zugriff noch nicht gesichert",
+      "localBody": "Deine Entdeckungen liegen auf unserem Server. Ohne Passkey oder E-Mail kannst du den Zugriff verlieren, wenn du das Handy wechselst oder Browserdaten löschst.",
       "create": "🔑 Passkey anlegen",
       "createHint": "Face ID oder Fingerabdruck, kein Passwort.",
       "signIn": "Schon einen Passkey oder eine E-Mail? Hier anmelden.",
@@ -246,7 +285,7 @@
     "data": {
       "title": "Deine Daten",
       "export": "Exportieren",
-      "exportHint": "Alle Sichtungen und Studiertes als JSON, jederzeit, auch ohne Konto",
+      "exportHint": "Sichtungen und studierte Arten als JSON. Fotos sind als private Links enthalten, nicht als Bilddateien; nach dem Löschen funktionieren die Links nicht mehr.",
       "delete": "Alles löschen",
       "deleteHint": "Auf allen Geräten. Nie nur hier.",
       "deleteTitle": "Wirklich alles löschen?",
@@ -267,7 +306,7 @@
     "about": {
       "title": "Über",
       "sources": "Quellen",
-      "sourcesHint": "GBIF · Wikidata · Wikipedia · Wikimedia Commons · iNaturalist · GloBI",
+      "sourcesHint": "Wie der Atlas entsteht",
       "version": "Version"
     },
     "email": {
@@ -284,7 +323,7 @@
       "cancel": "Abbrechen",
       "verified": "Verknüpft mit {email}.",
       "remove": "Entfernen",
-      "removeLast": "Das ist dein einziger Weg zurück. Ohne E-Mail und Passkey bleibt alles nur auf diesem Gerät.",
+      "removeLast": "Das ist dein einziger Weg zurück. Ohne E-Mail oder Passkey kannst du den Zugriff auf deine gespeicherten Entdeckungen verlieren.",
       "removeConfirm": "Trotzdem entfernen",
       "invalidAddress": "Das sieht nicht nach einer E-Mail-Adresse aus.",
       "wrongCode": "Falscher Code.",
@@ -300,9 +339,10 @@
     "eyebrow": "Standkreis Atlas",
     "headline": "Entdecke, was um dich herum lebt.",
     "promise": "Lerne Arten in deiner Nähe kennen und halte deine Begegnungen fest.",
+    "chooseRegion": "Deine Region wählen",
     "question": "Verfügbare Regionen",
     "useLocation": "Meinen Standort nutzen",
-    "locationHint": "Dein Handy fragt gleich nach der Erlaubnis. Wir speichern nur den Landkreis; genaue Orte bleiben auf deinem Gerät.",
+    "locationHint": "Dein Handy fragt nach deiner Erlaubnis. Die Koordinaten werden an unseren Server und zur Ortsbestimmung an GBIF gesendet.",
     "typePlace": "Ort eingeben",
     "placePlaceholder": "Ort oder Landkreis",
     "orUseLocation": "oder meinen Standort nutzen",
@@ -322,22 +362,25 @@
     "readyBody": "<b>{n} Arten</b> sind im {month} in {region} wahrscheinlich zu sichten, <b>{total}</b> im ganzen Jahr.",
     "readyPreparing": "{region} wird vorbereitet. Ein paar Minuten, dann ist alles da.",
     "readyFailed": "{region} konnte nicht vorbereitet werden. Im Atlas kannst du es noch einmal versuchen.",
-    "axisStudy": "<b>Studieren.</b> Lies eine Art, sie bekommt einen Rahmen.",
-    "axisSeen": "<b>Entdecken.</b> Trag eine Sichtung ein, das Bild füllt sich.",
-    "noAccount": "Kein Konto nötig. Alles bleibt auf diesem Gerät, bis du es woanders sehen willst.",
+    "axisStudyTitle": "Im Atlas studieren",
+    "axisStudy": "Lies über eine Art und tippe auf ihrer Seite auf „{action}“. Wenn du weißt, worauf du achten kannst, entdeckst du sie draußen leichter.",
+    "axisSeenTitle": "Draußen entdecken",
+    "axisSeen": "Draußen eine Art gefunden? Speichere eine Sichtung mit Foto oder wähle die Art selbst aus. So hältst du deine Entdeckung im Atlas fest.",
+    "noAccount": "Kein Name nötig. Entdeckungen werden auf unserem Server gespeichert; Passkey oder E-Mail sichern deinen späteren Zugriff.",
     "go": "Los geht's",
-    "promisesBody": "Eins von uns, eins von dir.",
-    "promisesTitle": "Zwei Versprechen",
-    "promisesOurs": "Unser Versprechen",
-    "promisesOursText": "Kein Konto, keine Rangliste. Deine Daten bleiben auf diesem Gerät, bis du sie woanders sehen willst. Gespeichert wird nur der Landkreis; genaue Orte verlassen dein Handy nie.",
-    "promisesYours": "Dein Versprechen",
+    "promisesBody": "Unser Versprechen an dich. Das Versprechen unserer Gemeinschaft an die Natur.",
+    "promisesTitle": "Ein gemeinsames Versprechen",
+    "promisesOurs": "Nicht gewinnorientiert. Kein Konto nötig.",
+    "promisesOursText": "Standkreis Atlas ist ein Gemeinschaftsprojekt, das Menschen mit der Natur vor ihrer Tür verbindet. Alle können ohne Konto mitmachen.",
+    "promisesYours": "Die Natur geht vor",
     "promisesYoursText": "Draußen sind wir Gast. Wir schauen, staunen, lassen alles, wie wir es gefunden haben. Kein Foto ist es wert, ein Tier zu bedrängen oder eine Pflanze zu nehmen. Wer langsam geht, sieht mehr.",
     "promisesGo": "Bin dabei",
     "notAvailable": "Noch nicht verfügbar",
     "notAvailableHere": "{name} ist noch nicht verfügbar. Gib einen anderen Ort ein.",
     "cancel": "Abbrechen",
     "comingSoon": "bald",
-    "chooseRegion": "Deine Region wählen"
+    "back": "Zurück",
+    "noReadyRegion": "Keine verfügbare Region passt zu deiner Suche."
   },
   "species": {
     "back": "Zurück",
@@ -381,6 +424,7 @@
       "lifespan": "Alter",
       "reproduction": "Nachwuchs",
       "migration": "Zug",
+      "group": "Gruppe",
       "status": "Status",
       "missing": "{list}: noch keine Angaben",
       "mass": "Gewicht",
@@ -568,11 +612,15 @@
         "parasiteOf": "Parasit von"
       },
       "showMore": "mehr anzeigen ({n})",
-      "showLess": "weniger anzeigen"
+      "showLess": "weniger anzeigen",
+      "evidenceHint": "Diese Beziehungen stammen aus veröffentlichten Datensätzen. Sie sind keine Bestätigung einer Begegnung in deiner Region. Die Quellen zeigen den Umfang der Belege.",
+      "evidenceCount": "{records} Datensätze · {studies} Studien"
     },
     "notInAtlas": "nicht in deinem Atlas",
     "sources": {
       "label": "Quellen",
+      "link": "Mehr über unsere Quellen",
+      "imageCredits": "Bildnachweise",
       "text": "Text: Wikipedia, {licence}",
       "data": "Daten: {list}",
       "occurrence": "Vorkommen: GBIF",
@@ -582,7 +630,7 @@
     },
     "study": {
       "mark": "Studiert",
-      "marked": "Studiert ✓",
+      "marked": "Studiert",
       "working": "…"
     },
     "sourceInfo": {
@@ -592,7 +640,15 @@
       "occurrence": "Meldungen aus GBIF, die letzten zehn Jahre, auf deinen Landkreis zugeschnitten.",
       "lookalikes": "Arten derselben Gattung in deinem Atlas, Gattung nach GBIF.",
       "ecology": "Beziehungen aus Global Biotic Interactions (GloBI). Die Bilder gehören zu den gezeigten Arten."
-    }
+    },
+    "prose": {
+      "label": "KI-generierte Zusammenfassung · Quellen ansehen",
+      "sheetTitle": "Quellen des KI-Texts",
+      "sheetHint": "Diese Quellen wurden für die Zusammenfassung verwendet. Eine automatische Prüfung vergleicht den Text mit ihnen; sie ersetzt keine wissenschaftliche Begutachtung.",
+      "judged": "{n} von {m} Sätzen geprüft"
+    },
+    "background": "Hintergrund",
+    "readExplanation": "Zusammenhänge lesen"
   },
   "fill": {
     "label": "Entdeckt",
@@ -619,7 +675,7 @@
     "cancel": "Abbrechen",
     "stopped": "Angehalten · {done} / {total}",
     "resume": "Weiter laden",
-    "failed": "Netz weg bei {done} / {total}",
+    "failed": "Download unvollständig: {done} / {total} Bilder gespeichert. Bitte erneut versuchen.",
     "ready": "Offline bereit · {date}",
     "reload": "Auffrischen",
     "banner": "Offline · dein Atlas ist da, Suche und Karten warten aufs Netz",
@@ -676,5 +732,11 @@
     "badgeAnswered": "Vorschlag da",
     "identifiedWith": "bestimmt mit {engine}",
     "costLine": "Diese Bestimmung: {cents} ¢"
+  },
+  "outboxRecovery": {
+    "title": "{n} ältere, ungesendete Einträge müssen wiederhergestellt werden",
+    "body": "Diese Einträge sind noch auf diesem Gerät. Lade eine Sicherung herunter, bevor du App-Daten löschst. Sie werden erst gesendet, wenn ihre Zuordnung bestätigt ist.",
+    "download": "Sicherung herunterladen",
+    "error": "Die Sicherung konnte nicht erstellt werden. Bitte versuche es erneut."
   }
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import { radioKeys } from './ChoiceKeyboard'
 import { useEffect, useSyncExternalStore } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 import { usePathname, useRouter } from '@/i18n/navigation'
@@ -39,10 +40,10 @@ export function ThemeBoot() {
 
 function Segmented<T extends string>({ value, options, onChange, label, testId }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; label: string; testId: string }) {
   return (
-    <div role="radiogroup" aria-label={label} data-testid={testId} className="flex shrink-0 rounded-full bg-tile p-0.5">
+    <div role="radiogroup" onKeyDown={radioKeys} aria-label={label} data-testid={testId} className="flex shrink-0 rounded-full bg-tile p-0.5">
       {options.map((o) => (
-        <button key={o.value} type="button" role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)}
-          className={`rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors ${value === o.value ? 'bg-card text-ink shadow-[0_1px_4px_rgba(30,42,35,0.12)]' : 'text-ink-soft'}`}>
+        <button key={o.value} type="button" role="radio" tabIndex={value === o.value ? 0 : -1} aria-checked={value === o.value} onClick={() => onChange(o.value)}
+          className={`min-h-11 rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors ${value === o.value ? 'bg-card text-ink shadow-[0_1px_4px_rgba(30,42,35,0.12)]' : 'text-ink-soft'}`}>
           {o.label}
         </button>
       ))}

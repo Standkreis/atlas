@@ -10,9 +10,12 @@ const paths = {
   search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5',
   book: 'M12 6.5C10.5 5.3 8.4 4.8 5 5v13c3.4-.2 5.5.3 7 1.5 1.5-1.2 3.6-1.7 7-1.5V5c-3.4-.2-5.5.3-7 1.5zM12 6.5v13',
   info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 8h.01',
+  arrowLeft: 'M19 12H5m6-6-6 6 6 6',
   check: 'M5 12.5l4.5 4.5L19 7.5',
   chevron: 'M6 9l6 6 6-6',
   camera: 'M4 8h3.5L9 5.5h6L16.5 8H20v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
+  heart: 'M20.8 5.7a5 5 0 0 0-7.1 0L12 7.4l-1.7-1.7a5 5 0 0 0-7.1 7.1L12 21l8.8-8.2a5 5 0 0 0 0-7.1z',
+  leaf: 'M20 4C11 4 5 8.5 5 15c0 2.8 2.2 5 5 5 6.5 0 9.5-7 10-16zM5 20c2.5-4.5 6-7.5 11-10',
   gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
 } as const satisfies Record<string, string>
 
@@ -45,20 +48,27 @@ export const Icon = ({ name, size = 22, className = '' }: { name: IconName; size
   </svg>
 )
 
-// The "studied" mark: an open book, amber. One glyph everywhere so it becomes vocabulary.
-export function StudiedMark({ size = 20, className = '', title }: { size?: number; className?: string; title: string }) {
+type ProgressMarkProps = { size?: number; className?: string; title?: string }
+
+// The two progress marks are one visual vocabulary: a flat colour disc, a cream line glyph and the same rounded
+// geometry and stroke weight. Only their symbol, colour and position distinguish discovered from studied.
+function ProgressMark({ kind, size = 20, className = '', title }: ProgressMarkProps & { kind: 'seen' | 'studied' }) {
+  const seen = kind === 'seen'
   return (
-    <span className={`inline-flex items-center justify-center rounded-full bg-amber text-white shadow-sm ${className}`} style={{ width: size, height: size }} title={title}>
-      <svg viewBox="0 0 24 24" width={size * 0.7} height={size * 0.7} aria-hidden><path d={paths.book} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" /></svg>
+    <span
+      className={`inline-flex shrink-0 items-center justify-center rounded-full text-white ${seen ? 'bg-moss' : 'bg-amber'} ${className}`}
+      style={{ width: size, height: size }}
+      title={title}
+      role={title ? 'img' : undefined}
+      aria-label={title}
+      aria-hidden={title ? undefined : true}>
+      <svg viewBox="0 0 24 24" width={size * 0.68} height={size * 0.68} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d={seen ? paths.check : paths.book} />
+      </svg>
     </span>
   )
 }
 
-// The "seen" mark: a check, green. Same size and shape: check first = entdeckt, book second = studiert (handoff 0014 D1).
-export function SeenMark({ size = 20, className = '', title }: { size?: number; className?: string; title: string }) {
-  return (
-    <span className={`inline-flex items-center justify-center rounded-full bg-moss text-white shadow-sm ${className}`} style={{ width: size, height: size }} title={title}>
-      <svg viewBox="0 0 24 24" width={size * 0.7} height={size * 0.7} fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
-    </span>
-  )
-}
+// Wrappers keep call sites semantic while guaranteeing that both axes retain the same badge treatment application-wide.
+export const StudiedMark = (props: ProgressMarkProps) => <ProgressMark kind="studied" {...props} />
+export const SeenMark = (props: ProgressMarkProps) => <ProgressMark kind="seen" {...props} />

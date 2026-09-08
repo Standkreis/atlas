@@ -1,0 +1,164 @@
+{
+  "online": {
+    "url": "/de",
+    "cells": 931,
+    "counters": "0 studiert · 1 entdeckt · 929 möglich",
+    "seenCells": 1,
+    "seenInColour": 1,
+    "imgsDecoded": 28,
+    "imgsTried": 28,
+    "small": 808,
+    "medium": 0,
+    "firstNames": [
+      "Entdeckt · 1",
+      "✓Feuersalamander",
+      "Noch nicht · 928"
+    ],
+    "online": true,
+    "hydrated": true,
+    "working": false,
+    "caches": {
+      "controller": true,
+      "names": [
+        "dex-shell-mtsivosh",
+        "dex-static-mtsivosh",
+        "dex-images"
+      ],
+      "dex-shell-mtsivosh": 23,
+      "dex-static-mtsivosh": 30,
+      "dex-images": 42,
+      "shellPages": [
+        "/",
+        "/de/",
+        "/en",
+        "/en/",
+        "/de/log",
+        "/de/log/",
+        "/de/journal",
+        "/de/journal/",
+        "/de/you",
+        "/de/you/",
+        "/de/sighting/_",
+        "/de/sighting/_/",
+        "/en/log",
+        "/en/log/",
+        "/en/journal",
+        "/en/journal/",
+        "/en/you",
+        "/en/you/",
+        "/en/sighting/_",
+        "/en/sighting/_/",
+        "/manifest.webmanifest",
+        "/icon.svg",
+        "/de"
+      ]
+    },
+    "persisted": {
+      "at": "2026-09-08T10:31:20.673Z",
+      "chars": 944388,
+      "queries": [
+        "sighting.outside:success",
+        "sighting.photos:success",
+        "dex.set:success",
+        "identity.progress:success",
+        "identity.me:success"
+      ],
+      "error": null
+    },
+    "swWait": "0.5 s"
+  },
+  "offlineProbe": {
+    "workers": 3,
+    "pageFetch": "failed: Failed to fetch"
+  },
+  "offline": {
+    "url": "/de",
+    "cells": 931,
+    "counters": "0 studiert · 1 entdeckt · 929 möglich",
+    "seenCells": 1,
+    "seenInColour": 1,
+    "imgsDecoded": 28,
+    "imgsTried": 28,
+    "small": 808,
+    "medium": 0,
+    "firstNames": [
+      "Entdeckt · 1",
+      "✓Feuersalamander",
+      "Noch nicht · 928"
+    ],
+    "online": true,
+    "hydrated": true,
+    "working": false,
+    "caches": {
+      "controller": true,
+      "names": [
+        "dex-shell-mtsivosh",
+        "dex-static-mtsivosh",
+        "dex-images"
+      ],
+      "dex-shell-mtsivosh": 23,
+      "dex-static-mtsivosh": 30,
+      "dex-images": 42,
+      "shellPages": [
+        "/",
+        "/de/",
+        "/en",
+        "/en/",
+        "/de/log",
+        "/de/log/",
+        "/de/journal",
+        "/de/journal/",
+        "/de/you",
+        "/de/you/",
+        "/de/sighting/_",
+        "/de/sighting/_/",
+        "/en/log",
+        "/en/log/",
+        "/en/journal",
+        "/en/journal/",
+        "/en/you",
+        "/en/you/",
+        "/en/sighting/_",
+        "/en/sighting/_/",
+        "/manifest.webmanifest",
+        "/icon.svg",
+        "/de"
+      ]
+    },
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+      "Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+      "Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+      "Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+      "Failed to load resource: net::ERR_INTERNET_DISCONNECTED"
+    ],
+    "body": "Dein Atlas\nMainz-Bingen\n\n0 studiert · 1 entdeckt · 929 möglich\n\nENTDECKT · 1\n✓\nFeuersalamander\nNOCH NICHT · 928\nTurmfalke\nZilpzalp\nNosferatu-Spinne\nEuropäische Gottesanbeterin\nHauhechel-Bläuling\nGarte",
+    "failed": [
+      "net::ERR_INTERNET_DISCONNECTED /de",
+      "net::ERR_INTERNET_DISCONNECTED /de?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/quests?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/journal?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/you?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/species/2431776?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/species/9616058?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/species/2493091?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/species/2153287?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/species/6258028?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/species/5140214?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/species/2439683?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/species/2078852?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/species/5219616?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/species/4535632?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/species/2160133?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/species/5376426?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/species/1789695?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/species/1957572?_rsc=6jjooRaMxbEaUzaq",
+      "net::ERR_INTERNET_DISCONNECTED /de/species/9151957?_rsc=6jjooRaMxbEaUzaq"
+    ],
+    "scripts": 10
+  },
+  "offlineYou": {
+    "url": "/de/you",
+    "counters": null
+  }
+}

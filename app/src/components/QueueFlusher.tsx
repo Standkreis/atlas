@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { hashKey, useQueryClient } from '@tanstack/react-query'
 import { useTRPC } from '@/trpc/client'
-import { flush, load, onFlushed, rowsNow, subscribe, type Row } from './Queue'
+import { flush, load, onFlushed, rowsNow, subscribe, useQuarantinedOutbox, downloadOutboxRecovery, type Row } from './Queue'
 
 /**
  * Mounted once in the layout: runs the flush on `online`, on foreground, and every 60 s while rows wait; after a row
@@ -14,9 +15,12 @@ import { flush, load, onFlushed, rowsNow, subscribe, type Row } from './Queue'
  */
 export function QueueFlusher() {
   const qc = useQueryClient()
+  const recovery = useQuarantinedOutbox()
+  const t = useTranslations('outboxRecovery')
+  const [recoveryError, setRecoveryError] = useState(false)
   const trpc = useTRPC()
   useEffect(() => {
-    void load().then(() => flush())
+    void load().then(() => flush()).catch(() => {})
     const online = () => void flush()
     const visible = () => { if (document.visibilityState === 'visible') void flush() }
     window.addEventListener('online', online)
@@ -57,5 +61,11 @@ export function QueueFlusher() {
     apply()
     return () => { unsub(); unsubBox() }
   }, [qc, trpc])
-  return null
+  if (!recovery.length) return null
+  return <aside role="status" className="mx-auto my-3 max-w-[520px] rounded-2xl bg-amber-soft p-4 text-ink" data-testid="outbox-recovery">
+    <p className="font-semibold">{t('title', { n: recovery.length })}</p>
+    <p className="mt-1 text-sm">{t('body')}</p>
+    <button type="button" className="mt-3 min-h-11 rounded-full bg-card px-4 font-semibold" onClick={() => { setRecoveryError(false); void downloadOutboxRecovery().catch(() => setRecoveryError(true)) }}>{t('download')}</button>
+    {recoveryError && <p className="mt-2 text-sm">{t('error')}</p>}
+  </aside>
 }

@@ -1,0 +1,69 @@
+{
+  "reviewed_commit": "bd5fbfa",
+  "date": "2026-09-08",
+  "runtime": "Node 22.22.3",
+  "tests": {
+    "files": 18,
+    "passed": 111
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 6
+  },
+  "production_dependencies": {
+    "npm_audit_reported_vulnerabilities": 0
+  },
+  "avatar_adoption": {
+    "status": 500,
+    "constraint": "Identity_avatarAssetId_key"
+  },
+  "concurrent_email_guesses": {
+    "requests": 12,
+    "recorded_attempts": 9,
+    "advertised_max": 5
+  },
+  "concurrent_sighting_create": {
+    "same_id_requests": 8,
+    "status_200": 1,
+    "status_500": 7,
+    "constraint": "Sighting_pkey"
+  },
+  "photo_delete": {
+    "upload": 201,
+    "first_read": 200,
+    "delete": 200,
+    "cached_read_after_delete": 200,
+    "uncached_read_after_delete": 404
+  },
+  "mobile": {
+    "width": 390,
+    "height": 844,
+    "species": 929,
+    "truncated_names": 347,
+    "onboarding_next_top": 881.125,
+    "onboarding_next_bottom": 937.125,
+    "tab_escaped_filter_dialog": true
+  },
+  "local_server_trace": {
+    "files": 37742,
+    "etl_cache_files": 37029,
+    "total_MiB_rounded": 1835,
+    "etl_cache_MiB_rounded": 1816,
+    "env_files": 0
+  },
+  "export_without_database": {
+    "exit_code": 1,
+    "prisma_code": "P1001",
+    "failure": "generateStaticParams queries Taxon"
+  },
+  "content": {
+    "distinct_set_taxa_in_local_database": 1869,
+    "taxa_with_prose": 5
+  },
+  "cross_origin_preflight": {
+    "status": 204,
+    "allow_origin": false,
+    "allow_credentials": false
+  },
+  "scope": "Local production build; temporary identities cleaned; no production writes, real email, or paid model calls."
+}

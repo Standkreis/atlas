@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useTranslations } from 'next-intl'
 import { useTRPC } from '@/trpc/client'
@@ -29,6 +29,7 @@ const reasonOf = (e: unknown): string => {
  * address belonged to another identity, else the address now on this one.
  */
 export function EmailForm({ onVerified, onCancel }: { onVerified: (r: EmailVerified) => void; onCancel?: () => void }) {
+  const formId = useId()
   const t = useTranslations('settings.email')
   const tc = useTranslations('common')
   const trpc = useTRPC()
@@ -71,7 +72,8 @@ export function EmailForm({ onVerified, onCancel }: { onVerified: (r: EmailVerif
       {sentTo ? (
         <>
           <p className="text-[13px] text-ink-soft" data-testid="email-sent">{t('sent', { email: sentTo })}</p>
-          <input type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6} placeholder={t('code')} value={code} autoFocus
+          <label className="text-[14px] text-ink-soft" htmlFor={`${formId}-code`}>{t('code')}</label>
+          <input id={`${formId}-code`} type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6} placeholder={t('code')} value={code} autoFocus
             onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} onKeyDown={(e) => { if (e.key === 'Enter' && code.length === 6) void confirm() }}
             data-testid="email-code" className={`${field} text-center text-[24px] tracking-[0.3em] tabular-nums`} />
           <button type="button" onClick={confirm} disabled={busy || code.length !== 6} data-testid="email-verify" className="w-full rounded-2xl bg-moss px-4 py-3 text-[17px] font-bold text-white disabled:opacity-50">
@@ -86,7 +88,8 @@ export function EmailForm({ onVerified, onCancel }: { onVerified: (r: EmailVerif
         </>
       ) : (
         <>
-          <input type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} placeholder={t('address')} value={email} autoFocus
+          <label className="text-[14px] text-ink-soft" htmlFor={`${formId}-address`}>{t('address')}</label>
+          <input id={`${formId}-address`} type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} placeholder={t('address')} value={email} autoFocus
             onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void send() }} data-testid="email-address" className={field} />
           <button type="button" onClick={send} disabled={busy || !email.trim()} data-testid="email-send" className="w-full rounded-2xl bg-moss px-4 py-3 text-[17px] font-bold text-white disabled:opacity-50">
             {start.isPending ? tc('working') : t('send')}

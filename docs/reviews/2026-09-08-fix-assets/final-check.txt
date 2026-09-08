@@ -1,0 +1,217 @@
+
+> standkreis-dex@0.1.0 check
+> npm run typecheck && npm run lint && npm run test && npm run build:export && npm run build
+
+
+> standkreis-dex@0.1.0 typecheck
+> next typegen && tsc --noEmit
+
+Generating route types...
+✓ Types generated successfully
+
+> standkreis-dex@0.1.0 lint
+> eslint .
+
+
+/Users/svenreiser/Documents/Develop/standkreis/standkreis-dex/app/scripts/id-probe/prep.mjs
+  5:10  warning  'readdirSync' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/svenreiser/Documents/Develop/standkreis/standkreis-dex/app/scripts/id-probe/score.mjs
+  40:26  warning  'l' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/svenreiser/Documents/Develop/standkreis/standkreis-dex/app/scripts/m8b/queue.mjs
+  39:7  warning  'waitGone' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/svenreiser/Documents/Develop/standkreis/standkreis-dex/app/scripts/prose-grill/sheets.mjs
+  17:66  warning  'norm' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/svenreiser/Documents/Develop/standkreis/standkreis-dex/app/scripts/steckbrief-probe/facts.mjs
+  33:7  warning  'GIFT' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/svenreiser/Documents/Develop/standkreis/standkreis-dex/app/scripts/steckbrief-probe/traits.mjs
+  7:39  warning  'cached' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 6 problems (0 errors, 6 warnings)
+
+
+> standkreis-dex@0.1.0 test
+> vitest run
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /Users/svenreiser/Documents/Develop/standkreis/standkreis-dex/app
+
+
+ Test Files  23 passed (23)
+      Tests  135 passed (135)
+   Start at  13:21:51
+   Duration  479ms (transform 62%, tests 19%, import 17%, worker 2%)
+
+
+> standkreis-dex@0.1.0 prebuild:export
+> node scripts/m8a/build-id.mjs
+
+build id mtskxmb0
+
+> standkreis-dex@0.1.0 build:export
+> STATIC_EXPORT=1 next build
+
+▲ Next.js 16.3.4 (Turbopack)
+- Environments: .env.local
+✓ Running next.config.ts took 19ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 1837ms
+  Running TypeScript ...
+  Finished TypeScript in 3.0s ...
+  Collecting page data using 13 workers ...
+  Generating static pages using 13 workers (0/2411) ...
+  Generating static pages using 13 workers (602/2411)
+  Generating static pages using 13 workers (1205/2411)
+  Generating static pages using 13 workers (1808/2411)
+✓ Generating static pages using 13 workers (2411/2411) in 2.8s
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├   /[locale]
+│ ├ ● /de
+│ └ ● /en
+├   /[locale]/journal
+│ ├ ● /de/journal
+│ └ ● /en/journal
+├   /[locale]/log
+│ ├ ● /de/log
+│ └ ● /en/log
+├   /[locale]/onboarding
+│ ├ ● /de/onboarding
+│ └ ● /en/onboarding
+├   /[locale]/quests
+│ ├ ● /de/quests
+│ └ ● /en/quests
+├   /[locale]/settings
+│ ├ ● /de/settings
+│ └ ● /en/settings
+├   /[locale]/sighting/[id]
+│ ├ ● /de/sighting/_
+│ └ ● /en/sighting/_
+├   /[locale]/species/[gbifKey]
+│ ├ ● /de/species/1036779
+│ ├ ● /de/species/1038064
+│ ├ ● /de/species/1043082
+│ └ ● [+2389 more paths]
+└   /[locale]/you
+  ├ ● /de/you
+  └ ● /en/you
+
+
+○  (Static)  prerendered as static content
+●  (SSG)     prerendered as static HTML (uses generateStaticParams)
+
+
+> standkreis-dex@0.1.0 postbuild:export
+> node scripts/m8a/sw-manifest.mjs
+
+sw-manifest mtskxmb0: 23 files, 1099 KB → .next/static/mtskxmb0, out/_next/static/mtskxmb0
+
+> standkreis-dex@0.1.0 prebuild
+> node scripts/m8a/build-id.mjs
+
+build id mtskxuwk
+
+> standkreis-dex@0.1.0 build
+> next build
+
+▲ Next.js 16.3.4 (Turbopack)
+- Environments: .env.local
+✓ Running next.config.ts took 19ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 1457ms
+  Running TypeScript ...
+  Finished TypeScript in 3.0s ...
+  Collecting page data using 15 workers ...
+(node:63821) ExperimentalWarning: The supports Web Crypto API method is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:63821) ExperimentalWarning: The ML-DSA-44 Web Crypto API algorithm is an experimental feature and might change at any time
+  Generating static pages using 15 workers (0/18) ...
+  Generating static pages using 15 workers (4/18)
+  Generating static pages using 15 workers (8/18)
+  Generating static pages using 15 workers (13/18)
+✓ Generating static pages using 15 workers (18/18) in 209ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├   /[locale]
+│ ├ ● /de
+│ └ ● /en
+├   /[locale]/journal
+│ ├ ● /de/journal
+│ └ ● /en/journal
+├   /[locale]/log
+│ ├ ● /de/log
+│ └ ● /en/log
+├   /[locale]/onboarding
+│ ├ ● /de/onboarding
+│ └ ● /en/onboarding
+├   /[locale]/quests
+│ ├ ● /de/quests
+│ └ ● /en/quests
+├   /[locale]/settings
+│ ├ ● /de/settings
+│ └ ● /en/settings
+├ ● /[locale]/sighting/[id]
+├ ● /[locale]/species/[gbifKey]
+├   /[locale]/you
+│ ├ ● /de/you
+│ └ ● /en/you
+├ ƒ /api/cron/sweep
+├ ƒ /api/health
+├ ƒ /api/photo
+├ ƒ /api/photo/[id]
+├ ƒ /api/tiles/[z]/[x]/[y]
+└ ƒ /api/trpc/[trpc]
+
+
+○  (Static)   prerendered as static content
+●  (SSG)      prerendered as static HTML (uses generateStaticParams)
+ƒ  (Dynamic)  server-rendered on demand
+
+
+> standkreis-dex@0.1.0 postbuild
+> node scripts/m8a/sw-manifest.mjs
+
+sw-manifest mtskxuwk: 23 files, 1099 KB → .next/static/mtskxuwk
+
+> standkreis-dex@0.1.0 test:browser
+> node scripts/check/browser.mjs
+
+▲ Next.js 16.3.4
+- Local:         http://localhost:3002
+- Network:       http://192.168.178.93:3002
+✓ Ready in 57ms
+✓ Running next.config.ts took 21ms
+[sweep] on Vercel: skipped at start, the cron route /api/cron/sweep owns it
+(node:63892) ExperimentalWarning: The supports Web Crypto API method is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:63892) ExperimentalWarning: The ML-DSA-44 Web Crypto API algorithm is an experimental feature and might change at any time
+UX: onboarding, navigation and keyboard dialogs passed
+UX: journal failure and retry state passed
+UX: manual save reached the server journal
+{"locale":"en","viewport":"390x844","onboarding":"pass","dialogs":"pass","radioKeyboard":"pass","navigation":"pass","journalError":"pass","manualSave":"pass","offlineReload":"pass","species":303,"workerSessions":1}
+UX: onboarding, navigation and keyboard dialogs passed
+UX: journal failure and retry state passed
+UX: manual save reached the server journal
+{"locale":"de","viewport":"390x844","onboarding":"pass","dialogs":"pass","radioKeyboard":"pass","navigation":"pass","journalError":"pass","manualSave":"pass","offlineReload":"pass","species":303,"workerSessions":1}
+{
+  "privateResponse": 404,
+  "privateCachePurged": true,
+  "scanMetadataPurged": true,
+  "publicPackPreserved": true,
+  "worker": "http://localhost:3002/sw.js?v=mtskxuwk"
+}

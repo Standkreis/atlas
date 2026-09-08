@@ -1,9 +1,8 @@
 import { z } from 'zod'
+import { TRPCError } from '@trpc/server'
 import { Tile } from '@/generated/prisma/enums'
-import { get, q } from '../../../etl/fetch'
-import { resolveRegion } from '../../../etl/gbif'
-import { isNow, nowRatio, perMille } from '../../../etl/rules'
-import { background } from '../jobs'
+import { get, q } from '../http'
+import { isNow, nowRatio, perMille } from '@/domain/rules'
 import { publicProcedure, router } from '../trpc'
 
 const GBIF = 'https://api.gbif.org/v1'
@@ -20,35 +19,6 @@ const toUnit = (h: GadmHit) => {
   return { gadmGid: h.id, name: h.name, higher: higher.map((x) => x.name).join(' › '), parent: higher.at(-1)?.name ?? null, type: h.type?.[0] ?? null, typeEn: h.englishType?.[0] ?? null }
 }
 type Unit = ReturnType<typeof toUnit>
-
-// In-process region jobs (handoff 0007 Track A, accepted for M5). Cached on globalThis so dev reloads do not start the
-// same region twice; a second identity asking for a running region waits on the same job. On Vercel the promise is
-// handed to `waitUntil` (handoff 0011 Track B, `server/jobs.ts`), so the invocation lives until the job settles.
-const jobs: Map<string, Promise<void>> = ((globalThis as unknown as { __dexRegionJobs?: Map<string, Promise<void>> }).__dexRegionJobs ??= new Map())
-
-/**
- * The region job: facets → set → content, in this process, once per gadmGid at a time. `requestRegion` starts it for a
- * new or failed region; the restart sweep (handoff 0009 Track B, `server/sweep.ts`, on Vercel the hourly cron) restarts
- * it for a region left `queued` by a server that died. Returns the running job, so a caller may await it.
- */
-export function startRegionJob(gadmGid: string): Promise<void> {
-  const running = jobs.get(gadmGid)
-  if (running) return running
-  const log = (s: string) => console.log(`[region ${gadmGid}] ${s}`)
-  const job = (async () => {
-    const { runRegion } = await import('../../../etl/region')
-    const { runContent } = await import('../../../etl/content')
-    const r = await runRegion(gadmGid, log)
-    log(`ready: set ${r.set} in ${r.seconds.toFixed(1)} s`)
-    const c = await runContent({ region: gadmGid, log })
-    log(`content: ${c.done} filled, ${c.failed} failed in ${(c.seconds / 60).toFixed(1)} min`)
-  })()
-    .catch((e) => log(`failed: ${e instanceof Error ? e.message : String(e)}`))
-    .finally(() => jobs.delete(gadmGid))
-  jobs.set(gadmGid, job)
-  background(job)
-  return job
-}
 
 const tile = z.enum(Object.values(Tile) as [Tile, ...Tile[]])
 
@@ -198,17 +168,9 @@ export const dexRouter = router({
   requestRegion: publicProcedure.input(z.object({ gadmGid: z.string().regex(/^[A-Z]{3}(\.\d+)+_\d+$/) })).mutation(async ({ ctx, input }) => {
     const { gadmGid } = input
     const pick = { id: true, name: true, status: true, error: true } as const
-    let region = await ctx.db.region.findUnique({ where: { gadmGid }, select: pick })
+    const region = await ctx.db.region.findUnique({ where: { gadmGid }, select: pick })
     if (region?.status === 'ready') return region
-    if (!region) {
-      const g = await resolveRegion(gadmGid)
-      region = await ctx.db.region.upsert({ where: { gadmGid }, create: { gadmGid, name: g.name, higher: g.higher, status: 'queued' }, update: {}, select: pick })
-    }
-    if (!jobs.has(gadmGid)) {
-      if (region.status === 'failed') region = await ctx.db.region.update({ where: { gadmGid }, data: { status: 'queued', error: null }, select: pick })
-      void startRegionJob(gadmGid)
-    }
-    return { ...region, status: 'queued' as const, error: null }
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Region preparation is available only through the operator CLI.' })
   }),
 
   regions: publicProcedure.query(async ({ ctx }) => {

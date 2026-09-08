@@ -3,8 +3,8 @@
 import { useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import type { Tile } from '@/generated/prisma/enums'
+import { radioKeys } from './ChoiceKeyboard'
 import { Icon } from './Marks'
-import { OfflineDownload } from './OfflineDownload'
 import { OnboardingSilhouette } from './OnboardingSilhouette'
 import { Sheet, useSheetClose } from './Sheet'
 
@@ -72,7 +72,7 @@ function DrawerBody(p: Props) {
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3">
         <label className="mt-2 flex h-12 items-center gap-3 rounded-2xl bg-card px-4 shadow-[0_2px_12px_rgba(30,42,35,0.06)]">
           <Icon name="search" size={20} className="shrink-0 text-ink-faint" />
-          <input ref={input} value={p.query} onChange={(e) => p.onQuery(e.target.value)} placeholder={t('search')} data-testid="drawer-search"
+          <input ref={input} value={p.query} onChange={(e) => p.onQuery(e.target.value)} aria-label={t('search')} placeholder={t('search')} data-testid="drawer-search"
             className="min-w-0 flex-1 bg-transparent text-[17px] outline-none placeholder:text-ink-faint" />
         </label>
 
@@ -93,24 +93,23 @@ function DrawerBody(p: Props) {
           })}
         </Section>
 
-        <Section title={t('show')}>
+        <Section radio title={t('show')}>
           {SHOWS.map((s) => (
             <Chip key={s} on={p.show === s} onClick={() => p.onShow(s)} role="radio" checked={p.show === s} testId={`show-${s}`}>{t(showKey[s])}</Chip>
           ))}
         </Section>
 
-        <Section title={t('group')}>
+        <Section radio title={t('group')}>
           {GROUPS.map((g) => (
             <Chip key={g} on={p.group === g} onClick={() => p.onGroup(g)} role="radio" checked={p.group === g} testId={`group-${g}`}>{t(groupKey[g])}</Chip>
           ))}
         </Section>
 
-        <Section title={t('sort')}>
+        <Section radio title={t('sort')}>
           {SORTS.map((s) => (
             <Chip key={s} on={p.sort === s} onClick={() => p.onSort(s)} role="radio" checked={p.sort === s} testId={`sort-${s}`}>{t(sortKey[s])}</Chip>
           ))}
         </Section>
-        <div className="mt-4"><OfflineDownload testId="offline-download-drawer" /></div>
       </div>
       <div className="shrink-0 px-4 pt-2" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
         <button type="button" onClick={close} data-testid="apply" className="h-14 w-full rounded-2xl bg-moss text-[18px] font-bold text-white">{t('showN', { n: p.results })}</button>
@@ -123,14 +122,14 @@ const showKey = { all: 'showAll', studied: 'showStudied', seen: 'showSeen', new:
 const sortKey = { now: 'sortNow', name: 'sortName', seen: 'sortSeen' } as const
 const groupKey = { exploration: 'groupExploration', tile: 'groupTile', none: 'groupNone' } as const
 
-function Section({ title, aside, children }: { title: string; aside?: React.ReactNode; children: React.ReactNode }) {
+function Section({ radio = false, title, aside, children }: { radio?: boolean; title: string; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="mt-4">
       <div className="flex items-center justify-between">
         <h3 className="text-[17px] font-bold">{title}</h3>
         {aside}
       </div>
-      <div className="mt-1.5 flex flex-wrap gap-1.5">{children}</div>
+      <div role={radio ? 'radiogroup' : undefined} aria-label={radio ? title : undefined} onKeyDown={radio ? radioKeys : undefined} className="mt-1.5 flex flex-wrap gap-1.5">{children}</div>
     </section>
   )
 }
@@ -138,10 +137,10 @@ function Section({ title, aside, children }: { title: string; aside?: React.Reac
 // One chip shape for region, tiles, states and sorts: sky outline on a faint sky ground when on (handoff 0014 G5: blue is
 // selection, moss stays for the action button and "Ändern"), tile-grey when off.
 function Chip({ on, onClick, role, checked, testId, children }: { on: boolean; onClick?: () => void; role?: 'checkbox' | 'radio'; checked?: boolean; testId?: string; children: React.ReactNode }) {
-  const cls = `motion-toggle inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[15px] font-semibold ${on ? 'bg-sky-soft text-sky-deep ring-[1.5px] ring-sky ring-inset' : 'bg-tile text-ink-soft'}`
+  const cls = `motion-toggle inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[15px] font-semibold ${on ? 'bg-sky-soft text-sky-deep ring-[1.5px] ring-sky ring-inset' : 'bg-tile text-ink-soft'}`
   if (!onClick) return <span className={cls}>{children}</span>
   return (
-    <button type="button" onClick={onClick} role={role} aria-checked={role ? checked : undefined} aria-pressed={role ? undefined : on} data-testid={testId} className={cls}>
+    <button type="button" onClick={onClick} role={role} tabIndex={role === 'radio' && !checked ? -1 : 0} aria-checked={role ? checked : undefined} aria-pressed={role ? undefined : on} data-testid={testId} className={cls}>
       {children}
     </button>
   )

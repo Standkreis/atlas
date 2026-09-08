@@ -1,4 +1,4 @@
-# 🧪 [0001] Atlas — a Pokédex for nature, and the first walk
+# 🧪 [0001] standkreis-dex — a Pokédex for nature, and the first walk
 
 > **Spec.** Lives while the epic is open; distilled into an ADR and deleted when it closes. Decisions and their rejected alternatives are in the immutable records [0001](../records/0001-standkreis-dex-the-first-walk.md) (the product) and [0002](../records/0002-etl-the-plausible-set.md) (the plausible set and the ETL). Research behind it: [`docs/research/`](../research/).
 

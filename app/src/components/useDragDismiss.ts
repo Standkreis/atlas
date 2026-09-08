@@ -23,6 +23,7 @@ export function useDragDismiss(onClose: () => void) {
 
   const onPointerDown = useCallback((e: PointerEvent<HTMLElement>) => {
     if (e.button !== 0 || phase === 'settle') return
+    if (e.target instanceof Element && e.target.closest('button, a, input, select, textarea')) return
     start.current = { y: e.clientY, id: e.pointerId }
     samples.current = [{ y: e.clientY, t: e.timeStamp }]
     e.currentTarget.setPointerCapture(e.pointerId)

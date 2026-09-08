@@ -55,7 +55,7 @@ export function Journal({ title }: { title: string }) {
   // Rows still in the outbox (handoff 0009 Track B) are merged in on the client with the grey chip; they carry no server id yet.
   const outbox = useOutbox()
   const all = useMemo(() => mergeQueued(days.data?.pages.flatMap((p) => p.days) ?? [], outbox, kind), [days.data, outbox, kind])
-  const nothingAtAll = (days.isSuccess || days.isError) && kind === 'all' && all.length === 0
+  const nothingAtAll = days.isSuccess && kind === 'all' && all.length === 0
   // P4: back from a species chain lands here by push; the saved scroll offset is put back once the days are up.
   const pathname = usePathname()
   const listUp = all.length > 0
@@ -76,9 +76,9 @@ export function Journal({ title }: { title: string }) {
         <p className="mt-3 text-[15px] text-ink-soft" data-testid="empty">{t('empty')}</p>
       ) : (
         <>
-          <div className="mt-3 flex gap-2" role="tablist" data-testid="pills">
+          <div className="mt-3 flex gap-2" role="group" aria-label={title} data-testid="pills">
             {KINDS.map((k) => (
-              <button key={k} type="button" role="tab" aria-selected={kind === k} onClick={() => setKind(k)} data-testid={`pill-${k}`}
+              <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)} data-testid={`pill-${k}`}
                 className={`motion-toggle rounded-full px-4 py-2 text-[15px] font-semibold ${kind === k ? 'bg-sky-soft text-sky-deep ring-1 ring-sky' : 'bg-tile text-ink-soft'}`}>
                 {t(k)}
               </button>
@@ -96,7 +96,8 @@ export function Journal({ title }: { title: string }) {
             </button>
           )}
           {days.isLoading && <p className="mt-3 text-[15px] text-ink-soft">{tc('working')}</p>}
-          {days.isError && !days.data && all.length === 0 && <p className="mt-3 text-[15px] text-amber-deep">{tc('error')}</p>}
+          {days.fetchStatus === 'paused' && <p className="mt-3 text-[15px] text-ink-soft" role="status">{days.data ? tc('usingSaved') : tc('offlineMissing')}</p>}
+          {days.isError && days.fetchStatus !== 'paused' && <p className="mt-3 text-[15px] text-amber-deep" role="alert">{days.data ? tc('refreshFailed') : tc('loadFailed')} <button type="button" onClick={() => void days.refetch()} className="min-h-11 px-2 underline">{tc('retry')}</button></p>}
           {all.length > 0 && <p className="mt-5 text-[12px] text-ink-faint">{t('footer')}</p>}
         </>
       )}

@@ -2,6 +2,7 @@
 
 import { useState, type ChangeEvent, type Ref } from 'react'
 import { enqueue, rowOf } from './Queue'
+import { expectedIdentity } from './ClientIdentity'
 
 export type Photo = { id: string; url: string }
 export type PhotoState = 'idle' | 'busy' | 'error'
@@ -35,12 +36,14 @@ export async function shrinkToJpeg(file: Blob): Promise<Blob> {
 }
 
 /** Multipart POST /api/photo → the unattached Asset. The cookie identity owns it; `sighting.create` or `attachPhoto` binds it. */
-export async function uploadPhoto(blob: Blob): Promise<Photo> {
+export async function uploadPhoto(blob: Blob, identityId = expectedIdentity()): Promise<Photo> {
   const form = new FormData()
   form.append('file', blob, 'photo.jpg')
-  const r = await fetch(`${api}/api/photo`, { method: 'POST', body: form, credentials: 'include' })
+  const r = await fetch(`${api}/api/photo`, { method: 'POST', body: form, credentials: 'include', headers: { 'x-dex-identity': identityId } })
   if (!r.ok) throw new Error(`upload ${r.status}`)
-  return (await r.json()) as Photo
+  const photo = (await r.json()) as Photo
+  if (expectedIdentity() !== identityId) throw new Error('identity changed during upload')
+  return photo
 }
 
 /**
@@ -48,10 +51,12 @@ export async function uploadPhoto(blob: Blob): Promise<Photo> {
  * URL; offline, or when the upload gets no answer, the blob goes into the outbox as a `photo` row and the row's id rides
  * in the URL instead. The save screen tells the two apart (`queuedPhoto`) and the flush uploads the blob before the sighting.
  */
-export async function uploadOrQueue(blob: Blob): Promise<Photo> {
+export async function uploadOrQueue(blob: Blob, identityId = expectedIdentity()): Promise<Photo> {
+  if (expectedIdentity() !== identityId) throw new Error('identity changed during photo preparation')
   if (navigator.onLine) {
-    try { return await uploadPhoto(blob) } catch (e) { if (!(e instanceof TypeError)) throw e } // a TypeError is fetch's "no answer"; a status is the server's
+    try { return await uploadPhoto(blob, identityId) } catch (e) { if (!(e instanceof TypeError)) throw e } // a TypeError is fetch's "no answer"; a status is the server's
   }
+  if (expectedIdentity() !== identityId) throw new Error('identity changed during upload')
   const row = await enqueue({ id: crypto.randomUUID(), kind: 'photo', payload: {}, blob })
   return { id: row.id, url: URL.createObjectURL(blob) }
 }
@@ -69,10 +74,11 @@ export function PhotoInput({ source, onPhoto, onState, testId, ref }: { source: 
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
+    const identityId = expectedIdentity()
     setBusy(true)
     onState?.('busy')
     try {
-      onPhoto(await uploadOrQueue(await shrinkToJpeg(file)))
+      onPhoto(await uploadOrQueue(await shrinkToJpeg(file), identityId))
       onState?.('idle')
     } catch {
       onState?.('error')

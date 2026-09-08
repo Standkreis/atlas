@@ -4,6 +4,7 @@ import { useRef, useState, type PointerEvent } from 'react'
 import { useTranslations } from 'next-intl'
 import type { Tile } from '@/generated/prisma/enums'
 import { useRouter } from '@/i18n/navigation'
+import { Icon } from './Marks'
 import { OnboardingSilhouette } from './OnboardingSilhouette'
 import { SourceInfo, SourceSheet, useImageSource } from './SourceInfo'
 import { speciesOrigin } from './SpeciesOrigin'
@@ -58,8 +59,8 @@ export function SpeciesSlider({ assets, tile }: { assets: Asset[]; tile: string 
             <span className="text-[13px]">{t('noImage')}</span>
           </div>
         )}
-        <button type="button" onClick={back} aria-label={t('back')} className="absolute top-3 left-3 flex h-9 w-9 items-center justify-center rounded-full bg-card/90 text-[20px] text-ink shadow-md backdrop-blur">
-          <span aria-hidden className="-mt-0.5">‹</span>
+        <button type="button" onClick={back} aria-label={t('back')} className="absolute top-3 left-3 flex h-9 w-9 items-center justify-center rounded-full bg-card/90 text-ink shadow-md backdrop-blur">
+          <Icon name="arrowLeft" size={18} />
         </button>
         {current && <SourceInfo title={t('attribution.title')} sources={[imageSource(current)]} tone="card" size={32} className="absolute right-3 bottom-3" testId="slider-info" />}
         {assets.length > 1 && (

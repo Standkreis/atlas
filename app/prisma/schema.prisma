@@ -21,7 +21,7 @@ model Identity {
   /// together with `emailVerifiedAt`; PII (spec §⚖️), on the identity, in the export and in the mail, nowhere else.
   email           String?    @unique
   emailVerifiedAt DateTime?
-  /// Name and photo are optional, local only, never on a share card (spec §⚖️).
+  /// Name and photo are optional private profile data, never on a share card (spec §⚖️).
   displayName   String?
   /// The profile photo (handoff 0014 P2): one user Asset per identity, square, ≤ 256 px, served by /api/photo/<id>.
   /// Replaced on re-upload (the old Asset and its file go), gone with the identity. Never on a share card.
@@ -156,6 +156,9 @@ model Taxon {
   facts       Json?
   /// Set when the `facts` step has run for this taxon (0021 D1); the later prose step rewrites when facts are newer.
   factsAt     DateTime?
+  /// Handoff 0028: the Steckbrief and Ökologie prose written from the fact sheet by the `prose` step (etl/prose):
+  /// `{ version: 1, regions: { [regionId]: { de, en, eco, facts, inputHash, model, judged, at } } }`; null until written.
+  prose       Json?
   /// How the Wikidata item was found: P846 | name | none.
   namePath    String?
   /// Set when the content job has run for this taxon; never expires, purge only.
@@ -223,6 +226,12 @@ model Interaction {
   kind     InteractionKind
   /// Where the record came from, e.g. "GloBI".
   origin   String
+  /// Handoff 0028 (0027 F1): the GloBI studies behind the edge, `{ "<study citation>": records }`; `{}` on an edge fetched before 0028.
+  studies  Json            @default("{}")
+  /// Records not from a metaweb (0027 F1); 0 on an edge fetched before 0028.
+  real     Int             @default(0)
+  /// False when F1 (eats/eatenBy, all studies metawebs) or F2 (≤ 1 real record from ≤ 1 real study) drops the edge from the prose sheet; the tile keeps it.
+  prose    Boolean         @default(true)
 
   @@unique([sourceId, targetId, kind])
 }
@@ -259,6 +268,9 @@ model Asset {
   ownerId    String?
   /// Set when this user photo is an identity's avatar (0014 P2); such an asset has no sighting and the sweep leaves it alone.
   avatarOf   Identity? @relation("avatar")
+  /// Legacy photos conservatively count as the previous 8 MiB upload maximum.
+  byteSize   Int       @default(8388608)
+  scans      ScanWork[]
 
   @@index([taxonId])
 }
@@ -312,4 +324,29 @@ model Study {
   recapPassed Boolean  @default(false)
 
   @@unique([identityId, taxonId])
+}
+
+/// Admission counters survive process restarts and identity deletion.
+model QuotaBucket {
+  key String @id
+  value Int
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+model ScanWork {
+  key String @id
+  photoId String
+  photo Asset @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  identityId String
+  token String
+  leaseUntil DateTime
+  result Json?
+  @@index([leaseUntil])
+  @@index([identityId, leaseUntil])
+}
+/// No relation: work must survive deletion of the identity, sighting and asset.
+model PhotoDeletion {
+  assetId String @id
+  createdAt DateTime @default(now())
+  @@index([createdAt])
 }

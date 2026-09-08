@@ -11,20 +11,19 @@ export type DexState = 'none' | 'studied' | 'seen'
 
 export const tileIcon: Record<string, string> = { bird: '🐦', mammal: '🦌', amphibian: '🐸', reptile: '🦎', fish: '🐟', insect: '🦋', plant: '🌿', fungus: '🍄' }
 
-/** The name in the reader's language, else German, else English, else Latin. */
+/** Prefer the reader's language; use the scientific name when no localized name is available. */
 export function useName() {
   const locale = useLocale()
-  return (c: { names: Record<string, string>; sciName: string }) => c.names[locale] ?? c.names.de ?? c.names.en ?? c.sciName
+  return (c: { names: Record<string, string>; sciName: string }) => c.names[locale] ?? c.sciName
 }
 
-/** The mini tile of findings 0002 §🏷️: no badge, the image tells the state (grey · grey with amber ring · colour with moss ring, handoff 0014 G4). */
+/** A readable reference photo, with amber or moss rings for studied or discovered species. */
 export function Thumb({ card, state, size, inSet = true }: { card: Card; state: DexState; size: number; inSet?: boolean }) {
-  const cls = state === 'seen' ? '' : state === 'studied' ? 'opacity-70 grayscale' : 'opacity-45 grayscale'
   return (
     <span className="relative flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-tile" style={{ width: size, height: size }} aria-hidden>
       {card.lead && inSet ? (
         // eslint-disable-next-line @next/next/no-img-element -- static export, remote hosts, no optimiser
-        <img src={card.lead} alt="" loading="lazy" className={`h-full w-full object-cover ${cls}`} />
+        <img src={card.lead} alt="" loading="lazy" className="h-full w-full object-cover" />
       ) : (
         <span className="text-ink-faint" style={{ fontSize: size * 0.45 }}>{inSet ? tileIcon[card.tile] ?? '?' : '?'}</span>
       )}

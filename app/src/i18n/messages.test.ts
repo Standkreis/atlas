@@ -12,4 +12,9 @@ describe('locales', () => {
   it('de and en have the same keys', () => {
     expect(keysOf(en).sort()).toEqual(keysOf(de).sort())
   })
+  // Handoff 0028 Track B: the prose label, the ⓘ sheet and the judge line, with the same placeholders in both languages.
+  it('carry the species.prose keys', () => {
+    expect(de.species.prose).toEqual({ label: expect.any(String), sheetTitle: expect.any(String), sheetHint: expect.any(String), judged: '{n} von {m} Sätzen geprüft' })
+    expect(en.species.prose).toEqual({ label: expect.any(String), sheetTitle: expect.any(String), sheetHint: expect.any(String), judged: '{n} of {m} sentences checked' })
+  })
 })

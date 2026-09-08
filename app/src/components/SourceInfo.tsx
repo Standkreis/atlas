@@ -41,7 +41,7 @@ export function SourceInfo({ title, sources, tone = 'plain', size = 28, classNam
     <>
       <button type="button" aria-label={t('open')} aria-haspopup="dialog" data-testid={testId}
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(true) }}
-        className={`inline-flex shrink-0 items-center justify-center rounded-full ${look} ${className}`} style={{ width: size, height: size }}>
+        className={`inline-flex shrink-0 items-center justify-center rounded-full ${look} ${className}`} style={{ width: Math.max(44, size), height: Math.max(44, size) }}>
         <Icon name="info" size={Math.round(size * 0.6)} />
       </button>
       {open && <SourceSheet title={title ?? t('title')} sources={sources} onClose={() => setOpen(false)} />}
@@ -82,5 +82,5 @@ export function SourceSheet({ title, sources, onClose, children }: { title: stri
 function SheetCloseButton() {
   const tc = useTranslations('common')
   const close = useSheetClose()
-  return <button type="button" onClick={close} className="text-[13px] text-ink-soft">{tc('close')}</button>
+  return <button type="button" onClick={close} className="min-h-11 px-2 text-[14px] text-ink-soft">{tc('close')}</button>
 }

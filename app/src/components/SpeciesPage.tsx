@@ -9,6 +9,7 @@ import { useTRPC } from '@/trpc/client'
 import { Toast } from './Fill'
 import { useOffline } from './OfflineBanner'
 import { Icon, SeenMark, StudiedMark } from './Marks'
+import { Prose } from './Prose'
 import { ChipGrid, EcologyChip, LookalikeCard, useName, type Card, type DexState } from './SpeciesCard'
 import { SourceInfo, useImageSource, type Source } from './SourceInfo'
 import { SpeciesMap } from './SpeciesMap'
@@ -31,16 +32,6 @@ const METRIC = new Set(['mass', 'wingspan', 'length', 'height'])
 const EDIBILITY_ORDER = ['deadly', 'poisonous', 'psychoactive', 'inedible', 'choice', 'edible', 'unknown']
 type Fact = { value: string; source: string; url?: string; licence?: string }
 const KINDS = ['eats', 'eatenBy', 'pollinates', 'visitsFlowersOf', 'hostOf', 'parasiteOf'] as const
-/** The deed behind a licence string, for the ⓘ sheets (handoff 0014 D3): "CC BY-SA 4.0" → creativecommons.org; anything else has no link. */
-export const licenceUrl = (l: string | null | undefined) => {
-  const m = l?.match(/^CC[ -]?(BY(?:-[A-Z]{2})*|0)\s?(\d\.\d)?$/i)
-  if (!m) return null
-  return m[1] === '0' ? 'https://creativecommons.org/publicdomain/zero/1.0/' : `https://creativecommons.org/licenses/${m[1]!.toLowerCase()}/${m[2] ?? '4.0'}/`
-}
-const HOME: Record<string, string> = {
-  GBIF: 'https://www.gbif.org', Wikidata: 'https://www.wikidata.org', AnAge: 'https://genomics.senescence.info/species/', GloBI: 'https://www.globalbioticinteractions.org', iNaturalist: 'https://www.inaturalist.org', 'Wikimedia Commons': 'https://commons.wikimedia.org',
-  AVONET: 'https://doi.org/10.6084/m9.figshare.16586228', EltonTraits: 'https://doi.org/10.6084/m9.figshare.3559887', PanTHERIA: 'https://doi.org/10.1890/08-1494.1', AmphiBIO: 'https://doi.org/10.6084/m9.figshare.4644424', 'GIFT (Weigelt et al.)': 'https://gift.uni-goettingen.de', 'xeno-canto': 'https://xeno-canto.org',
-}
 // The ETL writes the year strip's words in German (record 0002 E3, schema comment); en swaps the four abbreviations that differ.
 const MONTHS_EN: Record<string, string> = { Mär: 'Mar', Mai: 'May', Okt: 'Oct', Dez: 'Dec' }
 
@@ -48,8 +39,8 @@ const MONTHS_EN: Record<string, string> = { Mär: 'Mar', Mai: 'May', Okt: 'Oct',
  * The species page (spec §🎨 3, handoff 0007 Track B): slider, three names, the two-axis state row, intro, Steckbrief,
  * Vorkommen, Verwechslungsgefahr, Ökologie, one Quellen line, the sticky "Entdeckt" and "Studiert". Dex state is the client's
  * join of `identity.progress`. Empty Steckbrief and Vorkommen show one grey line (absence is a fact worth reading); empty
- * lookalikes and ecology are left out (handoff 0014 D5). No emoji on the page (D2), seen before studied (D1). Every photo
- * and source reference carries a ⓘ (D3, `SourceInfo`); the ecology categories are wrapping chip grids with the total on
+ * lookalikes and ecology are left out (handoff 0014 D5). No emoji on the page (D2). General source information is
+ * centralized on the sources page; media credits remain attached to their media. Ecology categories are wrapping chip grids with the total on
  * the right and a fold after three rows (D4, `ChipGrid`).
  */
 export function SpeciesPage() {
@@ -104,11 +95,8 @@ export function SpeciesPage() {
   const sub = [title !== s.sciName ? <i key="sci">{s.sciName}</i> : null, other && other !== title ? <span key="other">{other}</span> : null].filter(Boolean)
 
   // Steckbrief (0021 D6, layout A): Status always (tile and IUCN), then one cell per fact the ETL found, in the tile's
-  // order; the tile's missing keys in one grey line. Each cell's source and licence sit behind its ⓘ (0014 D3).
+  // order; the tile's missing keys in one grey line. Dataset explanations live on the central sources page.
   const facts = (s.facts ?? {}) as Record<string, Fact | undefined>
-  const gbifPage = `https://www.gbif.org/species/${s.gbifKey}`
-  const dataSource = (o: string, url?: string): Source => ({ origin: o, sourceUrl: url ?? HOME[o] ?? null })
-  const factSource = (f: Fact): Source => ({ origin: f.source, sourceUrl: f.url ?? HOME[f.source] ?? null, licence: f.licence ?? null, licenceUrl: licenceUrl(f.licence) })
   const factWords = (k: string, v: string) => {
     if (k === 'edibility') v = v.split(', ').filter((c) => c !== 'medicinal').sort((a, b) => EDIBILITY_ORDER.indexOf(a) - EDIBILITY_ORDER.indexOf(b)).join(', ') // 0024: rows filled before it
     if (CODED.has(k)) return v.split(', ').map((c) => (t.has(`facts.values.${k}.${c}`) ? t(`facts.values.${k}.${c}`) : c)).join(', ')
@@ -141,12 +129,15 @@ export function SpeciesPage() {
   }
   const tileKeys = TILE_KEYS[s.tile] ?? []
   const keys = [...tileKeys, ...Object.keys(facts).filter((k) => !tileKeys.includes(k))]
-  const status = { k: 'status', value: `${t(`tile.${s.tile}`)}`, sub: s.iucn ? `${s.iucn} · ${t.has(`iucn.${s.iucn}`) ? t(`iucn.${s.iucn}`) : ''}`.trim() : null, sources: [dataSource('GBIF', gbifPage), ...(s.iucn ? [dataSource('IUCN Red List', `https://www.iucnredlist.org/search?query=${encodeURIComponent(s.sciName)}`)] : [])] }
-  const cells = [status, ...keys.flatMap((k) => { const f = facts[k]; return f && t.has(`facts.${k}`) ? [{ k, value: factWords(k, f.value), sub: null, sources: [factSource(f)] }] : [] })]
+  const group = { k: 'group', value: t(`tile.${s.tile}`), sub: null }
+  const status = s.iucn ? { k: 'status', value: `${s.iucn} · ${t.has(`iucn.${s.iucn}`) ? t(`iucn.${s.iucn}`) : ''}`.trim(), sub: null } : null
+  const cells = [group, ...(status ? [status] : []), ...keys.flatMap((k) => { const f = facts[k]; return f && t.has(`facts.${k}`) ? [{ k, value: factWords(k, f.value), sub: null }] : [] })]
   const missing = tileKeys.filter((k) => !facts[k]).map((k) => t(`facts.${k}`))
   const voice = s.assets.find((a) => a.kind === 'sound') ?? null
   // No Steckbrief at all for a tile that can carry no fact and has none (an insect without a clip; D6).
-  const showFacts = tileKeys.length > 0 || cells.length > 1 || !!s.iucn || !!voice
+  // 0028: a tile without cells but with prose (an insect with enough GloBI lines) shows Status and the text.
+  const proseLang = locale === 'en' ? 'en' : 'de'
+  const showFacts = tileKeys.length > 0 || cells.length > 1 || !!s.iucn || !!voice || !!s.prose?.[proseLang]
   const images = s.assets.filter((a) => a.kind === 'image')
 
   // Vorkommen: the words say what the bars cannot; the current month is dark; "jetzt gute Chancen" at ≥ 25 % of the peak (E3).
@@ -156,33 +147,11 @@ export function SpeciesPage() {
   const letters = t('occurrence.monthLetters').split(' ')
 
   const kinds = KINDS.filter((k) => s.interactions[k]?.length)
-  const imageOrigins = [...new Set(images.map((a) => a.origin))].map((o) => (o === 'inat' || o === 'commons' || o === 'user' ? t(`origin.${o}`) : o))
-  // The data line names every dataset behind a cell (AnAge, AVONET, GIFT …) after GBIF and Wikidata (0021 D6).
-  const dataSources = [...new Set(['GBIF', ...(s.wikidataId ? ['Wikidata'] : []), ...keys.flatMap((k) => (facts[k] ? [facts[k]!.source] : []))])]
   const voiceSource: Source[] = voice ? [{ origin: 'xeno-canto', author: voice.author, licence: voice.licence, licenceUrl: voice.licenceUrl, sourceUrl: voice.sourceUrl, note: voice.meta ? `XC${voice.meta.xcId} · ${t(`facts.voiceType.${voiceType(voice.meta.type)}`)} · ${clock(voice.meta.length)} · ${t('facts.voiceQuality', { q: voice.meta.quality })}` : null }] : []
-  const sources = [
-    s.intro ? t('sources.text', { licence: s.intro.licence }) : null,
-    t('sources.data', { list: dataSources.join(', ') }),
-    voice ? t('sources.voice') : null,
-    p ? t('sources.occurrence') : null,
-    kinds.length ? t('sources.ecology') : null,
-    imageOrigins.length ? t('sources.images', { list: imageOrigins.join(', ') }) : null,
-  ].filter(Boolean)
-  // The ⓘ sheets (D3): the intro's page, the occurrence records, the genus rule, GloBI, and the credit of every thumb in a section.
-  const introSource: Source[] = s.intro ? [{ origin: 'Wikipedia', licence: s.intro.licence, licenceUrl: licenceUrl(s.intro.licence), sourceUrl: s.intro.source }] : []
-  const occurrenceSources: Source[] = [{ origin: 'GBIF', sourceUrl: `https://www.gbif.org/occurrence/search?taxon_key=${s.gbifKey}`, note: t('sourceInfo.occurrence') }]
+  // Image attribution remains attached to the hero and is also collected once for the smaller cards at the page bottom.
   const credits = (cards: Card[]): Source[] => cards.flatMap((c) => (c.leadInfo ? [imageSource(c.leadInfo, name(c))] : []))
-  const lookalikeSources: Source[] = [{ origin: 'GBIF', sourceUrl: gbifPage, note: t('sourceInfo.lookalikes') }, ...credits(s.lookalikes)]
   const ecologyCards = [...new Map(kinds.flatMap((k) => s.interactions[k]!.filter((c) => c.inSet)).map((c) => [c.id, c])).values()]
-  const ecologySources: Source[] = [{ origin: 'GloBI', sourceUrl: `https://www.globalbioticinteractions.org/?sourceTaxon=${encodeURIComponent(s.sciName)}`, note: t('sourceInfo.ecology') }, ...credits(ecologyCards)]
-  const allSources: Source[] = [
-    ...introSource.map((x) => ({ ...x, label: t('sourceInfo.text') })),
-    ...dataSources.map((o) => ({ label: t('sourceInfo.data'), ...dataSource(o, o === 'GBIF' ? gbifPage : o === 'Wikidata' && s.wikidataId ? `https://www.wikidata.org/wiki/${s.wikidataId}` : undefined) })),
-    ...voiceSource.map((x) => ({ ...x, label: t('facts.voice'), note: null })),
-    ...(p ? occurrenceSources.map((x) => ({ ...x, label: t('occurrence.title'), note: null })) : []),
-    ...(kinds.length ? [{ ...ecologySources[0]!, label: t('ecology.title'), note: null }] : []),
-    ...credits(images.map((a) => ({ id: a.id, gbifKey: s.gbifKey, sciName: s.sciName, names: s.names, tile: s.tile, lead: a.url, leadInfo: a }))).map((x, i) => ({ ...x, label: `${t('sourceInfo.image')} ${i + 1}` })),
-  ]
+  const smallImageCredits = credits([...s.lookalikes, ...ecologyCards])
 
   return (
     <main className="mx-auto min-h-full max-w-[520px] pb-28 [&~nav]:hidden" data-testid="species">
@@ -193,13 +162,13 @@ export function SpeciesPage() {
         {sub.length > 0 && <p className="mt-1 text-[17px] text-ink-soft">{sub.map((n, i) => <span key={i}>{i > 0 && ' · '}{n}</span>)}</p>}
 
         <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[17px]" data-testid="state">
-          <span className={`flex items-center gap-2 ${isSeen ? 'font-semibold text-moss-deep' : 'text-ink-faint'}`} data-testid="state-seen">
-            {isSeen ? <SeenMark size={22} title={t('state.seen')} /> : <Grey><span className="h-2 w-2 rounded-full border border-current" /></Grey>}
-            {isSeen ? seenLabel : t('state.notSeen')}
-          </span>
           <span className={`flex items-center gap-2 ${isStudied ? 'font-semibold text-amber-deep' : 'text-ink-faint'}`} data-testid="state-studied">
             {isStudied ? <StudiedMark size={22} title={t('state.studied')} /> : <Grey><Icon name="book" size={13} /></Grey>}
             {isStudied ? t('state.studied') : t('state.notStudied')}
+          </span>
+          <span className={`flex items-center gap-2 ${isSeen ? 'font-semibold text-moss-deep' : 'text-ink-faint'}`} data-testid="state-seen">
+            {isSeen ? <SeenMark size={22} title={t('state.seen')} /> : <Grey><span className="h-2 w-2 rounded-full border border-current" /></Grey>}
+            {isSeen ? seenLabel : t('state.notSeen')}
           </span>
         </p>
 
@@ -210,22 +179,18 @@ export function SpeciesPage() {
           </aside>
         )}
 
-        {s.intro ? (
-          <>
-            {s.intro.lang !== locale && <p className="mt-4 text-[13px] text-ink-faint" data-testid="intro-lang">{t('introOtherLang', { lang: t.has(`lang.${s.intro.lang}`) ? t(`lang.${s.intro.lang}`) : s.intro.lang.toUpperCase() })}</p>}
-            <p className={`${s.intro.lang !== locale ? 'mt-1' : 'mt-4'} text-[17px] leading-[1.45]`} lang={s.intro.lang}>
-              {s.intro.text} <SourceInfo title={t('sourceInfo.text')} sources={introSource} size={22} className="-mb-1 align-baseline" testId="intro-info" />
-            </p>
-          </>
-        ) : (
-          <p className="mt-4 text-[15px] text-ink-faint">{t('noIntro')}</p>
+        {s.intro && (
+          <div className="mt-5" data-testid="intro">
+            {s.intro.lang !== locale && <p className="mb-1 text-[13px] text-ink-faint" data-testid="intro-lang">{t('introOtherLang', { lang: t.has(`lang.${s.intro.lang}`) ? t(`lang.${s.intro.lang}`) : s.intro.lang.toUpperCase() })}</p>}
+            <p className="text-[17px] leading-[1.5]" lang={s.intro.lang}>{s.intro.text}</p>
+          </div>
         )}
 
         {showFacts && <Section title={t('facts.title')} testId="facts">
           <div className="grid grid-cols-2 gap-3">
             {cells.map((c, i) => (
-              <div key={c.k} className={`rounded-2xl bg-card px-4 py-3 shadow-[0_2px_12px_rgba(30,42,35,0.06)] ${i === cells.length - 1 && cells.length % 2 ? 'col-span-2' : ''}`} data-testid={`fact-${c.k}`}>
-                <div className="flex items-center justify-between gap-2 text-[13px] text-ink-soft">{t(`facts.${c.k}`)} <SourceInfo title={t(`facts.${c.k}`)} sources={c.sources} size={22} className="-my-1 -mr-2" testId="fact-info" /></div>
+              <div key={c.k} className={`rounded-2xl bg-card p-4 shadow-[0_2px_12px_rgba(30,42,35,0.06)] ${i === cells.length - 1 && cells.length % 2 ? 'col-span-2' : ''}`} data-testid={`fact-${c.k}`}>
+                <div className="text-[13px] text-ink-soft">{t(`facts.${c.k}`)}</div>
                 <div className="mt-1 text-[17px] leading-tight font-bold">{c.value}</div>
                 {c.sub && <div className="mt-1 text-[13px] text-ink-soft">{c.sub}</div>}
               </div>
@@ -233,9 +198,11 @@ export function SpeciesPage() {
           </div>
           {voice && <VoiceRow asset={voice} sources={voiceSource} />}
           {missing.length > 0 && <p className="mt-3 text-[13px] text-ink-faint">{t('facts.missing', { list: missing.join(' · ') })}</p>}
+          {/* 0028, placement A (0019 S5): the generated text last, under the cells it was written from, labelled. */}
+          {s.prose?.[proseLang] && <details className="mt-4"><summary className="min-h-11 cursor-pointer text-[15px] font-semibold">{t('readExplanation')}</summary><Prose prose={s.prose} /></details>}
         </Section>}
 
-        <Section title={t('occurrence.title')} aside={region?.name ?? null} testId="occurrence" info={p ? <SourceInfo title={t('occurrence.title')} sources={occurrenceSources} testId="occurrence-info" /> : null}>
+        <Section title={t('occurrence.title')} aside={region?.name ?? null} testId="occurrence">
           {!region ? (
             <p className="text-[15px] text-ink-faint">{t('occurrence.noRegion')}</p>
           ) : !p ? (
@@ -263,13 +230,14 @@ export function SpeciesPage() {
         </Section>
 
         {s.lookalikes.length > 0 && (
-          <Section title={t('lookalikes.title')} testId="lookalikes" info={<SourceInfo title={t('lookalikes.title')} sources={lookalikeSources} testId="lookalikes-info" />}>
+          <Section title={t('lookalikes.title')} testId="lookalikes">
             <Row>{s.lookalikes.map((c: Card) => <LookalikeCard key={c.id} card={c} state={stateOf(c.id)} />)}</Row>
           </Section>
         )}
 
         {kinds.length > 0 && (
-          <Section title={t('ecology.title')} testId="ecology" info={<SourceInfo title={t('ecology.title')} sources={ecologySources} testId="ecology-info" />}>
+          <Section title={t('ecology.title')} testId="ecology">
+            <p className="mb-3 text-[14px] leading-snug text-ink-soft">{t('ecology.evidenceHint')}</p>
             {kinds.map((k) => {
               const all = s.interactions[k]!
               return (
@@ -286,26 +254,28 @@ export function SpeciesPage() {
                 </div>
               )
             })}
+            {s.prose?.eco[proseLang] && <details className="mt-4"><summary className="min-h-11 cursor-pointer text-[15px] font-semibold">{t('readExplanation')}</summary><Prose prose={s.prose} eco /></details>}
           </Section>
         )}
 
-        <p className="mt-8 text-[13px] leading-snug text-ink-faint" data-testid="sources">
-          <span className="font-semibold">{t('sources.label')}</span> · {sources.join(' · ')} <SourceInfo title={t('sources.label')} sources={allSources} size={22} className="-mb-1 align-baseline" testId="sources-info" />
-        </p>
+        <div className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] text-ink-soft" data-testid="sources">
+          <Link href="/sources" className="font-semibold text-moss-deep underline underline-offset-4">{t('sources.link')}</Link>
+          {smallImageCredits.length > 0 && <span className="flex items-center gap-0.5">{t('sources.imageCredits')} <SourceInfo title={t('sources.imageCredits')} sources={smallImageCredits} size={22} className="-my-2" testId="sources-info" /></span>}
+        </div>
       </div>
 
       {/* The sticky bar (spec §🎨 3): "Entdeckt" opens the save screen with the species preset (handoff 0008 Track A); "Studiert" toggles. Icons from the set, no emoji (0014 D2). The tab bar (a later sibling of main) is hidden on this page, as in the mock. */}
       <div className="fixed inset-x-0 z-10" style={{ bottom: 'env(safe-area-inset-bottom)' }}>
         <div className="mx-auto flex max-w-[520px] gap-3 bg-gradient-to-t from-paper via-paper/95 to-paper/0 px-4 pt-6 pb-2">
-          <button type="button" disabled={!progress.data} data-testid="log"
-            onClick={() => router.push(`/log?taxon=${s.gbifKey}&from=species`)}
-            className="flex h-13 flex-[1.3] items-center justify-center gap-2 rounded-full bg-moss text-[17px] font-bold text-white shadow-md disabled:opacity-60">
-            <Icon name="check" size={20} /> {isSeen ? tl('logAgain') : tl('logFirst')}
-          </button>
           <button type="button" disabled={busy || !progress.data} aria-pressed={isStudied} data-testid="study"
             onClick={() => (isStudied ? unmark.mutate({ taxonId: s.id }) : void mark({ id: s.id, gbifKey: s.gbifKey, sciName: s.sciName, names: s.names, tile: s.tile, lead: images[0] ? { url: images[0].url, author: images[0].author, licence: images[0].licence, licenceUrl: images[0].licenceUrl, sourceUrl: images[0].sourceUrl, origin: images[0].origin } : null }))}
             className={`flex h-13 flex-1 items-center justify-center gap-2 rounded-full text-[17px] font-bold shadow-md transition-colors disabled:opacity-60 ${isStudied ? 'bg-amber-soft text-amber-deep' : 'bg-amber text-white'}`}>
             <Icon name="book" size={20} /> {isStudied ? t('study.marked') : t('study.mark')}
+          </button>
+          <button type="button" disabled={!progress.data} data-testid="log"
+            onClick={() => router.push(`/log?taxon=${s.gbifKey}&from=species`)}
+            className="flex h-13 flex-[1.3] items-center justify-center gap-2 rounded-full bg-moss text-[17px] font-bold text-white shadow-md disabled:opacity-60">
+            <Icon name="check" size={20} /> {isSeen ? tl('logAgain') : tl('logFirst')}
           </button>
         </div>
       </div>
@@ -365,11 +335,11 @@ function VoiceRow({ asset, sources }: { asset: VoiceAsset; sources: Source[] }) 
 
 const Grey = ({ children }: { children: ReactNode }) => <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-tile text-ink-faint">{children}</span>
 
-function Section({ title, aside, info, testId, children }: { title: string; aside?: string | null; info?: ReactNode; testId: string; children: ReactNode }) {
+function Section({ title, aside, testId, children }: { title: string; aside?: string | null; testId: string; children: ReactNode }) {
   return (
     <section className="mt-8" data-testid={testId}>
       <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="flex items-center gap-1.5 text-[22px] leading-tight font-bold tracking-tight">{title}{info}</h2>
+        <h2 className="text-[22px] leading-tight font-bold tracking-tight">{title}</h2>
         {aside && <span className="shrink truncate text-[13px] text-ink-faint">{aside}</span>}
       </div>
       {children}
