@@ -9,6 +9,7 @@ import { join } from 'node:path'
 
 const [base = 'http://localhost:3002', locale = 'en'] = process.argv.slice(2)
 if (!['localhost', '127.0.0.1'].includes(new URL(base).hostname)) throw new Error('Run UX checks against a local disposable server only')
+const fullCatalogue = process.env.UX_FULL_CATALOGUE === '1'
 const profile = mkdtempSync(join(tmpdir(), 'dex-ux-'))
 const evidenceDir = process.env.BROWSER_EVIDENCE_DIR
 if (evidenceDir) mkdirSync(evidenceDir, { recursive: true })
@@ -20,6 +21,7 @@ let chromeFailure
 proc.on('error', (error) => { chromeFailure = error })
 proc.on('exit', (code, signal) => { if (!chromeFailure) chromeFailure = new Error(`Chrome exited before connecting (${signal ?? code})`) })
 let ws
+let offlineSwitchRegionId = null
 try {
   let target
   for (let i = 0; i < 200 && !target && !chromeFailure; i++) {
@@ -231,11 +233,43 @@ try {
   await click('[data-testid=change-region]')
   await wait(selector('[data-testid=region-sheet]'))
   assert.equal(await evaluate(`document.querySelectorAll('[data-testid=region-row]').length`), 1, 'region management renders only the saved region')
+  const initialRegionId = await evaluate(`${selector('[data-testid=region-row]')}.dataset.region`)
   assert.equal(await evaluate(`${selector('[data-testid=region-remove]')}.disabled`), true, 'active final region cannot be removed')
   await click('[data-testid=region-add]')
   await wait(selector('[data-testid=region-picker-panel]'))
   assert.equal(await evaluate(`document.querySelectorAll('[data-testid=region-result]').length`), 1, 'add-region picker shows only the saved region until search')
-  await click('[data-testid=region-add]')
+  if (fullCatalogue) {
+    const searchFor = async (name) => {
+      await evaluate(`(() => { const input = ${selector('[data-testid=region-search]')}; const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(input, ${JSON.stringify(name)}); input.dispatchEvent(new Event('input', { bubbles: true })) })()`)
+      await wait(`document.querySelector('[data-testid=region-result]')?.textContent.includes(${JSON.stringify(name)})`, `${name} appears in national region search`)
+      return evaluate(`document.querySelector('[data-testid=region-result]').dataset.region`)
+    }
+    offlineSwitchRegionId = await searchFor('Südwestpfalz')
+    await click('[data-testid=region-result]')
+    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 2`, 'Südwestpfalz is added without replacing Mainz-Bingen')
+    await click(`[data-testid=region-row][data-region="${offlineSwitchRegionId}"] [data-testid=region-pick]`)
+    await wait(`!${selector('[data-testid=region-sheet]')}`, 'switch closes region management')
+    await click('[data-testid=tab-dex]')
+    await wait(selector('[data-testid=grid] [data-taxon]'), 'Südwestpfalz dex set is loaded and persisted')
+    await click('[data-testid=tab-you]')
+    await click('[data-testid=change-region]')
+    await click('[data-testid=region-add]')
+    const berlinId = await searchFor('Berlin')
+    await click('[data-testid=region-result]')
+    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 3`, 'Berlin is added to the saved list')
+    await click(`[data-testid=region-row][data-region="${berlinId}"] [data-testid=region-pick]`)
+    await wait(`!${selector('[data-testid=region-sheet]')}`, 'Berlin switch closes region management')
+    await click('[data-testid=tab-dex]')
+    await wait(selector('[data-testid=grid] [data-taxon]'), 'Berlin dex set is loaded and persisted')
+    await click('[data-testid=tab-you]')
+    await click('[data-testid=change-region]')
+    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 3`, 'all saved regions survive switches')
+    await click(`[data-testid=region-row][data-region="${initialRegionId}"] [data-testid=region-remove]`)
+    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 2`, 'inactive Mainz-Bingen is removed')
+    assert.equal(await evaluate(`${selector('[data-testid=region-row][data-active] [data-testid=region-remove]')}.disabled`), true, 'active region remains protected with multiple saved regions')
+  } else {
+    await click('[data-testid=region-add]')
+  }
   await key('Escape')
   await wait(`!${selector('[data-testid=region-sheet]')}`)
   await click('[data-testid=tab-dex]')
@@ -308,6 +342,22 @@ try {
   await wait(selector('[data-testid=display-name]'), 'profile opens from the shell offline')
   await click('[data-testid=change-region]')
   await wait(selector('[data-testid=region-offline-management]'), 'offline region-management boundary is explicit')
+  if (fullCatalogue) {
+    assert.ok(offlineSwitchRegionId, 'a second cached region was prepared')
+    await click(`[data-testid=region-row][data-region="${offlineSwitchRegionId}"] [data-testid=region-pick]`)
+    await wait(`localStorage.getItem('dex.region.pending') === ${JSON.stringify(offlineSwitchRegionId)}`, 'offline region intent is persisted before transport')
+    await send('Page.reload')
+    await wait(selector('[data-testid=display-name]'), 'Profile reloads offline after a cached region switch')
+    await click('[data-testid=change-region]')
+    await wait(`${selector(`[data-testid=region-row][data-region="${offlineSwitchRegionId}"]`)}?.hasAttribute('data-active')`, 'offline reload keeps the selected cached region active')
+    await key('Escape')
+    const online = { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }
+    await send('Network.emulateNetworkConditions', online)
+    for (const worker of workers) await send('Network.emulateNetworkConditions', online, worker)
+    await wait(`localStorage.getItem('dex.region.pending') === null`, 'online replay acknowledges and clears the pending region intent')
+  }
+  await click('[data-testid=change-region]')
+  await wait(selector('[data-testid=region-sheet]'))
   await click('[data-testid=region-add]')
   await wait(selector('[data-testid=region-picker-panel]'))
   assert.match(await evaluate(`${selector('[data-testid=region-picker-panel]')}.textContent`), /offline|verbindung/i, 'offline picker explains why catalogue search is unavailable')
