@@ -70,6 +70,16 @@ async function main() {
       console.log(`refreshed ${n} region(s) · requests ${JSON.stringify(requests())}`)
       break
     }
+    case 'gallery': {
+      const { runGallery, formatGalleryReport, parseGalleryArgs } = await import('./gallery-work')
+      const { json, ...options } = parseGalleryArgs(rest)
+      const result = await runGallery({ ...options,
+        log: json ? console.error : console.log,
+      })
+      console.log(json ? JSON.stringify(result, null, 2) : formatGalleryReport(result))
+      if (result.failed || result.lost) process.exitCode = 2
+      break
+    }
     case 'content': {
       const { runContent } = await import('./content')
       const keys = flag('keys')?.split(',').map(Number).filter(Number.isFinite)
