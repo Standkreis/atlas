@@ -8,6 +8,7 @@ import { Tile } from '@/generated/prisma/enums'
 import { useRouter } from '@/i18n/navigation'
 import { useTRPC } from '@/trpc/client'
 import { Icon } from './Marks'
+import { Brand } from './Brand'
 import { OnboardingSilhouette } from './OnboardingSilhouette'
 import { SourceInfo, useImageSource, type ImageCredit } from './SourceInfo'
 
@@ -24,9 +25,8 @@ import { SourceInfo, useImageSource, type ImageCredit } from './SourceInfo'
 // The `photo` string stays in the JSON for a CC BY splash from the set one day. Focus on the lit moss, lower third.
 const SPLASH = { src: '/splash.jpg', srcSet: '/splash-720.jpg 720w, /splash.jpg 1440w', position: '50% 62%' }
 
-// The place search (handoff 0013 O6) is off the screen while one region exists; the second region brings it back.
-// The code and its server side stay (findings 0012 F1).
-const SEARCH_MIN_REGIONS = 2
+// Owner, 2026-09-08: keep onboarding to the available region list for now.
+const SEARCH = false
 // Owner, 2026-09-06 (walk feedback): the location button only makes sense once the atlas has scaled; off until then.
 const LOCATE = false
 // Regions announced but not filled: shown disabled, so the list does not look like a single forced choice.
@@ -95,7 +95,7 @@ function RegionScreen({ change, onChosen }: { change: boolean; onChosen: (r: Reg
   const regions = useQuery(trpc.dex.regions.queryOptions())
   const ready = (regions.data ?? []).filter((r) => r.status === 'ready')
   const selected = ready.find((r) => r.id === picked) ?? ready[0] // the first ready region is pre-selected
-  const search = ready.length >= SEARCH_MIN_REGIONS
+  const search = SEARCH
 
   // No retry (handoff 0012 F1): three retries with backoff kept "Einen Moment" up for seven seconds and the error never
   // showed. A failed search shows its error at once; the next keystroke is a new key and a new request.
@@ -137,8 +137,8 @@ function RegionScreen({ change, onChosen }: { change: boolean; onChosen: (r: Reg
       )}
       <div className="relative mx-auto flex w-full max-w-[520px] flex-1 flex-col justify-end px-6 pt-[40vh]" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
         {/* The splash stays dark in both themes (spec §🎨): only theme-stable tokens here (night, moss, white). */}
-        <div className="text-[13px] font-bold tracking-[0.12em] text-moss uppercase">{t('eyebrow')}</div>
-        <h1 className="mt-2 text-[34px] leading-[1.1] font-bold tracking-tight">{t('headline')}</h1>
+        <Brand label={t('eyebrow')} inverse />
+        <h1 className="mt-5 text-[34px] leading-[1.1] font-bold tracking-tight">{t('headline')}</h1>
         <p className="mt-3 text-[17px] leading-snug text-white/85">{t('promise')}</p>
         <p className="mt-6 text-[15px] text-white/75">{t('question')}</p>
 
@@ -167,7 +167,7 @@ function RegionScreen({ change, onChosen }: { change: boolean; onChosen: (r: Reg
               ))}
             </ul>
             <button type="button" disabled={busy || !selected} data-testid="region-next" onClick={() => selected && onChosen({ id: selected.id, name: selected.name, status: selected.status })} className="mt-3 h-14 w-full rounded-2xl bg-moss text-[18px] font-bold text-white disabled:opacity-60">
-              {t('next')}
+              {t('chooseRegion')}
             </button>
             {LOCATE && (
               <button type="button" onClick={locate} disabled={busy} data-testid="locate" className="mt-2 h-14 w-full rounded-2xl border border-white/40 text-[18px] font-bold text-white disabled:opacity-60">

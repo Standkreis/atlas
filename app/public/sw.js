@@ -21,7 +21,7 @@ const IMAGE_HOSTS = ['inaturalist-open-data.s3.amazonaws.com', 'thumb.wikimedia.
 // `sighting/_` (handoff 0012 Track 0): the placeholder the static export ships too (findings 0008 B2); offline it answers
 // a sighting page never opened online, and the page reads the id from the URL (SightingPage) and `journal.get` from the store.
 const PAGES = ['/', '/de', '/en', '/de/log', '/de/journal', '/de/you', '/de/sighting/_', '/en/log', '/en/journal', '/en/you', '/en/sighting/_']
-const ASSETS = ['/manifest.webmanifest', '/icon.svg']
+const ASSETS = ['/manifest.webmanifest', '/icon.svg', '/brand/standkreis-mark.svg', '/apple-touch-icon.png', '/brand/atlas-icon-192.png', '/brand/atlas-icon-512.png', '/brand/atlas-icon-maskable.png']
 // 0025 B10: the onboarding's splash (618 + 194 KB) lives in the version-free image cache, fetched once, not per build.
 const SPLASH = ['/splash.jpg', '/splash-720.jpg']
 // Every client file of this build, written by scripts/m8a/sw-manifest.mjs after `next build`. Missing in `next dev`.

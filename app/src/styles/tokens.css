@@ -19,7 +19,10 @@
   --color-sky: #2563eb;           /* the third axis (XP, level) and, since handoff 0014 G5, selection: chips, radio dot, check badge */
   --color-sky-deep: #1d4ed8;
   --color-sky-soft: #dbeafe;
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+@theme inline {
+  --font-sans: var(--font-titillium), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Motion (handoff 0014b): three durations and two curves. Sheets rise 260 ms and leave 200 ms, the moss dot slides 220 ms,

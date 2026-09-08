@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "brand:assets": "node scripts/brand-assets.mjs",
     "dev": "next dev",
     "dev:lan": "next dev -H 0.0.0.0",
     "dev:lan:https": "next dev -H 0.0.0.0 --experimental-https --experimental-https-key certificates/lan-key.pem --experimental-https-cert certificates/lan.pem",
@@ -54,6 +55,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "ffmpeg-static": "^5.3.0",
+    "opentype.js": "^2.0.0",
     "prisma": "^7.10.0",
     "sharp": "^0.35.4",
     "tailwindcss": "^4",

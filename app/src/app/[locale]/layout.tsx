@@ -11,6 +11,8 @@ import { RegionReplay } from '@/components/RegionSheet'
 import { TRPCReactProvider } from '@/trpc/client'
 import Script from 'next/script'
 import { ThemeBoot, themeScript } from '@/components/Appearance'
+import { atlasMetadata } from '@/brand/metadata'
+import { titillium } from '@/styles/fonts'
 import '../globals.css'
 
 // No `dynamicParams = false` here: Next applies it to every route below the segment (its own TODO in
@@ -23,13 +25,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: LayoutProps<'/[locale]'>): Promise<Metadata> {
   const { locale } = await params
   const t = await getTranslations({ locale, namespace: 'app' })
-  return {
-    title: t('name'),
-    description: t('description'),
-    manifest: '/manifest.webmanifest',
-    icons: { icon: '/icon.svg', apple: '/icon.svg' },
-    appleWebApp: { capable: true, title: t('name'), statusBarStyle: 'default' },
-  }
+  return atlasMetadata(locale, { name: t('name'), description: t('description'), shareAlt: t('shareAlt') })
 }
 
 export const viewport: Viewport = {
@@ -47,7 +43,7 @@ export default async function LocaleLayout({ children, params }: LayoutProps<'/[
   if (!hasLocale(routing.locales, locale)) notFound()
   setRequestLocale(locale)
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html lang={locale} className={titillium.variable} suppressHydrationWarning>
       <head>
         {/* Darstellung: applies a stored light/dark choice before paint; the default follows the system. */}
         <Script id="dex-theme" strategy="beforeInteractive">{themeScript}</Script>

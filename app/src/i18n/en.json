@@ -1,7 +1,8 @@
 {
   "app": {
-    "name": "Atlas",
-    "description": "See what could be living around you right now, learn about it before you meet it, and fill the silhouette when you do."
+    "name": "Standkreis Atlas",
+    "description": "Discover the wildlife around you. Get to know local species and keep a record of your encounters.",
+    "shareAlt": "Standkreis Atlas — Discover the wildlife around you."
   },
   "nav": {
     "dex": "Atlas",
@@ -297,8 +298,8 @@
   },
   "onboarding": {
     "eyebrow": "Standkreis Atlas",
-    "headline": "Do you know the nature outside your door?",
-    "promise": "The atlas shows you what there is to discover and explore.",
+    "headline": "Discover the wildlife around you.",
+    "promise": "Get to know local species and keep a record of your encounters.",
     "question": "Available regions",
     "useLocation": "Use my location",
     "locationHint": "Your phone will ask for permission in a moment. We store only the district; exact places stay on your device.",
@@ -335,7 +336,8 @@
     "notAvailable": "Not available yet",
     "notAvailableHere": "{name} is not available yet. Type another place.",
     "cancel": "Cancel",
-    "comingSoon": "soon"
+    "comingSoon": "soon",
+    "chooseRegion": "Choose your region"
   },
   "species": {
     "back": "Back",

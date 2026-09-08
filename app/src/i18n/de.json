@@ -1,7 +1,8 @@
 {
   "app": {
-    "name": "Atlas",
-    "description": "Sieh, was gerade um dich herum leben könnte, lerne es kennen, und fülle die Silhouette, wenn ihr euch begegnet."
+    "name": "Standkreis Atlas",
+    "description": "Entdecke, was um dich herum lebt. Lerne Arten in deiner Nähe kennen und halte deine Begegnungen fest.",
+    "shareAlt": "Standkreis Atlas — Entdecke, was um dich herum lebt."
   },
   "nav": {
     "dex": "Atlas",
@@ -297,8 +298,8 @@
   },
   "onboarding": {
     "eyebrow": "Standkreis Atlas",
-    "headline": "Kennst du die Natur vor deiner Tür?",
-    "promise": "Der Atlas zeigt dir, was es zu entdecken und zu erforschen gibt.",
+    "headline": "Entdecke, was um dich herum lebt.",
+    "promise": "Lerne Arten in deiner Nähe kennen und halte deine Begegnungen fest.",
     "question": "Verfügbare Regionen",
     "useLocation": "Meinen Standort nutzen",
     "locationHint": "Dein Handy fragt gleich nach der Erlaubnis. Wir speichern nur den Landkreis; genaue Orte bleiben auf deinem Gerät.",
@@ -335,7 +336,8 @@
     "notAvailable": "Noch nicht verfügbar",
     "notAvailableHere": "{name} ist noch nicht verfügbar. Gib einen anderen Ort ein.",
     "cancel": "Abbrechen",
-    "comingSoon": "bald"
+    "comingSoon": "bald",
+    "chooseRegion": "Deine Region wählen"
   },
   "species": {
     "back": "Zurück",
