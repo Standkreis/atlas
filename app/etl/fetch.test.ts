@@ -5,13 +5,27 @@ vi.mock('node:fs', () => ({ existsSync: () => true, mkdirSync: () => {}, readFil
 let layer: typeof import('./fetch')
 beforeAll(async () => { vi.stubEnv('VERCEL', ''); layer = await import('./fetch') })
 afterAll(() => vi.unstubAllEnvs())
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); disk.mtime = Date.now() })
+afterEach(() => { layer.resetFetchSchedulingForTest(); vi.useRealTimers(); vi.unstubAllGlobals(); disk.mtime = Date.now() })
 
 const digest = (...parts: string[]) => {
   const hash = createHash('sha256')
   for (const part of parts) hash.update(part)
   return hash.digest('hex')
 }
+
+describe('Retry-After', () => {
+  it('parses seconds and dates and falls back to bounded exponential delay', () => {
+    const now = Date.parse('2026-09-08T20:00:00Z')
+    expect(layer.retryAfterMs('2.5', 0, now)).toBe(2_500)
+    expect(layer.retryAfterMs('600', 0, now)).toBe(600_000)
+    expect(layer.retryAfterMs('Tue, 08 Sep 2026 20:00:04 GMT', 0, now)).toBe(4_000)
+    expect(layer.retryAfterMs('invalid', 2, now)).toBe(6_000)
+    expect(layer.retryAfterMs('-1', 0, now)).toBe(1_500)
+    expect(layer.retryAfterMs('1e3', 1, now)).toBe(3_000)
+    expect(layer.retryAfterMs(null, 20, now)).toBe(300_000)
+  })
+})
+
 describe('ETL cache freshness', () => {
   it('reuses fresh data but a refresh run fetches even a fresh cached response', async () => {
     const network = vi.fn(async () => Response.json({ source: 'network' }))
@@ -44,6 +58,69 @@ describe('ETL cache freshness', () => {
     const after = layer.requests()
     expect((after.perHost['api.gbif.org'] ?? 0) - (before.perHost['api.gbif.org'] ?? 0)).toBe(2)
     expect((after.networkAttempts ?? 0) - (before.networkAttempts ?? 0)).toBe(2)
+  })
+
+  it('applies a 429 Retry-After delay to every queued request for the host', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-08T20:00:00Z'))
+    const calledAt: number[] = []
+    const network = vi.fn(async (url: string) => {
+      calledAt.push(Date.now())
+      if (url.endsWith('/rate') && calledAt.length === 1) return new Response('slow down', { status: 429, headers: { 'Retry-After': '2' } })
+      return Response.json({ recovered: true })
+    })
+    vi.stubGlobal('fetch', network)
+
+    const first = layer.withResponseCapture(() => layer.withFreshCache(() => layer.get('https://api.gbif.org/rate')))
+    const queued = layer.withFreshCache(() => layer.get('https://api.gbif.org/queued'))
+    await vi.advanceTimersByTimeAsync(1_999)
+    expect(network).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(500)
+    const [captured, queuedResult] = await Promise.all([first, queued])
+    expect(captured.value).toEqual({ recovered: true })
+    expect(queuedResult).toEqual({ recovered: true })
+    expect(captured.requests).toEqual({
+      perHost: { 'api.gbif.org': 2 },
+      networkAttempts: 2,
+      hits: 0,
+      misses: 1,
+      retries: 1,
+      tooMany: 1,
+    })
+    expect(calledAt.slice(1).every((at) => at - calledAt[0]! >= 2_000)).toBe(true)
+  })
+
+  it('shares an HTTP-date 503 cooldown with queued requests', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-08T20:00:00Z'))
+    const calledAt: number[] = []
+    const network = vi.fn(async () => {
+      calledAt.push(Date.now())
+      if (calledAt.length === 1) {
+        return new Response('temporarily unavailable', {
+          status: 503,
+          headers: { 'Retry-After': 'Tue, 08 Sep 2026 20:00:04 GMT' },
+        })
+      }
+      return Response.json({ recovered: true })
+    })
+    vi.stubGlobal('fetch', network)
+
+    const result = layer.withResponseCapture(() => layer.withFreshCache(() => layer.get('https://api.gbif.org/date-retry')))
+    await vi.advanceTimersByTimeAsync(3_999)
+    expect(network).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(500)
+    const captured = await result
+    expect(captured.value).toEqual({ recovered: true })
+    expect(captured.requests).toEqual({
+      perHost: { 'api.gbif.org': 2 },
+      networkAttempts: 2,
+      hits: 0,
+      misses: 1,
+      retries: 1,
+      tooMany: 0,
+    })
+    expect(calledAt[1]! - calledAt[0]!).toBeGreaterThanOrEqual(4_000)
   })
 })
 
@@ -104,8 +181,7 @@ describe('response capture', () => {
     })))
     const one = layer.withResponseCapture(() => layer.withFreshCache(() => layer.get('https://api.gbif.org/one')))
     const two = layer.withResponseCapture(() => layer.withFreshCache(() => layer.get('https://api.gbif.org/two')))
-    await Promise.resolve()
-    await Promise.resolve()
+    await vi.waitFor(() => expect(gates.size).toBe(2), { timeout: 1_000 })
     gates.get('https://api.gbif.org/two')?.()
     gates.get('https://api.gbif.org/one')?.()
     const [a, b] = await Promise.all([one, two])

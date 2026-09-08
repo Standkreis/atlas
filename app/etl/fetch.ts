@@ -22,17 +22,22 @@ function store(dir: string, file: string, body: string) {
 }
 const BUDGET = Number(process.env.ETL_BUDGET ?? 50_000)
 /** Minimum gap between two requests to one host, ms. iNaturalist allows ~1/s; Wikidata and GloBI ~3/s. */
-const MIN_GAP: Record<string, number> = { 'api.inaturalist.org': 1100, 'query.wikidata.org': 300, 'api.globalbioticinteractions.org': 300, 'api.gbif.org': 0, 'xeno-canto.org': 1100, 'gift.uni-goettingen.de': 500 }
-/** GBIF has no per-second rule; it is bounded by requests in flight instead (the probe ran 4–6). */
-const MAX_INFLIGHT: Record<string, number> = { 'api.gbif.org': 6 }
+const MIN_GAP: Record<string, number> = { 'api.inaturalist.org': 1100, 'query.wikidata.org': 300, 'api.globalbioticinteractions.org': 300, 'api.gbif.org': 200, 'xeno-canto.org': 1100, 'gift.uni-goettingen.de': 500 }
+/** GBIF publishes no fixed safe search rate. Keep requests conservative and let Retry-After extend the shared host cooldown. */
+const MAX_INFLIGHT: Record<string, number> = { 'api.gbif.org': 2 }
 const ATTEMPTS = 5
 
 const budget: Record<string, number> = {}
 let networkAttempts = 0
 /** The next free slot per host, reserved before sleeping: parallel callers queue instead of firing together. */
 const nextSlot: Record<string, number> = {}
+const blockedUntil: Record<string, number> = {}
 const inflight: Record<string, number> = {}
 const waiters: Record<string, (() => void)[]> = {}
+/** Test-only scheduler reset; counters and cache evidence intentionally remain process-global. */
+export function resetFetchSchedulingForTest() {
+  for (const state of [nextSlot, blockedUntil]) for (const key of Object.keys(state)) delete state[key]
+}
 const acquire = (host: string) => {
   const max = MAX_INFLIGHT[host]
   if (!max) return Promise.resolve()
@@ -49,6 +54,24 @@ const release = (host: string) => {
 }
 const stats = { hits: 0, misses: 0, retries: 0, tooMany: 0 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const MAX_RETRY_FALLBACK_MS = 5 * 60_000
+const MAX_TIMER_MS = 2_147_000_000
+
+/** Parse HTTP Retry-After seconds or date; malformed/missing values use bounded exponential backoff. */
+export function retryAfterMs(value: string | null, attempt: number, now = Date.now()): number {
+  const fallback = Math.min(MAX_RETRY_FALLBACK_MS, 1_500 * 2 ** attempt)
+  if (!value) return fallback
+  const normalized = value.trim()
+  if (/^\d+(?:\.\d+)?$/.test(normalized)) {
+    return Math.min(MAX_TIMER_MS, Math.round(Number(normalized) * 1_000))
+  }
+  // Numeric-looking but invalid values must not fall through to Date.parse,
+  // which accepts surprising inputs such as "-1" as calendar dates.
+  if (/^[+\-.\d]/.test(normalized)) return fallback
+  const date = Date.parse(normalized)
+  if (!Number.isFinite(date)) return fallback
+  return Math.min(MAX_TIMER_MS, Math.max(0, date - now))
+}
 
 export type RequestStats = {
   perHost: Record<string, number>
@@ -134,10 +157,14 @@ export async function get(url: string, { headers = {}, text = false, bytes = fal
   recordRequest('misses')
   const gap = MIN_GAP[host] ?? 100
   const slot = async () => {
-    const at = Math.max(Date.now(), nextSlot[host] ?? 0)
-    nextSlot[host] = at + gap
-    const wait = at - Date.now()
-    if (wait > 0) await sleep(wait)
+    while (true) {
+      const now = Date.now()
+      const at = Math.max(now, nextSlot[host] ?? 0, blockedUntil[host] ?? 0)
+      nextSlot[host] = at + gap
+      const wait = at - now
+      if (wait > 0) await sleep(wait)
+      if (Date.now() >= (blockedUntil[host] ?? 0)) return
+    }
   }
   await acquire(host)
   try {
@@ -167,7 +194,8 @@ export async function get(url: string, { headers = {}, text = false, bytes = fal
           stats.retries++
           recordRequest('retries')
           lastErr = new Error(`${r.status} ${redact(url)}`)
-          await sleep(1500 * 2 ** attempt)
+          const retryAt = Date.now() + retryAfterMs(r.headers.get('retry-after'), attempt)
+          blockedUntil[host] = Math.max(blockedUntil[host] ?? 0, retryAt)
           continue
         }
         if (!r.ok) throw new Error(`${r.status} ${redact(url)}`)
