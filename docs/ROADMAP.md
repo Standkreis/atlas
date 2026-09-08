@@ -1,4 +1,4 @@
-# 🗺️ Roadmap — standkreis-dex
+# 🗺️ Roadmap — Atlas
 
 > One table, kept current. A milestone is done when its "done when" is true and its findings or record is in `docs/`. Grills (🔥) produce records and spec sections, not code.
 

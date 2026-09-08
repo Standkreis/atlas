@@ -1,4 +1,4 @@
-# 🌿 standkreis-dex
+# 🌿 Standkreis Atlas
 
 A **personal collection layer over open biodiversity data**: see what could be living around you right now, learn about it before you meet it, and fill the silhouette when you do. Web first, phone later, free forever.
 

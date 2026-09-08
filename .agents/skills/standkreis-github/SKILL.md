@@ -1,6 +1,6 @@
 ---
 name: standkreis-github
-description: Carry standkreis-dex tracked work through GitHub issues, board fields, draft PRs, review, merge and cancellation. Use for GitHub delivery or a specific issue; do not turn an analysis-only request into tracker writes.
+description: Carry Atlas tracked work through GitHub issues, board fields, draft PRs, review, merge and cancellation. Use for GitHub delivery or a specific issue; do not turn an analysis-only request into tracker writes.
 metadata:
   owner: Sven Reiser
 ---
