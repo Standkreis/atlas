@@ -9,6 +9,8 @@ import { deletePhoto, readPhoto } from '../photos'
 import { shouldOfferPasskey } from '../webauthn'
 import { publicProcedure, router, type Context } from '../trpc'
 import { backboneSearch } from './taxon'
+import { leadAsset, leadAssetSelection } from '../leadAssetSelection'
+import { taxonNames } from '@/domain/taxonNames'
 
 // The sighting is the atom (record Q1, spec §🧬). This router creates one and reads one back for the fill moment
 // (handoff 0008 Track A). Lists and edits are the Tagebuch's (`journal.ts`, Track B).
@@ -32,7 +34,7 @@ export async function gemeinde(lat: number, lng: number): Promise<string | null>
   }
 }
 
-const taxonSelect = { id: true, gbifKey: true, sciName: true, commonNames: true, tile: true, assets: { where: { kind: 'image', sightingId: null }, orderBy: { createdAt: 'asc' }, take: 1, select: { url: true, author: true, licence: true, licenceUrl: true, sourceUrl: true, origin: true } } } as const
+const taxonSelect = { id: true, gbifKey: true, sciName: true, commonNames: true, tile: true, assets: leadAssetSelection } as const
 
 /**
  * "First" (one rule for both tracks, handoff 0008 §🔀): the earliest WILD sighting of a taxon for an identity, ties by
@@ -190,10 +192,10 @@ export const sightingRouter = router({
     if (!seen.length) return []
     const taxa = await ctx.db.taxon.findMany({
       where: { id: { in: seen.map((s) => s.taxonId) }, plausibility: { none: { regionId: input.regionId } } },
-      select: { id: true, gbifKey: true, sciName: true, commonNames: true, tile: true, contentAt: true, assets: { where: { kind: 'image', sightingId: null }, orderBy: { createdAt: 'asc' }, take: 1, select: { url: true, author: true, licence: true, licenceUrl: true, sourceUrl: true, origin: true } } },
+      select: { ...taxonSelect, contentAt: true },
       orderBy: { sciName: 'asc' },
     })
-    return taxa.map((t) => ({ taxonId: t.id, gbifKey: t.gbifKey, sciName: t.sciName, names: t.commonNames as Record<string, string>, tile: t.tile, lead: t.assets[0] ?? null, hasContent: t.contentAt !== null }))
+    return taxa.map((t) => ({ taxonId: t.id, gbifKey: t.gbifKey, sciName: t.sciName, names: taxonNames(t.commonNames), tile: t.tile, lead: leadAsset(t.assets), hasContent: t.contentAt !== null }))
   }),
 
   /**
@@ -216,7 +218,7 @@ export const sightingRouter = router({
       evidence: s.evidence,
       first,
       photo: s.photos[0] ?? null,
-      taxon: { id: s.taxon.id, gbifKey: s.taxon.gbifKey, sciName: s.taxon.sciName, names: s.taxon.commonNames as Record<string, string>, tile: s.taxon.tile, lead: s.taxon.assets[0] ?? null },
+      taxon: { id: s.taxon.id, gbifKey: s.taxon.gbifKey, sciName: s.taxon.sciName, names: taxonNames(s.taxon.commonNames), tile: s.taxon.tile, lead: leadAsset(s.taxon.assets) },
     }
   }),
 })

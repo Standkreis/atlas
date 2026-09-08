@@ -1,5 +1,7 @@
 'use client'
 
+import { taxonDisplayName } from '@/domain/taxonNames'
+
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useFormatter, useLocale, useTranslations } from 'next-intl'
@@ -51,7 +53,7 @@ export function LogSearch({ photoId, scan = false, initialQuery = '' }: { photoI
   const { set, progress, loading } = useAtlasSet(region)
   const seen = useMemo(() => new Set(progress?.seen ?? []), [progress])
   const studied = useMemo(() => new Set(progress?.studied ?? []), [progress])
-  const name = useCallback((s: { names: Record<string, string>; sciName: string }) => s.names[locale] ?? s.names.de ?? s.names.en ?? s.sciName, [locale])
+  const name = useCallback((s: { names: Record<string, string>; sciName: string }) => taxonDisplayName(s, locale), [locale])
   const answerName = scanState?.result?.answer ? (() => { const hit = set?.species.find((x) => x.gbifKey === scanState.result!.answer!.gbifKey); return hit ? name(hit) : null })() : null
   const typed = q.trim().length > 0
 
@@ -123,7 +125,7 @@ export function LogSearch({ photoId, scan = false, initialQuery = '' }: { photoI
                   return (
                     <Row key={s.taxonId} onClick={() => pick(s.gbifKey)} testId="log-row"
                       thumb={<Thumb card={{ id: s.taxonId, gbifKey: s.gbifKey, sciName: s.sciName, names: s.names, tile: s.tile, lead: s.lead?.url ?? null }} state={state} size={56} />}
-                      title={name(s)} sub={<><i>{s.sciName}</i> · {ts(`tile.${s.tile}`)}{!typed && <> · {month}</>}</>}
+                      title={name(s)} sub={<>{name(s) !== s.sciName && <><i>{s.sciName}</i> · </>}{ts(`tile.${s.tile}`)}{!typed && <> · {month}</>}</>}
                       right={state === 'seen' ? <span className="text-[15px] font-semibold text-moss-deep">{t('seen')}</span> : state === 'studied' ? <span className="text-[15px] font-semibold text-amber-deep">{t('studied')}</span> : null} />
                   )
                 })}

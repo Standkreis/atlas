@@ -1,5 +1,7 @@
 'use client'
 
+import { taxonNameParts } from '@/domain/taxonNames'
+
 import { Suspense, useCallback, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams, useSearchParams } from 'next/navigation'
@@ -89,10 +91,9 @@ export function SpeciesPage() {
   const seenAt = progress.data?.seenAt[s.id]
   const seenLabel = isSeen && seenAt ? `${t('state.seen')} · ${format.dateTime(new Date(seenAt), { day: 'numeric', month: 'short' })}` : t('state.seen')
 
-  // Three names: the reader's language, Latin, the other language. A missing vernacular leaves the Latin name as the title.
-  const title = s.names[locale] ?? s.sciName
-  const other = s.names[locale === 'de' ? 'en' : 'de']
-  const sub = [title !== s.sciName ? <i key="sci">{s.sciName}</i> : null, other && other !== title ? <span key="other">{other}</span> : null].filter(Boolean)
+  const names = taxonNameParts(s.names, s.sciName, locale)
+  const title = names.primary
+  const sub = [names.scientific ? <i key="sci">{names.scientific}</i> : null, ...names.alternatives.map(({ language, name }) => <span key={language} lang={language}>{name}</span>)].filter(Boolean)
 
   // Steckbrief (0021 D6, layout A): Status always (tile and IUCN), then one cell per fact the ETL found, in the tile's
   // order; the tile's missing keys in one grey line. Dataset explanations live on the central sources page.

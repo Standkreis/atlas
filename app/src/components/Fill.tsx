@@ -1,5 +1,7 @@
 'use client'
 
+import { taxonDisplayName } from '@/domain/taxonNames'
+
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useFormatter, useLocale, useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
@@ -34,7 +36,7 @@ export function FillSheet({ s, onClose, onPhoto, photoState }: { s: Fill; onClos
   const [picking, setPicking] = useState<PhotoState>('idle')
   const busy = picking === 'busy' || photoState === 'busy'
   const failed = picking === 'error' || photoState === 'error'
-  const name = s.taxon.names[locale] ?? s.taxon.names.de ?? s.taxon.names.en ?? s.taxon.sciName
+  const name = taxonDisplayName(s.taxon, locale)
   const image = s.photo ? photoSrc(s.photo.url) : s.taxon.lead?.url ?? null
   const origin = s.taxon.lead ? (ts.has(`origin.${s.taxon.lead.origin}`) ? ts(`origin.${s.taxon.lead.origin}`) : s.taxon.lead.origin) : ''
   const open = () => rememberSpeciesOrigin('/') // P4: "Zur Art" starts a chain on the atlas

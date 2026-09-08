@@ -4,17 +4,18 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import type { ImageCredit } from './SourceInfo'
+import { taxonDisplayName } from '@/domain/taxonNames'
 
-/** `leadInfo` is the lead image's credit for the section's ⓘ sheet (handoff 0014 D3); the diary's rows do not carry it. */
+/** `leadInfo` keeps the selected reference image's credit beside its URL across compact surfaces. */
 export type Card = { id: string; gbifKey: number; sciName: string; names: Record<string, string>; tile: string; lead: string | null; leadInfo?: ImageCredit | null }
 export type DexState = 'none' | 'studied' | 'seen'
 
 export const tileIcon: Record<string, string> = { bird: '🐦', mammal: '🦌', amphibian: '🐸', reptile: '🦎', fish: '🐟', insect: '🦋', plant: '🌿', fungus: '🍄' }
 
-/** Prefer the reader's language; use the scientific name when no localized name is available. */
+/** One fallback shared with every compact and detailed taxon surface. */
 export function useName() {
   const locale = useLocale()
-  return (c: { names: Record<string, string>; sciName: string }) => c.names[locale] ?? c.sciName
+  return (c: { names: Record<string, string>; sciName: string }) => taxonDisplayName(c, locale)
 }
 
 /** A readable reference photo, with amber or moss rings for studied or discovered species. */
