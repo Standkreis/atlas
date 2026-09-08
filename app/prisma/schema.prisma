@@ -180,6 +180,7 @@ model RegionRegistryVersion {
   entries     RegionRegistryEntry[]
   sourceUnits RegionSourceUnit[]
   queryUnits  RegionQueryUnit[]
+  catalogues  CatalogueVersion[]
 
   @@unique([countryCode, version])
   @@index([countryCode, active])
@@ -226,6 +227,7 @@ model RegionRegistryEntry {
 
   aliases     RegionRegistryAlias[]
   sourceUnits RegionSourceUnit[]
+  catalogueBuilds CatalogueRegionBuild[]
 
   @@unique([id, registryVersionId])
   @@unique([registryVersionId, sourceCode])
@@ -290,6 +292,187 @@ model RegionQueryUnit {
   @@index([sourceId])
 }
 
+enum CatalogueStatus {
+  building
+  partial
+  complete
+  audited
+  active
+  retired
+}
+
+enum CatalogueRegionBuildStatus {
+  pending
+  running
+  complete
+  failed
+}
+
+enum TaxonEnrichmentWorkStatus {
+  pending
+  running
+  complete
+  failed
+}
+
+/// One resumable, inspectable national catalogue candidate. A run key identifies resume intent;
+/// starting a refresh uses a new key even when the pinned registry and rules are unchanged.
+model CatalogueVersion {
+  id                       String                @id @default(uuid())
+  countryCode              String
+  runKey                   String
+  registryVersion          RegionRegistryVersion @relation(fields: [registryVersionId], references: [id], onDelete: Restrict)
+  registryVersionId        String
+  inputFingerprint         String
+  sourceFingerprint        String
+  responseFingerprint      String?
+  unionFingerprint         String?
+  plausibleRulesVersion    Int
+  tileMappingVersion       Int
+  observationWindowVersion Int
+  yearFrom                 Int
+  yearTo                   Int
+  occurrencePredicates     Json
+  status                   CatalogueStatus       @default(partial)
+  expectedRegions          Int
+  completedRegions         Int                   @default(0)
+  unionTaxa                Int                   @default(0)
+  startedAt                DateTime              @default(now())
+  generatedAt              DateTime?
+  auditedAt                DateTime?
+  activatedAt              DateTime?
+  executionOwner           String?
+  executionExpiresAt       DateTime?
+  updatedAt                DateTime              @updatedAt
+
+  regionBuilds CatalogueRegionBuild[]
+  taxa         CatalogueTaxon[]
+  taxonomy     CatalogueTaxonomyResolution[]
+
+  @@unique([countryCode, runKey])
+  @@unique([id, registryVersionId])
+  @@index([countryCode, status])
+  @@index([registryVersionId])
+}
+
+/// Durable per-region checkpoint and summary. Its staged rows are invisible to product reads until
+/// a later audited cutover activates the catalogue as a whole.
+model CatalogueRegionBuild {
+  id                  String                     @id @default(uuid())
+  catalogueVersion    CatalogueVersion           @relation(fields: [catalogueVersionId, registryVersionId], references: [id, registryVersionId], onDelete: Restrict)
+  catalogueVersionId  String
+  registryVersionId   String
+  registryEntry       RegionRegistryEntry        @relation(fields: [registryEntryId, registryVersionId], references: [id, registryVersionId], onDelete: Restrict)
+  registryEntryId     String
+  status              CatalogueRegionBuildStatus @default(pending)
+  attempts            Int                        @default(0)
+  leaseOwner          String?
+  leaseExpiresAt      DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  error               String?
+  totalObservations   Int?
+  monthTotals         Int[]                      @default([])
+  regionSize          Int?
+  perTile             Json?
+  rejectedTaxa        Json?
+  requestStats        Json?
+  responseFingerprint String?
+  setFingerprint      String?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+
+  plausibility CataloguePlausibility[]
+  lookalikes   CatalogueLookalike[]
+
+  @@unique([catalogueVersionId, registryEntryId])
+  @@index([catalogueVersionId, status, leaseExpiresAt])
+  @@index([registryEntryId])
+}
+
+/// Candidate regional membership, versioned separately from the live Plausibility table.
+model CataloguePlausibility {
+  id            String               @id @default(uuid())
+  regionBuild   CatalogueRegionBuild @relation(fields: [regionBuildId], references: [id], onDelete: Cascade)
+  regionBuildId String
+  taxon         Taxon                @relation(fields: [taxonId], references: [id], onDelete: Restrict)
+  taxonId       String
+  obs           Int
+  monthShare    Int[]
+  peak          Int
+  words         String
+
+  @@unique([regionBuildId, taxonId])
+  @@index([taxonId])
+}
+
+/// Candidate same-genus relation derived only from a completed staged regional set.
+model CatalogueLookalike {
+  id            String               @id @default(uuid())
+  regionBuild   CatalogueRegionBuild @relation(fields: [regionBuildId], references: [id], onDelete: Cascade)
+  regionBuildId String
+  taxon         Taxon                @relation("catalogueLookalikeOf", fields: [taxonId], references: [id], onDelete: Restrict)
+  taxonId       String
+  sibling       Taxon                @relation("catalogueLookalikeSibling", fields: [siblingId], references: [id], onDelete: Restrict)
+  siblingId     String
+
+  @@unique([regionBuildId, taxonId, siblingId])
+  @@index([taxonId])
+  @@index([siblingId])
+}
+
+/// The accepted-key union of staged, completed regional sets. This is the deduplicated handoff to
+/// global content/gallery phases; it is never a taxon-region work queue.
+model CatalogueTaxon {
+  catalogueVersion   CatalogueVersion @relation(fields: [catalogueVersionId], references: [id], onDelete: Restrict)
+  catalogueVersionId String
+  taxon              Taxon            @relation(fields: [taxonId], references: [id], onDelete: Restrict)
+  taxonId            String
+  createdAt          DateTime         @default(now())
+
+  @@id([catalogueVersionId, taxonId])
+  @@index([taxonId])
+}
+
+/// One fetched GBIF taxonomy record and its deterministic accepted/rejected resolution within a
+/// catalogue run. The record envelope also checkpoints a reviewed 404 without using SQL null.
+model CatalogueTaxonomyResolution {
+  catalogueVersion   CatalogueVersion @relation(fields: [catalogueVersionId], references: [id], onDelete: Restrict)
+  catalogueVersionId String
+  sourceKey          Int
+  record             Json
+  recordFingerprint  String
+  acceptedKey        Int?
+  rejectionReason    String?
+  resolvedAt         DateTime         @default(now())
+
+  @@id([catalogueVersionId, sourceKey])
+  @@index([acceptedKey])
+}
+
+/// Phase/version-specific global work checkpoint. It is keyed by global taxon identity rather
+/// than catalogue membership, so #20 can reuse completed gallery work across future catalogues.
+model TaxonEnrichmentWork {
+  taxon             Taxon                     @relation(fields: [taxonId], references: [id], onDelete: Restrict)
+  taxonId           String
+  kind              String
+  version           String
+  status            TaxonEnrichmentWorkStatus @default(pending)
+  attempts          Int                       @default(0)
+  leaseOwner        String?
+  leaseExpiresAt    DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  error             String?
+  resultSummary     Json?
+  sourceFingerprint String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@id([taxonId, kind, version])
+  @@index([kind, version, status, leaseExpiresAt])
+}
+
 /// One row per GBIF backbone taxon the app has touched: set members and species logged outside every set (E13).
 model Taxon {
   id          String    @id @default(uuid())
@@ -333,6 +516,11 @@ model Taxon {
   lookalikeSibling Lookalike[]    @relation("lookalikeSibling")
   interactionsFrom Interaction[]  @relation("source")
   interactionsTo   Interaction[]  @relation("target")
+  cataloguePlausibility CataloguePlausibility[]
+  catalogueLookalikes CatalogueLookalike[] @relation("catalogueLookalikeOf")
+  catalogueLookalikeSiblings CatalogueLookalike[] @relation("catalogueLookalikeSibling")
+  catalogues CatalogueTaxon[]
+  enrichmentWork TaxonEnrichmentWork[]
 }
 
 /// Membership in a region's set, whole year, cut per tile (record 0002 E2, E3). GBIF alone.

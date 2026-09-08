@@ -1,10 +1,11 @@
 # 🗄️ etl — the species pipeline (M4, [handoff 0006](../../docs/handoffs/0006-etl-and-identity.md))
 
-TypeScript on `tsx`, the app's Prisma client, and `ffmpeg-static` (dev dependency, its own binary; absent → the `sounds` step skips WAV-only taxa and says so). Every response is cached under `.cache/<host>/` by URL (git-ignored); a re-run costs no requests. Rules: [record 0002](../../docs/records/0002-etl-the-plausible-set.md); numbers: [findings 0006](../../docs/handoffs/0006-etl-and-identity-findings.md). The grill's probe scripts this replaces live in git history (`scripts/etl-probe/` up to commit `cef832f`).
+TypeScript on `tsx`, the app's Prisma client, and `ffmpeg-static` (dev dependency, its own binary; absent → the `sounds` step skips WAV-only taxa and says so). Responses are cached under `.cache/<host>/` by URL (git-ignored); ordinary re-runs reuse them, while the nationwide catalogue deliberately refreshes every unfinished region. Rules: [record 0002](../../docs/records/0002-etl-the-plausible-set.md); numbers: [findings 0006](../../docs/handoffs/0006-etl-and-identity-findings.md). The grill's probe scripts this replaces live in git history (`scripts/etl-probe/` up to commit `cef832f`).
 
 | Command | Does | Calls |
 | --- | --- | --- |
 | `npm run etl -- registry --mapping /absolute/path/to/reviewed-mapping.json` | Validates and imports the source-controlled BKG/BBSR snapshot as an inactive registry: 362 Kreisregionen, 400 land Kreis units, aliases and source/licence records. The separately reviewed local mapping supplies 402 GBIF/GADM query ids and is persisted with its source digests and review evidence. New application `Region` rows stay `unprepared`; legacy Mainz-Bingen and Südwestpfalz UUIDs are reused through explicit successor ids. The whole import is transactional and an identical rerun verifies rather than rewrites it | 0 |
+| `npm run etl -- germany --registry <version-id> --run <key> [--concurrency 1] [--json]` | Creates or resumes one pinned, staged Germany catalogue in local Postgres. Completed Kreisregionen are checkpoints; failed regions remain isolated and retry on the same run key. Only after every region completes does the command atomically expose the deduplicated `CatalogueTaxon` union for global enrichment. `--json` writes progress to stderr and the machine report to stdout | 13 facets per query unit + uncached taxonomy; bounded by `ETL_BUDGET` |
 | `npm run etl -- region "Mainz-Bingen"` (or another prepared name / canonical key / legacy gid) `[--month 9]` | Resolve the region and every verified query unit · fetch complete paged GBIF facets (year + 12 months, 2016–2026, observation records) · resolve every annual/monthly facet key to its terminal accepted species · sum constituent/synonym counts · cut once per tile (90 %, floor 10) → `Taxon`, `Plausibility`, `Lookalike`. Publication and invalidation of this region's prose are one transaction; a failed fetch preserves the prior set. Invalid taxonomy is reported as quarantine while valid taxa continue. Newly imported `unprepared` regions require the version-explicit nationwide runner introduced in #18 | 13 facets per query unit + uncached taxonomy |
 | `npm run etl -- refresh [--days 30]` | The legacy single-query job again for prepared GADM-backed regions older than `days`; #18 owns nationwide orchestration | as above per region |
 | `npm run etl -- content [--region <name>] [--purge <gbifKey>] [--limit n]` | For every taxon in a set (or with a sighting) and `contentAt` null: GBIF `species/{key}` → Wikidata batch (P846, then exact name; rank check) → image ladder (iNat default photo if licensed → Commons P18 unless specimen/plate/larva/egg/map → next licensed iNat photo → none) → Wikipedia `page/summary` de → en → AnAge (P4024) → GloBI edges folded to six kinds, in-set targets first, ≤ 200 per species; out-of-set targets become `Taxon` rows without plausibility. One transaction per taxon, `contentAt` set; a failing taxon logs and the run continues. `--purge` re-fetches one taxon | ≈ 8 per species + 1 GBIF match per new target; one region ≈ 20 min, bounded by iNaturalist at 1/s |
@@ -62,6 +63,35 @@ folds synonymous taxonomy keys but does not remove records syndicated or duplica
 providers. These upstream duplicates remain a reported coverage limitation of this catalogue
 version. Facets that fill a page continue with `facetOffset`; malformed, duplicated, or drifting
 pages fail the region instead of publishing a partial set.
+
+### Resumable Germany catalogue
+
+Use a stable run key to resume the same inputs and a new run key for an intentional refresh. A
+refresh always bypasses the response cache for unfinished regions, so a new catalogue cannot
+silently inherit an old GBIF response. The input record pins the registry, registry-source digests,
+observation window, occurrence predicates, plausible-set rules, and tile mapping. Starting another
+Germany run while one is `building` or `partial` is rejected; finish or explicitly resolve that run
+first.
+
+Each region is leased and calculated into `CatalogueRegionBuild`, `CataloguePlausibility`, and
+`CatalogueLookalike`. These candidate tables do not change live regions, live plausibility,
+look-alikes, or regional prose. A process interruption leaves completed regions intact; expired
+leases and failed regions can be reclaimed. Taxonomy resolution is checkpointed once per source
+key and catalogue, including deterministic rejections, so synonyms shared by many regions are not
+looked up repeatedly. Regional response and set fingerprints make the result auditable.
+
+When all regional checkpoints are complete, one transaction materializes the accepted-key union in
+`CatalogueTaxon` and records its fingerprint. Downstream jobs use `runTaxonWork` from
+`taxon-work.ts`: work is keyed globally by `(taxonId, kind, version)`, but claimed through the
+finished catalogue union. Completed work is reusable by a future catalogue; failures are isolated
+and only failed or expired work is retried. Gallery selection itself belongs to issue #20.
+
+The command reports the pinned catalogue/window, every regional state and size, national and
+per-tile union totals, global enrichment states, request attempts/retries/rate limits, elapsed time,
+and size outliers. The human report is the default. `--json` emits the full durable report for audit
+automation. A partial run exits with status 2 after writing its report; rerun the identical command
+to continue. Network concurrency is capped at four, GBIF scheduling/retries remain governed by
+`fetch.ts`, and `ETL_BUDGET` counts every actual network attempt, including retries.
 
 Why the region job precedes the content job: a species enters a set first, content follows. GloBI targets outside every set get a `Taxon` row (tile from GBIF's ranks, `contentAt` null) and are never picked up by the content job unless they gain a plausibility row or a sighting (record 0002 E13).
 
