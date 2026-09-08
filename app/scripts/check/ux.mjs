@@ -344,6 +344,10 @@ try {
   await wait(selector('[data-testid=region-offline-management]'), 'offline region-management boundary is explicit')
   if (fullCatalogue) {
     assert.ok(offlineSwitchRegionId, 'a second cached region was prepared')
+    await click('[data-testid=region-add]')
+    await wait(selector('[data-testid=region-picker-panel]'))
+    assert.match(await evaluate(`${selector('[data-testid=region-picker-panel]')}.textContent`), /offline|verbindung/i, 'offline picker explains why catalogue search is unavailable')
+    await click('[data-testid=region-add]')
     await click(`[data-testid=region-row][data-region="${offlineSwitchRegionId}"] [data-testid=region-pick]`)
     await wait(`localStorage.getItem('dex.region.pending') === ${JSON.stringify(offlineSwitchRegionId)}`, 'offline region intent is persisted before transport')
     await send('Page.reload')
@@ -355,12 +359,11 @@ try {
     await send('Network.emulateNetworkConditions', online)
     for (const worker of workers) await send('Network.emulateNetworkConditions', online, worker)
     await wait(`localStorage.getItem('dex.region.pending') === null`, 'online replay acknowledges and clears the pending region intent')
+  } else {
+    await click('[data-testid=region-add]')
+    await wait(selector('[data-testid=region-picker-panel]'))
+    assert.match(await evaluate(`${selector('[data-testid=region-picker-panel]')}.textContent`), /offline|verbindung/i, 'offline picker explains why catalogue search is unavailable')
   }
-  await click('[data-testid=change-region]')
-  await wait(selector('[data-testid=region-sheet]'))
-  await click('[data-testid=region-add]')
-  await wait(selector('[data-testid=region-picker-panel]'))
-  assert.match(await evaluate(`${selector('[data-testid=region-picker-panel]')}.textContent`), /offline|verbindung/i, 'offline picker explains why catalogue search is unavailable')
   console.log(JSON.stringify({ locale, viewport: '390x844 + 1280x900', onboarding: 'pass', dialogs: 'pass', regionManagement: 'pass', radioKeyboard: 'pass', navigation: 'pass', germanyProgress: 'pass', journalError: 'pass', manualSave: 'pass', offlineReload: 'pass', species: cellCount, workerSessions: workers.length }))
 } finally {
   ws?.close()
