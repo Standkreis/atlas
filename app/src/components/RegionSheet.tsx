@@ -8,7 +8,7 @@ import { isNetworkError, useTRPC, useTRPCClient } from '@/trpc/client'
 import { allTiles } from './AtlasCounters'
 import { useOffline } from './OfflineBanner'
 import { RegionPicker } from './RegionPicker'
-import { orderedSavedRegions, regionRemovalGuard, uniqueRegionIds } from './RegionManagementState'
+import { regionRemovalGuard, savedRegionRows, uniqueRegionIds } from './RegionManagementState'
 import { pickerIsGermanFallback, type PickerRegion } from './RegionPickerState'
 import { Sheet, useSheetClose } from './Sheet'
 
@@ -108,7 +108,9 @@ function Body() {
   const legacySaved: PickerRegion[] = (me.data?.regions ?? [])
     .map((region) => ({ ...region, selectable: region.status === 'ready' }))
     .filter(pickerIsGermanFallback)
-  const saved = orderedSavedRegions<PickerRegion>(personal.data?.registryVersion ? personal.data.selected : legacySaved, activeId)
+  // identity.me owns the saved IDs. regions.personal only enriches those same rows with catalogue
+  // summaries and may still contain the persisted pre-onboarding empty result on first Profile open.
+  const saved = savedRegionRows<PickerRegion>(mine, activeId, legacySaved, personal.data?.registryVersion ? personal.data.selected : [])
   const meKey = trpc.identity.me.queryKey()
   const personalKey = trpc.regions.personal.queryKey(personalInput)
   const cached = (id: string) => qc.getQueryState(trpc.dex.set.queryKey({ regionId: id, tiles: allTiles, nowOnly: false }))?.data != null

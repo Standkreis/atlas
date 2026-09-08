@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { orderedSavedRegions, regionRemovalGuard, uniqueRegionIds } from './RegionManagementState'
+import { orderedSavedRegions, regionRemovalGuard, savedRegionRows, uniqueRegionIds } from './RegionManagementState'
 
 describe('profile region management', () => {
   it('shows only supplied saved regions with the active one first', () => {
@@ -17,5 +17,14 @@ describe('profile region management', () => {
   it('adds a region once while preserving personal order', () => {
     expect(uniqueRegionIds(['a', 'b'], 'c')).toEqual(['a', 'b', 'c'])
     expect(uniqueRegionIds(['a', 'b'], 'a')).toEqual(['a', 'b'])
+  })
+
+  it('keeps identity-owned saved rows when persisted catalogue discovery is stale', () => {
+    const base = [{ id: 'a', summary: false }, { id: 'b', summary: false }]
+    expect(savedRegionRows(['a'], 'a', base, [])).toEqual([{ id: 'a', summary: false }])
+    expect(savedRegionRows(['a', 'b'], 'b', base, [{ id: 'b', summary: true }])).toEqual([
+      { id: 'b', summary: true },
+      { id: 'a', summary: false },
+    ])
   })
 })
