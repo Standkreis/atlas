@@ -4,6 +4,9 @@ import { Wildness } from '@/generated/prisma/enums'
 import { publicProcedure, router, type Context } from '../trpc'
 import { queuePhotoDeletes, retryPendingPhotoDeletes } from '@/server/photos'
 import { lock } from '../quotas'
+import { leadAsset, leadAssetSelection } from '../leadAssetSelection'
+import type { ReferenceRow } from '@/domain/referenceImages'
+import { taxonNames } from '@/domain/taxonNames'
 
 // The Tagebuch and the single sighting (spec §🎨 8, handoff 0008 Track B). The sighting is the atom; the diary is the
 // sequence: sightings and studies of one identity, newest first, grouped by the reader's local day.
@@ -11,9 +14,12 @@ import { lock } from '../quotas'
 const DAYS_PER_PAGE = 30
 const ROW_CAP = 600 // bounded page; dense days continue through an exact row cursor
 
-const taxonCard = { id: true, gbifKey: true, sciName: true, commonNames: true, tile: true, assets: { where: { kind: 'image' }, orderBy: { createdAt: 'asc' }, take: 1, select: { url: true } } } as const
-type CardRow = { id: string; gbifKey: number; sciName: string; commonNames: unknown; tile: string; assets: { url: string }[] }
-const card = (t: CardRow) => ({ id: t.id, gbifKey: t.gbifKey, sciName: t.sciName, names: t.commonNames as Record<string, string>, tile: t.tile, lead: t.assets[0]?.url ?? null })
+const taxonCard = { id: true, gbifKey: true, sciName: true, commonNames: true, tile: true, assets: leadAssetSelection } as const
+type CardRow = { id: string; gbifKey: number; sciName: string; commonNames: unknown; tile: string; assets: ReferenceRow[] }
+const card = (t: CardRow) => {
+  const lead = leadAsset(t.assets)
+  return { id: t.id, gbifKey: t.gbifKey, sciName: t.sciName, names: taxonNames(t.commonNames), tile: t.tile, lead: lead?.url ?? null, leadInfo: lead }
+}
 
 const photoSelect = { id: true, url: true, author: true, licence: true, licenceUrl: true, sourceUrl: true, origin: true } as const
 const wildness = z.enum(Object.values(Wildness) as [Wildness, ...Wildness[]])
@@ -106,7 +112,7 @@ export const journalRouter = router({
   get: publicProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ ctx, input }) => {
     const s = await ctx.db.sighting.findFirst({
       where: { id: input.id, identityId: ctx.identity.id },
-      include: { taxon: { select: { ...taxonCard, assets: { where: { kind: 'image' }, orderBy: { createdAt: 'asc' }, take: 1, select: photoSelect } } }, photos: { where: { kind: 'image' }, orderBy: { createdAt: 'asc' }, take: 1, select: photoSelect } },
+      include: { taxon: { select: taxonCard }, photos: { where: { kind: 'image' }, orderBy: { createdAt: 'asc' }, take: 1, select: photoSelect } },
     })
     if (!s) return null
     const firsts = await firstWildIds(ctx.db, ctx.identity.id, [s.taxonId])
@@ -114,7 +120,7 @@ export const journalRouter = router({
       id: s.id, at: s.at, lat: s.lat, lng: s.lng, place: s.place, note: s.note, evidence: s.evidence, wildness: s.wildness,
       taxon: card(s.taxon),
       photo: s.photos[0] ?? null,
-      reference: s.taxon.assets[0] ?? null,
+      reference: leadAsset(s.taxon.assets),
       first: firsts.has(s.id),
     }
   }),

@@ -1,5 +1,7 @@
 'use client'
 
+import { taxonDisplayName } from '@/domain/taxonNames'
+
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'next/navigation'
@@ -81,7 +83,7 @@ export function AtlasGrid({ title }: { title: string }) {
     window.history.replaceState(null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`)
   }, [])
 
-  const name = useCallback((s: { names: Record<string, string>; sciName: string }) => s.names[locale] ?? s.names.de ?? s.names.en ?? s.sciName, [locale])
+  const name = useCallback((s: { names: Record<string, string>; sciName: string }) => taxonDisplayName(s, locale), [locale])
 
   // ── Tiles: the identity's Filter, written at once, read back through identity.progress ──
   const setFilter = useMutation(trpc.identity.setFilter.mutationOptions({ onSettled: () => qc.invalidateQueries({ queryKey: trpc.identity.progress.queryKey() }) }))

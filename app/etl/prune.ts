@@ -56,10 +56,7 @@ export const commonsRejected = (fileTitle: string, categories: string) => COMMON
 export const commonsFileOf = (url: string) => 'File:' + decodeURIComponent(url.split('/').pop()!).replace(/_/g, ' ')
 
 /** iNaturalist licence codes the ladder accepts (E7: CC0/BY/BY-NC; the SA and ND variants are attribution licences too). */
-export const INAT_LICENCES = new Set(['cc0', 'cc-by', 'cc-by-sa', 'cc-by-nc', 'cc-by-nc-sa', 'cc-by-nd', 'cc-by-nc-nd'])
-export const inatLicensed = (code: string | null | undefined) => !!code && INAT_LICENCES.has(code)
-export const inatLicence = (code: string) => (code === 'cc0' ? 'CC0 1.0' : code.toUpperCase().replace(/^CC-/, 'CC ') + ' 4.0')
-export const inatLicenceUrl = (code: string) => (code === 'cc0' ? 'https://creativecommons.org/publicdomain/zero/1.0/' : `https://creativecommons.org/licenses/${code.replace(/^cc-/, '')}/4.0/`)
+export { INAT_LICENCES, inatLicensed, inatLicence, inatLicenceUrl } from '../src/domain/referenceImages'
 
 export type Kind = 'eats' | 'eatenBy' | 'pollinates' | 'hostOf' | 'parasiteOf' | 'visitsFlowersOf'
 /** E9: six kinds kept; preysOn folds into eats and its mirror preyedUponBy into eatenBy; everything else is dropped. */
