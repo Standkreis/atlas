@@ -162,9 +162,9 @@ describe('Germany-wide personal progress', () => {
     await sight(0, { lat: 50, lng: 8 })
     await study(1)
     const before = await progress()
-    await db.asset.createMany({ data: [0, 1, 2].map((index) => ({ taxonId: taxonIds[0], origin: 'inat' as const, kind: 'image' as const, url: `https://example.test/${index}.jpg`, sourceUrl: 'https://example.test/source', author: 'Fixture', licence: 'cc-by', createdAt: new Date(2024, 0, index + 1) })) })
+    await db.asset.createMany({ data: [0, 1, 2].map((index) => ({ taxonId: taxonIds[0], origin: 'inat' as const, kind: 'image' as const, position: index, url: `https://example.test/${index}.jpg`, sourceUrl: 'https://example.test/source', author: 'Fixture', licence: 'cc-by', createdAt: new Date(2024, 0, index + 1) })) })
     expect(await progress()).toEqual(before)
-    await db.asset.updateMany({ where: { taxonId: taxonIds[0] }, data: { createdAt: new Date('2020-01-01') } })
+    await db.$executeRaw`UPDATE "Asset" SET "position" = 2 - "position" WHERE "taxonId" = ${taxonIds[0]}`
     expect(await progress()).toEqual(before)
     await db.asset.deleteMany({ where: { taxonId: taxonIds[0] } })
     expect(await progress()).toEqual(before)
