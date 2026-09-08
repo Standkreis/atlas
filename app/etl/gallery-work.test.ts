@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchReferenceGallery } from './gallery-work'
+import { fetchReferenceGallery, parseGalleryArgs } from './gallery-work'
 import { commonsInfo, fetchInatGallery } from './sources'
 import { wikidataFor } from './wikidata'
 
@@ -14,6 +14,12 @@ beforeEach(() => {
 })
 
 describe('complete reference-gallery fetching', () => {
+  it('does not broaden malformed operator scopes', () => {
+    for (const args of [['--catalogue', 'cat', '--keys'], ['--catalogue', 'cat', '--region', '--json'], ['--catalogue', 'cat', '--key', '1'], ['--catalogue', 'cat', '--keys', '1', '--keys', '2']]) {
+      expect(() => parseGalleryArgs(args)).toThrow()
+    }
+    expect(parseGalleryArgs(['--catalogue', 'cat', '--keys', '1,2', '--limit', '10', '--json'])).toMatchObject({ catalogueVersionId: 'cat', keys: [1, 2], limit: 10, json: true })
+  })
   it('treats safely absent sources as a successful zero', async () => {
     await expect(fetchReferenceGallery(taxon)).resolves.toEqual({ status: 'ok', assets: [], rejections: [], coverage: { inat: false, commons: false } })
   })

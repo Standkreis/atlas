@@ -68,6 +68,25 @@ export type GalleryOptions = {
   fetchGallery?: (taxon: GalleryTaxon) => Promise<GalleryFetch>
 }
 
+/** Reject incomplete/unknown scope flags rather than accidentally broadening an operator run. */
+export function parseGalleryArgs(args: string[]): GalleryOptions & { json: boolean } {
+  const values = new Map<string, string>()
+  let json = false
+  for (let i = 0; i < args.length; i++) {
+    const flag = args[i]
+    if (flag === '--json') { json = true; continue }
+    if (!['--catalogue', '--region', '--keys', '--limit', '--concurrency'].includes(flag)) throw new Error(`unknown gallery argument ${flag}`)
+    const value = args[++i]
+    if (!value?.trim() || value.startsWith('--') || values.has(flag)) throw new Error(`gallery ${flag} requires one explicit value`)
+    values.set(flag, value)
+  }
+  const catalogueVersionId = values.get('--catalogue')
+  if (!catalogueVersionId) throw new Error('gallery requires --catalogue <completed-id>')
+  return { catalogueVersionId, region: values.get('--region'), keys: values.get('--keys')?.split(',').map(Number),
+    limit: values.has('--limit') ? Number(values.get('--limit')) : undefined,
+    concurrency: values.has('--concurrency') ? Number(values.get('--concurrency')) : 2, json }
+}
+
 export type GalleryReport = {
   catalogueVersionId: string
   scope: { region: string | null; keys: number[] | null; taxa: number; limit: number | null }
