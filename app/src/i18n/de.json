@@ -93,6 +93,7 @@
       "identification": { "title": "Fotobestimmung" }
     },
     "sources": {
+      "bkg": "Amtliche Kreisregionen und Landgrenzen (Stand 31.12.2024). © GeoBasis-DE / BKG (2026), Datenlizenz Deutschland – Namensnennung 2.0 (dl-de/by-2-0). Koordinaten umgerechnet und gerundet; Grenzen nicht vereinfacht.",
       "gbif": "Liefert die taxonomische Grundlage und Fundmeldungen, aus denen regionale Artenlisten, saisonale Chancen und Karten entstehen.",
       "wikidata": "Liefert Kennungen, Trivialnamen und ausgewählte strukturierte Angaben wie Flügelspannweite und Pilzmerkmale. Die Daten stehen unter CC0.",
       "wikipedia": "Liefert den optionalen Hintergrundtext auf Artseiten. Der Text behält die Wikipedia-Lizenz und wird von uns nicht unabhängig geprüft.",

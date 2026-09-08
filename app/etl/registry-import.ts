@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto'
 import { Prisma } from '../src/generated/prisma/client'
 import type { RegionAliasKind } from '../src/generated/prisma/enums'
 import { db } from './db'
+import { normalizeRegionAlias } from '../src/domain/regionAlias'
+export { normalizeRegionAlias } from '../src/domain/regionAlias'
 import { parseRegionQueryMapping, type RegionQueryMapping } from './registry-mapping'
 import {
   GERMANY_REGISTRY_SHA256,
@@ -27,21 +29,6 @@ const canonicalJson = (value: unknown): string => {
   return JSON.stringify(value)
 }
 const json = (value: unknown) => value as Prisma.InputJsonValue
-
-/** The normalization used by the DB search index. Keep the original spelling in `name`. */
-export function normalizeRegionAlias(value: string) {
-  return value
-    .trim()
-    .toLocaleLowerCase('de-DE')
-    .replaceAll('ä', 'ae')
-    .replaceAll('ö', 'oe')
-    .replaceAll('ü', 'ue')
-    .replaceAll('ß', 'ss')
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim()
-}
 
 function aliasKind(region: RegistryRegion, name: string): RegionAliasKind {
   if (name === region.displayName) return 'displayName'
