@@ -37,7 +37,7 @@ export function Onboarding() {
   const [tiles, setTiles] = useState<Set<Tile>>(() => new Set(allTiles))
   const of = change ? 3 : 4
   // In change mode the tiles screen starts from the current filter, not from "all on".
-  const chosen = (r: Region) => { setRegion(r); if (change && progress.data?.tiles.length) setTiles(new Set(progress.data.tiles)); setStep('tiles') }
+  const chosen = (r: Region) => { setRegion(r); if (change && !region && progress.data?.tiles.length) setTiles(new Set(progress.data.tiles)); setStep('tiles') }
   const go = () => router.replace('/')
   useEffect(() => {
     screen.current?.scrollTo(0, 0)
@@ -149,7 +149,7 @@ function TilesScreen({ onBack, of, region, tiles, setTiles, onNext }: { onBack: 
     <StepFrame onBack={onBack} backDisabled={setFilter.isPending} step={2} of={of} title={t('tilesTitle')} body={t('tilesBody')}
       action={<button type="button" disabled={!chosen.length || !set.data || !me.data || setFilter.isPending || offline} data-testid="tiles-next" onClick={() => setFilter.mutate({ regionId: region.id, regionIds, tiles: chosen, nowOnly: false })} className="h-14 w-full rounded-2xl bg-moss text-[18px] font-bold text-white disabled:opacity-50">{setFilter.isPending ? t('working') : t('next')}</button>}>
       <p className="mt-4 text-[15px] font-semibold" data-testid="chosen-region">{region.name}</p>
-      {!set.data && !set.isError && <p role="status" className="mt-3 text-white/80">{offline ? t('offlineSetup') : t('working')}</p>}
+      {(!set.data || !me.data) && !set.isError && !me.isError && <p role="status" className="mt-3 text-white/80">{offline ? t('offlineSetup') : t('working')}</p>}
       {(set.isError || (set.isSuccess && !set.data)) && <LoadError onRetry={() => void set.refetch()} />}
       {me.isError && <LoadError onRetry={() => void me.refetch()} />}
       <ul className="mt-3 grid grid-cols-2 gap-3" data-testid="tiles" aria-busy={set.isLoading}>
