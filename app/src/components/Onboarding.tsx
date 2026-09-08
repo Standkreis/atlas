@@ -290,7 +290,7 @@ function PromisesScreen({ onBack, of, onNext }: { onBack: () => void; of: number
   )
 }
 
-// One frame for steps 2–4 over the splash: white on the scrim, theme-stable tokens only; the action sticks to the
+// One frame for setup steps over the splash: white on the scrim, theme-stable tokens only; the action sticks to the
 // bottom on a fade to the page's bottom colour so the list scrolls under it.
 function StepFrame({ onBack, backLabel, backTestId = 'onboarding-back', backDisabled = false, step, of, title, body, children, action }: { onBack: () => void; backLabel?: string; backTestId?: string; backDisabled?: boolean; step: number; of: number; title: string; body: React.ReactNode; children: React.ReactNode; action: React.ReactNode }) {
   const t = useTranslations('onboarding')
