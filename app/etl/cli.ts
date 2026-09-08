@@ -1,5 +1,5 @@
 // The ETL CLI (handoff 0006 Track A). npm run etl -- <command> [args]
-//   region <name | gadmGid>   GADM → 13 GBIF facets → cut per tile → Region, Taxon, Plausibility, Lookalike rows
+//   region <prepared name | canonical key | gadmGid> query units → accepted-key aggregation → one regional set
 //   registry --mapping <path> checked-in BKG registry + locally reviewed GADM mapping → versioned region rows
 //   refresh [--days 30]       re-run the region job for regions older than 30 days
 //   content [--region <name>] [--purge <key>] [--limit n] [--force]
@@ -38,7 +38,7 @@ async function main() {
     case 'region': {
       const { runRegion } = await import('./region')
       const query = positional[0]
-      if (!query) throw new Error('usage: etl region <name | gadmGid>')
+      if (!query) throw new Error('usage: etl region <prepared name | canonical key | gadmGid>')
       const r = await runRegion(query)
       const month = Number(flag('month') ?? new Date().getMonth() + 1)
       console.log(`\n${r.name} · ${r.total} obs · set ${r.set} · lookalike pairs ${r.lookalikes} · "nur jetzt" (month ${month}) ${r.nowInMonth(month)}`)
@@ -108,7 +108,7 @@ async function main() {
       break
     }
     default:
-      console.log('usage: npm run etl -- registry --mapping <reviewed-local-json> | region <name | gadmGid> [--month m] | refresh [--days 30] | content [--region <name>] [--purge <gbifKey>] [--limit n] [--force [--keys k1,k2]] | facts [--region <name>] [--purge] [--force] [--limit n] | sounds [--region <name>] [--limit n] | prose --region <name> [--driver files|api] [--run <name>] | prose --load --run <name> | prose --purge [--region <name>] | sweep')
+      console.log('usage: npm run etl -- registry --mapping <reviewed-local-json> | region <prepared name | canonical key | gadmGid> [--month m] | refresh [--days 30] | content [--region <name>] [--purge <gbifKey>] [--limit n] [--force [--keys k1,k2]] | facts [--region <name>] [--purge] [--force] [--limit n] | sounds [--region <name>] [--limit n] | prose --region <name> [--driver files|api] [--run <name>] | prose --load --run <name> | prose --purge [--region <name>] | sweep')
       process.exitCode = 1
   }
 }
