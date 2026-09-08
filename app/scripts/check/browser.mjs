@@ -44,6 +44,7 @@ try {
   }
   if (!ready) throw new Error('Production server did not become ready')
   for (const locale of ['en', 'de']) await run('scripts/check/ux.mjs', [base, locale])
+  await run('scripts/check/gallery.mjs', [base])
   const identity = await fetch(`${base}/api/trpc/identity.me`).then((r) => r.json()).then((j) => j.result.data.json.id)
   await run('scripts/check/offline.mjs', [base, identity])
 } finally {

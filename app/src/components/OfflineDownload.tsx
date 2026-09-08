@@ -6,7 +6,7 @@ import { useFormatter, useTranslations } from 'next-intl'
 import { useTRPC } from '@/trpc/client'
 import { useAtlasSet } from './AtlasCounters'
 import { useOffline } from './OfflineBanner'
-import { packCache as CACHE, readyKey as READY_KEY, verifiedAt, type Pack } from './OfflinePack'
+import { packCache as CACHE, readyKey as READY_KEY, regionalPackUrls, verifiedAt, type Pack } from './OfflinePack'
 
 // "Für unterwegs laden" (handoff 0009 Track A, spec §🏗️ "caches the dex for the active filter"): every grid image of the
 // region's set, fetched through the worker into the image cache. The button is the consent: no download on its own,
@@ -72,7 +72,7 @@ export function OfflineDownload({ testId = 'offline-download' }: { testId?: stri
   const { set } = useAtlasSet(region)
   const state = useRun()
   const off = useOffline()
-  const urlList = JSON.stringify([...new Set((set?.species ?? []).map(s => s.leadSmall ?? s.lead?.url ?? null).filter((u): u is string => !!u))].sort())
+  const urlList = JSON.stringify(regionalPackUrls(set?.species ?? []))
   const [verified, setVerified] = useState<{ regionId: string; urls: string; at: string } | null>(null)
   useEffect(() => {
     if (!region) return
