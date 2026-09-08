@@ -70,6 +70,19 @@ async function main() {
       console.log(`refreshed ${n} region(s) · requests ${JSON.stringify(requests())}`)
       break
     }
+    case 'gallery': {
+      const catalogueVersionId = flag('catalogue')
+      if (!catalogueVersionId) throw new Error('usage: etl gallery --catalogue <completed-id> [--region <canonical-key|name>] [--keys k1,k2] [--limit n] [--concurrency 2] [--json]')
+      const { runGallery, formatGalleryReport } = await import('./gallery-work')
+      const json = rest.includes('--json')
+      const result = await runGallery({ catalogueVersionId, region: flag('region'), keys: flag('keys')?.split(',').map(Number),
+        limit: flag('limit') === undefined ? undefined : Number(flag('limit')), concurrency: Number(flag('concurrency') ?? 2),
+        log: json ? console.error : console.log,
+      })
+      console.log(json ? JSON.stringify(result, null, 2) : formatGalleryReport(result))
+      if (result.failed || result.lost) process.exitCode = 2
+      break
+    }
     case 'content': {
       const { runContent } = await import('./content')
       const keys = flag('keys')?.split(',').map(Number).filter(Number.isFinite)

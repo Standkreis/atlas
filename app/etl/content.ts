@@ -3,7 +3,7 @@
 // next iNat → none) → Wikipedia de → en → GloBI pruned and capped. Runs once per taxon (`contentAt`); `--purge <gbifKey>`
 // re-fetches one. A failure on one taxon logs and continues. Handoff 0028: every edge carries its GloBI studies and its
 // real record count and is marked `prose: false` when 0027 F1/F2 drops it from the prose sheet; `--force` refetches only
-// the edges of taxa already filled (a full re-run would drop their sound Assets and re-key their images).
+// the edges of taxa already filled. Gallery refreshes preserve sounds and all user media.
 import { Prisma } from '../src/generated/prisma/client'
 import { db } from './db'
 import { pool, requests } from './fetch'
@@ -11,8 +11,9 @@ import { gbifMatch, gbifSpecies, type Species } from './gbif'
 import { capEdges, globiEdges, globiPair, type Edge } from './globi'
 import { iucnCode, pickNames, pruneForProse } from './prune'
 import { tileOf } from './rules'
-import { anageFacts, commonsAsset, commonsInfo, inatDefault, inatNext, inatTaxon, wikipediaIntro, type AssetDraft, type Fact, type Intro } from './sources'
+import { anageFacts, wikipediaIntro, type Fact, type Intro } from './sources'
 import { wikidataFor, type WdMatch } from './wikidata'
+import { fetchReferenceGallery, GALLERY_VERSION, replaceReferenceGallery } from './gallery-work'
 
 export type ContentOpts = { purge?: number; limit?: number; region?: string; keys?: number[]; force?: boolean; log?: (s: string) => void }
 export type ContentResult = {
@@ -46,11 +47,7 @@ async function selectTaxa({ purge, limit, region, keys, force }: ContentOpts): P
   if (purge) {
     const t = await db.taxon.findUnique({ where: { gbifKey: purge }, select })
     if (!t) throw new Error(`no taxon with gbifKey ${purge}`)
-    await db.$transaction([
-      db.asset.deleteMany({ where: { taxonId: t.id, sightingId: null } }),
-      db.interaction.deleteMany({ where: { sourceId: t.id } }),
-      db.taxon.update({ where: { id: t.id }, data: { contentAt: null, factsAt: null, intro: Prisma.DbNull, facts: Prisma.DbNull, prose: Prisma.DbNull, wikidataId: null, iucn: null, namePath: null, commonNames: {} } }),
-    ])
+    // A purge is refresh intent. Keep the previous complete content until every fetch succeeds.
     return [t]
   }
   // `keys` with `force` (0028): the edges of just these filled taxa again, e.g. the ones a long refetch logged with ✗.
@@ -73,10 +70,9 @@ export async function runContent(opts: ContentOpts): Promise<ContentResult> {
   if (!taxa.length) return r
   const count = (bucket: Record<string, number>, k: string) => (bucket[k] = (bucket[k] ?? 0) + 1)
 
-  // Batches first: Wikidata (≈ 8 calls per 929), Commons file info for every P18 (≈ 22 calls). Not for the edge refetch.
+  // Batch Wikidata metadata; gallery candidates are fetched by the shared complete-gallery path.
   const wd = opts.force ? new Map<number, WdMatch>() : await wikidataFor(taxa)
-  const commons = opts.force ? new Map() as Awaited<ReturnType<typeof commonsInfo>> : await commonsInfo([...wd.values()].map((m) => m.item?.img).filter((x): x is string => !!x))
-  if (!opts.force) log(`wikidata ${[...wd.values()].filter((m) => m.item).length} items · commons ${commons.size} files`)
+  if (!opts.force) log(`wikidata ${[...wd.values()].filter((m) => m.item).length} items`)
 
   // Every set member anywhere, by name and key: GloBI targets in a set come first and never get a new row.
   const members = await db.taxon.findMany({ where: { plausibility: { some: {} } }, select: { id: true, gbifKey: true, sciName: true } })
@@ -120,10 +116,11 @@ export async function runContent(opts: ContentOpts): Promise<ContentResult> {
   }
 
   let n = 0
+  const filledKeys: number[] = []
   await pool(taxa, 4, async (t) => {
     try {
       const targets = { inSet: (name: string) => setByName.has(name), resolve: (name: string) => resolveTarget(name, t.gbifKey), serial }
-      const out = opts.force ? await refetchEdges(t, targets, log) : await fillOne(t, wd.get(t.gbifKey) ?? { path: 'none', item: null }, commons, targets, log)
+      const out = opts.force ? await refetchEdges(t, targets, log) : await fillOne(t, wd.get(t.gbifKey) ?? { path: 'none', item: null }, targets, log, Boolean(opts.purge))
       if (!opts.force) {
         const full = out as Awaited<ReturnType<typeof fillOne>>
         count(r.ladder, full.ladder)
@@ -136,6 +133,7 @@ export async function runContent(opts: ContentOpts): Promise<ContentResult> {
       if (out.prose.truncated) r.prose.truncated++
       r.targetsCreated += out.targetsCreated
       r.done++
+      filledKeys.push(t.gbifKey)
     } catch (e) {
       r.failed++
       log(`  ✗ ${t.sciName} (${t.gbifKey}): ${e instanceof Error ? e.message : e}`)
@@ -145,13 +143,13 @@ export async function runContent(opts: ContentOpts): Promise<ContentResult> {
   // The Steckbrief keys (handoff 0021 D3) for the taxa this run filled: bulk files, GIFT, the mycomorphbox, GBIF names.
   if (!opts.force) {
     const { runFacts } = await import('./facts')
-    const f = await runFacts({ keys: taxa.map((t) => t.gbifKey), force: true, log })
+    const f = await runFacts({ keys: filledKeys, force: true, log })
     log(`  facts: ${f.written} written, ${f.namesFilled} English names filled, ${f.failed} failed`)
   }
   // The prose (handoff 0028) after facts and edges: with the `files` driver a taxon without answers is pending, not failed.
   if (opts.region && !opts.force) {
     const { runProse } = await import('./prose/step')
-    const p = await runProse({ region: opts.region, keys: taxa.map((t) => t.gbifKey), log })
+    const p = await runProse({ region: opts.region, keys: filledKeys, log })
     log(`  prose: ${p.written} prompts written · ${p.pending} taxa pending · ${p.loaded} loaded · ${p.skipped} skipped`)
   }
   r.seconds = (Date.now() - t0) / 1000
@@ -201,26 +199,16 @@ async function refetchEdges(t: Taxon, targets: Targets, log: (s: string) => void
 }
 
 /** One taxon, every source, one transaction. */
-async function fillOne(t: Taxon, wd: WdMatch, commons: Awaited<ReturnType<typeof commonsInfo>>, targets: Targets, log: (s: string) => void) {
+async function fillOne(t: Taxon, wd: WdMatch, targets: Targets, log: (s: string) => void, purge: boolean) {
   const s: Species | null = await gbifSpecies(t.gbifKey)
   const sciName = s?.canonicalName ?? t.sciName
   const item = wd.item
   if (wd.note) log(`  · ${sciName}: ${wd.note}`)
   const names = pickNames({ sciName, deLabel: item?.deLabel, enLabel: item?.enLabel, jaLabel: item?.jaLabel, dewiki: item?.dewiki, enwiki: item?.enwiki })
 
-  // Image ladder (E7): iNat default if licensed → Commons P18 unless rejected → next licensed iNat → none (tile icon).
-  const inat = await inatTaxon(sciName)
-  let asset: AssetDraft | null = inatDefault(inat, sciName)
-  let ladder = 'inat'
-  if (!asset) {
-    asset = commonsAsset(commons, item?.img, sciName)
-    ladder = 'commons'
-  }
-  if (!asset && inat) {
-    asset = await inatNext(inat, sciName)
-    ladder = 'inatNext'
-  }
-  if (!asset) ladder = 'none'
+  const galleryDone = await db.taxonEnrichmentWork.findUnique({ where: { taxonId_kind_version: { taxonId: t.id, kind: 'gallery', version: GALLERY_VERSION } }, select: { status: true } })
+  const gallery = galleryDone?.status === 'complete' ? null : await fetchReferenceGallery({ ...t, sciName })
+  const ladder = gallery ? gallery.assets[0]?.origin ?? 'none' : 'preserved'
 
   // Intro de → en (E8, E12), facts from AnAge (E8).
   const intro: Intro | null = (await wikipediaIntro(item?.dewiki, 'de')) ?? (await wikipediaIntro(item?.enwiki, 'en'))
@@ -229,6 +217,7 @@ async function fillOne(t: Taxon, wd: WdMatch, commons: Awaited<ReturnType<typeof
   const { interactions, prose, targetsCreated } = await edgesFor(t, sciName, targets)
 
   const data = {
+    ...(purge ? { factsAt: null, prose: Prisma.DbNull } : {}),
     sciName,
     rank: (s?.rank ?? 'species').toLowerCase(),
     class: s?.class ?? undefined,
@@ -236,17 +225,18 @@ async function fillOne(t: Taxon, wd: WdMatch, commons: Awaited<ReturnType<typeof
     genus: s?.genus ?? undefined,
     commonNames: names,
     iucn: iucnCode(item?.iucn),
-    intro: intro ?? undefined,
-    facts: Object.keys(facts).length ? facts : undefined,
+    intro: intro ?? (purge ? Prisma.DbNull : undefined),
+    facts: Object.keys(facts).length ? facts : (purge ? Prisma.DbNull : undefined),
     namePath: wd.path,
     contentAt: new Date(),
   }
   const write = (wikidataId: string | null) =>
     targets.serial(() =>
       db.$transaction(async (tx) => {
-        await tx.asset.deleteMany({ where: { taxonId: t.id, sightingId: null } })
+        await tx.$queryRaw`SELECT "id" FROM "Taxon" WHERE "id" = ${t.id} FOR UPDATE`
+        const currentGallery = await tx.taxonEnrichmentWork.findUnique({ where: { taxonId_kind_version: { taxonId: t.id, kind: 'gallery', version: GALLERY_VERSION } }, select: { status: true } })
+        if (gallery && currentGallery?.status !== 'complete') await replaceReferenceGallery(tx, t.id, gallery.assets)
         await tx.interaction.deleteMany({ where: { sourceId: t.id } })
-        if (asset) await tx.asset.create({ data: { ...asset, kind: 'image', taxonId: t.id } })
         if (interactions.length) await tx.interaction.createMany({ data: interactions, skipDuplicates: true })
         await tx.taxon.update({ where: { id: t.id }, data: { ...data, wikidataId } })
       }),

@@ -134,7 +134,7 @@ describe('iNaturalist curated gallery fetch', () => {
 
   it('does not fetch details for a fuzzy match, but allows a separately verified synonym', async () => {
     const fuzzy = async <T>(): Promise<T> => ({ results: [{ id: 42, name: 'Turdus maximus' }] }) as T
-    await expect(fetchInatGallery('Turdus merula', [], fuzzy)).resolves.toMatchObject({ status: 'failure', reason: 'unsafe-match' })
+    await expect(fetchInatGallery('Turdus merula', [], fuzzy)).resolves.toMatchObject({ status: 'absent', reason: 'no-exact-match' })
     let calls = 0
     const synonym = async <T>(): Promise<T> => {
       calls++

@@ -45,6 +45,7 @@ export async function inatNext(t: InatTaxon, sciName: string): Promise<AssetDraf
 
 export type InatGalleryFetchResult =
   | { status: 'ok'; source: InatGallerySource }
+  | { status: 'absent'; reason: 'no-exact-match' }
   | { status: 'failure'; reason: 'provider' | 'malformed' | 'unsafe-match'; detail: string }
 
 type JsonFetch = <T>(url: string) => Promise<T | null>
@@ -75,7 +76,7 @@ export async function fetchInatGallery(
       const candidate = value as Partial<InatTaxon>
       return Number.isSafeInteger(candidate.id) && typeof candidate.name === 'string' && acceptedNames.has(candidate.name)
     })
-    if (!match) return { status: 'failure', reason: 'unsafe-match', detail: 'no exact or verified-synonym iNaturalist taxon match' }
+    if (!match) return { status: 'absent', reason: 'no-exact-match' }
 
     const detail = await fetchJson<unknown>(`https://api.inaturalist.org/v1/taxa/${match.id}`)
     if (!detail || typeof detail !== 'object' || !Array.isArray((detail as { results?: unknown }).results)) {
@@ -112,19 +113,21 @@ export async function fetchInatGallery(
 
 // ── Commons ──────────────────────────────────────────────────────────────────
 type ImageInfo = { title: string; width: number; height: number; thumb: string; descriptionUrl: string; artist: string; licence: string; licenceUrl: string | null; cats: string }
-type CommonsPage = { title: string; imageinfo?: { width: number; height: number; thumburl: string; descriptionurl: string; extmetadata?: Record<string, { value: string }> }[]; categories?: { title: string }[] }
+type CommonsPage = { title: string; missing?: string; imageinfo?: { width: number; height: number; thumburl: string; descriptionurl: string; extmetadata?: Record<string, { value: string }> }[]; categories?: { title: string }[] }
 
 const stripHtml = (s: string) => s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
 
 /** File info for many P18 URLs, 40 titles per call (as the probe). Missing files are absent from the map. */
-export async function commonsInfo(p18Urls: string[]): Promise<Map<string, ImageInfo>> {
+export async function commonsInfo(p18Urls: string[], strict = false): Promise<Map<string, ImageInfo>> {
   const out = new Map<string, ImageInfo>()
   const titles = [...new Set(p18Urls.map(commonsFileOf))]
   for (let i = 0; i < titles.length; i += 40) {
     const j = await get<{ query?: { pages: Record<string, CommonsPage> }; normalized?: { from: string; to: string }[] }>(
       `https://commons.wikimedia.org/w/api.php?${q({ action: 'query', format: 'json', prop: 'imageinfo|categories', cllimit: 50, iiprop: 'url|size|extmetadata', iiurlwidth: 800, iiextmetadatafilter: 'Artist|LicenseShortName|LicenseUrl|Categories', titles: titles.slice(i, i + 40).join('|') })}`,
     )
+    if (strict && (!j?.query?.pages || typeof j.query.pages !== 'object' || Array.isArray(j.query.pages))) throw new Error('Commons imageinfo response is missing pages')
     for (const p of Object.values(j?.query?.pages ?? {})) {
+      if (strict && (!p || typeof p.title !== 'string' || (!('missing' in p) && (!Array.isArray(p.imageinfo) || !p.imageinfo.length)))) throw new Error('Commons returned malformed imageinfo')
       const ii = p.imageinfo?.[0]
       if (!ii) continue
       const m = ii.extmetadata ?? {}

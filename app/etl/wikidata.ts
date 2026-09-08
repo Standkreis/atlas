@@ -47,7 +47,8 @@ const toItem = (b: Binding): WdItem => ({
 
 async function sparql(query: string): Promise<Binding[]> {
   const j = await get<{ results: { bindings: Binding[] } }>(`${SPARQL}?format=json&query=${encodeURIComponent(query)}`)
-  return j?.results.bindings ?? []
+  if (!Array.isArray(j?.results?.bindings)) throw new Error('Wikidata response is missing bindings')
+  return j.results.bindings
 }
 
 /** All items carrying P846 = one of the keys, grouped by key (a key can have two items). */
