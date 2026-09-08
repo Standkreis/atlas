@@ -610,6 +610,8 @@ model Asset {
   caption    String?
   /// Per-kind extras (0021 D5): a sound carries `{ xcId, type, length, quality }` from xeno-canto. Null on images.
   meta       Json?
+  /// Stable gallery order for taxon-owned reference images; position zero remains every legacy lead.
+  position   Int       @default(0)
   createdAt  DateTime  @default(now())
 
   taxon      Taxon?    @relation(fields: [taxonId], references: [id], onDelete: Cascade)
@@ -625,6 +627,7 @@ model Asset {
   scans      ScanWork[]
 
   @@index([taxonId])
+  @@index([taxonId, position])
 }
 
 // ── The atom and the other axis ───────────────────────────────────────────────
