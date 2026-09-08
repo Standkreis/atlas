@@ -97,8 +97,10 @@ to continue. Network concurrency is capped at four, GBIF scheduling/retries rema
 ### Resumable reference galleries ([#36](https://github.com/Standkreis/atlas/issues/36))
 
 Run `npm run etl -- gallery --catalogue <completed-catalogue-id> --limit 100 --concurrency 2`
-against local Postgres. Add `--json` for a machine-readable report on stdout (progress goes to
-stderr). `--region` narrows to one completed regional set within that same catalogue; `--keys`
+against local Postgres. For machine output use
+`npm run --silent etl -- gallery --catalogue <completed-catalogue-id> --limit 100 --json`:
+`--silent` suppresses npm's script banner, and the CLI sends progress to stderr. `--region`
+narrows to one completed regional set within that same catalogue; `--keys`
 narrows it further and rejects any key outside the selected set. `--limit` bounds new attempts,
 not the first N catalogue members: repeated limited runs advance through pending work. Invalid
 scope is rejected before any work row is seeded. No model or paid content API is used.
