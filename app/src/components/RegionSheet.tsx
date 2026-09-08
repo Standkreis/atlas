@@ -8,7 +8,7 @@ import { isNetworkError, useTRPC, useTRPCClient } from '@/trpc/client'
 import { allTiles } from './AtlasCounters'
 import { useOffline } from './OfflineBanner'
 import { RegionPicker } from './RegionPicker'
-import { regionRemovalGuard, savedRegionRows, uniqueRegionIds } from './RegionManagementState'
+import { pendingRegionAfterCompletion, regionRemovalGuard, savedRegionRows, uniqueRegionIds } from './RegionManagementState'
 import { pickerIsGermanFallback, type PickerRegion } from './RegionPickerState'
 import { Sheet, useSheetClose } from './Sheet'
 
@@ -21,6 +21,7 @@ type RegionRow = { id: string; name: string; higher: string; status: RegionStatu
 const PENDING_KEY = 'dex.region.pending'
 const pendingRegion = (): string | null => { try { return localStorage.getItem(PENDING_KEY) } catch { return null } }
 const setPending = (id: string | null) => { try { if (id) localStorage.setItem(PENDING_KEY, id); else localStorage.removeItem(PENDING_KEY) } catch { /* private mode */ } }
+const acknowledgePending = (completedId: string) => setPending(pendingRegionAfterCompletion(pendingRegion(), completedId))
 
 export function useRegionSwitch() {
   const trpc = useTRPC()
@@ -29,9 +30,9 @@ export function useRegionSwitch() {
   const apply = (region: RegionRow) => qc.setQueryData(meKey, (old) => (old ? { ...old, region } : old))
   const mutation = useMutation(trpc.identity.setRegion.mutationOptions({
     onMutate: ({ regionId }) => { const r = qc.getQueryData(meKey)?.regions.find((x) => x.id === regionId); if (r) apply(r) },
-    onSuccess: (_, { regionId }) => { if (pendingRegion() === regionId) setPending(null); void qc.invalidateQueries({ queryKey: meKey }) },
+    onSuccess: (_, { regionId }) => { acknowledgePending(regionId); void qc.invalidateQueries({ queryKey: meKey }) },
     onError: (e, { regionId }) => {
-      if (!isNetworkError(e) && pendingRegion() === regionId) setPending(null)
+      if (!isNetworkError(e)) acknowledgePending(regionId)
       if (!isNetworkError(e)) void qc.invalidateQueries({ queryKey: meKey })
     },
   }))
@@ -52,8 +53,8 @@ export function RegionReplay() {
   const qc = useQueryClient()
   const meKey = trpc.identity.me.queryKey()
   const replay = useMutation(trpc.identity.setRegion.mutationOptions({
-    onSuccess: () => { setPending(null); void qc.invalidateQueries({ queryKey: meKey }) },
-    onError: (e) => { if (!isNetworkError(e)) { setPending(null); void qc.invalidateQueries({ queryKey: meKey }) } }, // no longer in the list: the server's word stands
+    onSuccess: (_, { regionId }) => { acknowledgePending(regionId); void qc.invalidateQueries({ queryKey: meKey }) },
+    onError: (e, { regionId }) => { if (!isNetworkError(e)) { acknowledgePending(regionId); void qc.invalidateQueries({ queryKey: meKey }) } }, // no longer in the list: the server's word stands
   }))
   const { mutate } = replay
   useEffect(() => {
@@ -98,6 +99,7 @@ function Body() {
   const close = useSheetClose()
   const off = useOffline()
   const me = useQuery(trpc.identity.me.queryOptions())
+  const legacyCatalogue = useQuery(trpc.dex.regions.queryOptions())
   const personalInput = { recentIds: [] as string[] }
   const personal = useQuery(trpc.regions.personal.queryOptions(personalInput))
   const { switchTo, pending: switchPending } = useRegionSwitch()
@@ -105,9 +107,21 @@ function Body() {
   const [picking, setPicking] = useState(false)
   const mine = me.data?.regionIds ?? []
   const activeId = me.data?.region?.id ?? null
-  const legacySaved: PickerRegion[] = (me.data?.regions ?? [])
+  const identitySaved: PickerRegion[] = (me.data?.regions ?? [])
     .map((region) => ({ ...region, selectable: region.status === 'ready' }))
     .filter(pickerIsGermanFallback)
+  // The pre-national persisted identity response did not include `higher`. Its bounded `dex.regions`
+  // companion did, so use that cache to recover saved-row metadata during an offline upgrade. Never
+  // admit its suggestions: identity.regionIds remains the sole owner of the visible list.
+  const catalogueSaved: PickerRegion[] = (legacyCatalogue.data ?? [])
+    .filter((region) => mine.includes(region.id))
+    .map((region) => ({
+      ...region,
+      selectable: region.status === 'ready',
+      summary: { setSize: region.setSize, nowCount: region.nowCount },
+    }))
+    .filter(pickerIsGermanFallback)
+  const legacySaved = [...identitySaved, ...catalogueSaved]
   // identity.me owns the saved IDs. regions.personal only enriches those same rows with catalogue
   // summaries and may still contain the persisted pre-onboarding empty result on first Profile open.
   const saved = savedRegionRows<PickerRegion>(mine, activeId, legacySaved, personal.data?.registryVersion ? personal.data.selected : [])

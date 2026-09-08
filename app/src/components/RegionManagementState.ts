@@ -16,3 +16,8 @@ export function regionRemovalGuard(regionIds: string[], activeId: string | null,
 export function uniqueRegionIds(regionIds: string[], addId: string) {
   return regionIds.includes(addId) ? regionIds : [...regionIds, addId]
 }
+
+/** A completed transport may only acknowledge the intent it actually sent. */
+export function pendingRegionAfterCompletion(pendingId: string | null, completedId: string) {
+  return pendingId === completedId ? null : pendingId
+}

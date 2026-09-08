@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { orderedSavedRegions, regionRemovalGuard, savedRegionRows, uniqueRegionIds } from './RegionManagementState'
+import { orderedSavedRegions, pendingRegionAfterCompletion, regionRemovalGuard, savedRegionRows, uniqueRegionIds } from './RegionManagementState'
 
 describe('profile region management', () => {
   it('shows only supplied saved regions with the active one first', () => {
@@ -26,5 +26,10 @@ describe('profile region management', () => {
       { id: 'b', summary: true },
       { id: 'a', summary: false },
     ])
+  })
+
+  it('does not let an older replay acknowledge a newer pending switch', () => {
+    expect(pendingRegionAfterCompletion('berlin', 'berlin')).toBeNull()
+    expect(pendingRegionAfterCompletion('cologne', 'berlin')).toBe('cologne')
   })
 })
