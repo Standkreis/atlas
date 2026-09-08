@@ -16,4 +16,3 @@ export async function verifiedAt(regionId: string, urls: string[]): Promise<stri
   for (const url of urls) if (!(await cache.match(url))?.ok) return null
   return pack.at
 }
-
