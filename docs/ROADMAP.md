@@ -4,7 +4,14 @@
 
 | 🗓️ Updated | 👤 Owner | ➡️ Next |
 | --- | --- | --- |
-| 2026-09-08 | Sven Reiser | **Handover, see [§🧭](#-handover-2026-09-08)**: 0028 prose is merged and unpushed; five species carry prose in the dev DB; the owner reviews them, then the region run |
+| 2026-09-08 | Sven Reiser | [Epic #14](https://github.com/Standkreis/atlas/issues/14): Germany Atlas, starting from the [region, catalogue, progress and migration contract](records/2026-09-08-germany-atlas-contract.md) |
+
+## Current milestone
+
+Epic #14 replaces the earlier prose-first handover as the active delivery order. It launches a
+Germany-only atlas over the complete BBSR Kreisregion registry, with a national catalogue union,
+searchable region discovery and Germany-wide progress. Its native GitHub blockers own execution
+order; the historical handover below remains useful context for the existing data and prose work.
 
 ## Current reliability handoff
 

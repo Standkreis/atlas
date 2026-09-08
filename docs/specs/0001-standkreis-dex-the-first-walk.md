@@ -1,6 +1,12 @@
 # 🧪 [0001] standkreis-dex — a Pokédex for nature, and the first walk
 
 > **Spec.** Lives while the epic is open; distilled into an ADR and deleted when it closes. Decisions and their rejected alternatives are in the immutable records [0001](../records/0001-standkreis-dex-the-first-walk.md) (the product) and [0002](../records/0002-etl-the-plausible-set.md) (the plausible set and the ETL). Research behind it: [`docs/research/`](../research/).
+>
+> **Germany Atlas addendum (2026-09-08).** [The Germany Atlas contract](../records/2026-09-08-germany-atlas-contract.md)
+> supersedes the German region identity in record 0002 E1: selectable German regions are versioned
+> BBSR Kreisregionen composed from official Kreis units, while GADM ids are occurrence-query mappings.
+> It also defines the nationwide catalogue, progress and legacy-migration semantics for
+> [Epic #14](https://github.com/Standkreis/atlas/issues/14).
 
 | 🗓️ Date | 👤 Owner | 🎯 Status |
 | --- | --- | --- |
@@ -16,7 +22,7 @@ A **personal collection layer over open biodiversity data**, on web and phone, t
 
 **Who:** curious casuals who want to get closer to nature. Sven is user #1. Not kids (Seek owns that, and app-store kids rules forbid location). Not power naturalists (iNaturalist owns that).
 
-**Where:** global from day one. Every species list and every species page is computed from worldwide open data, never curated per region.
+**Where:** Germany at launch under the [Germany Atlas contract](../records/2026-09-08-germany-atlas-contract.md). Global taxon identity and personal records remain reusable; non-German selectable regions and global progress are deferred.
 
 **Money:** free forever. Donations if server bills ever hurt. This is a product decision that unlocks non-commercial data (BirdNET, Xeno-canto, iNaturalist CC BY-NC photos) and is not to be quietly reopened.
 
@@ -50,11 +56,11 @@ erDiagram
     TAXON ||--o{ INTERACTION : "source of"
     TAXON ||--o{ INTERACTION : "target of"
     IDENTITY { string id "anonymous first" string credential "passkey / email, optional" }
-    FILTER { string region "GADM level-2 gid" string[] tiles "birds, plants, insects…" bool now_only "chip, default off" }
+    FILTER { string region "stable Region UUID" string[] tiles "birds, plants, insects…" bool now_only "chip, default off" }
     SIGHTING { datetime at  point where "coarsened on share" string[] photos "optional" string note  enum evidence "claimed | photographed | id-assisted" }
     STUDY { datetime at  bool recap_passed }
     TAXON { string gbif_key  string sci_name  json common_names "per language via Wikidata" enum tile "8 tiles, from GBIF ranks" string qid "Wikidata, nullable" }
-    REGION { string gadm_gid  string name  int[] month_totals "12, all species" datetime refreshed }
+    REGION { string canonical_key "BBSR Kreisregion" string[] query_units "GBIF/GADM bridge" string name int[] month_totals "12, all species" datetime refreshed }
     PLAUSIBILITY { int obs "whole year" int[] month_share "12, per mille of month total" float now_ratio "share ÷ peak, derived" string words "Ganzes Jahr · Mär–Okt" }
     ASSET { string url  string source "inat | commons | icon" string licence  string author }
     INTERACTION { enum kind "eats | eatenBy | pollinates | hostOf | parasiteOf | visitsFlowersOf" string source "GloBI" }
@@ -95,7 +101,7 @@ The dex shows **the species that open data has actually recorded in your region*
 
 | Rule | Value | Why |
 | --- | --- | --- |
-| 🗺️ Region | One **GADM level-2 polygon** (Landkreis, city, county), GBIF `gadmGid`. No grid | A 10 km grid over Mainz-Bingen spills 78 % of its species from Mainz and Wiesbaden; the polygon is what the user picked and exists everywhere |
+| 🗺️ Region | One versioned **BBSR Kreisregion**, composed from official BKG Kreis units. No grid. Each constituent maps to a GBIF query unit; GADM ids are a provider bridge, never product identity | The official composite keeps smaller independent cities with their landscape; raw constituent counts are merged before one regional cut |
 | 📅 Window | **Whole year, last ten years** (2016–2026), observation records only | Month never decides membership: a Mauersegler you found in May must not vanish in September |
 | 🔢 Source | **GBIF alone** | iNaturalist research grade is already one GBIF dataset (11 % here, 34 % in Kyoto); iNat alone lacks 40 of GBIF's common September species |
 | ✂️ Cut | Per tile: the species that make up **90 % of the tile's observations**, **floor 10** records | Invariant to how many recorders a group has; 931 species for Mainz-Bingen (🐦 69 🦌 8 🦋 396 🌿 388 🍄 23 🐸 7 🦎 5 + 35 spiders and snails); 303 for Kyoto |
@@ -118,7 +124,7 @@ Coverage numbers are Mainz-Bingen's 931 species ([findings 0005](../handoffs/000
 | Need | Source | Licence | Coverage | Notes |
 | --- | --- | --- | --- | --- |
 | Taxonomy backbone, names, ranks | **GBIF** `species/{key}`, `species/match`; the species facet already folds subspecies | CC0 / CC BY | 100 % | The taxonomy of record. Catalogue of Life rejected as a second backbone |
-| Plausible set, month shares | **GBIF** `occurrence/search` facets by `gadmGid` × year range × month | per dataset | 100 % | 13 calls per region, cached 30 days. iNaturalist not used for the set |
+| Plausible set, month shares | **GBIF** `occurrence/search` facets by each constituent query unit × year range × month | per dataset | 100 % | Composite raw counts are merged before one cut. iNaturalist is not added separately |
 | Wikidata link | P846 (GBIF key), fallback exact-name search with rank check | CC0 | 94 % + 6 % | Item not a species → take nothing from it; two items → the one with a dewiki sitelink |
 | German name | de.wikipedia sitelink title (Wikidata's German label is the Latin name by convention) | CC0 | 89 % | Kyoto 48 %; English label 94 %, Japanese 81 % |
 | IUCN status | Wikidata P141 | CC0 | 22 % | Mostly birds and mammals |
@@ -145,7 +151,7 @@ Every asset carries its licence and attribution in the database. If free-forever
 
 ```mermaid
 flowchart LR
-    A[🗺️ resolve region<br/>GADM search → gid, name] --> B[📅 13 GBIF facets<br/>year + 12 months]
+    A[🗺️ resolve Kreisregion<br/>official constituents → query units] --> B[📅 13 GBIF facets per unit<br/>year + 12 months]
     B --> C[✂️ cut per tile<br/>90 % · floor 10 · tiles from ranks]
     C --> D[🧬 species records<br/>GBIF species/key]
     D --> E[🔗 Wikidata batch<br/>P846 · names · P141 · P4024 · P18]
@@ -176,7 +182,7 @@ One worker. 4 GBIF facets in flight, 1 request/s to iNaturalist, ~3/s to Wikidat
 | Identity | **Anonymous identity minted on first launch**; passkey or email attaches later to sync across devices. Export and delete available in both states | Seek's frictionless first minute without Seek's data-loss disaster |
 | Species data | **ETL into Postgres** (§🗃️): taxa, plausibility per region with twelve month shares, interactions, assets with attribution. Plausibility monthly, content once | Nature APIs are slow and rate-limited; the dex must open offline-ish |
 | Offline | Service worker caches the dex for the active filter; sightings queue and sync | Nature has no signal |
-| Geo | GeoJSON in ordinary columns, GADM gid as the region key. The 10 km cell exists only on the species map and the location ladder. No PostGIS | Same standing constraint as the sibling repos |
+| Geo | BKG MultiPolygon in ordinary JSON plus a stable Kreisregion key; versioned GADM ids are GBIF query mappings only. The 10 km cell exists only on the species map and location ladder. No PostGIS | Keeps the authoritative open boundary separate from provider query identity |
 | Language | German and English from the scaffold, every string behind an i18n key | The owner is user #1 and German; the product is global. Vocabulary is fixed in German first (studiert · entdeckt) |
 
 ### Navigation
