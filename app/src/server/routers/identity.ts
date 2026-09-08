@@ -15,6 +15,7 @@ import { consume, lock } from '../quotas'
 import type { Prisma } from '../../generated/prisma/client'
 import { photoUrl, queuePhotoDeletes, retryPendingPhotoDeletes } from '../photos'
 import { expectedOrigin, issueChallenge, rpID, rpName, takeChallenge } from '../webauthn'
+import { germanyProgress } from '../germanyProgress'
 
 // The WebAuthn response shapes come from the browser library; zod only checks the envelope, simplewebauthn checks the rest.
 const registrationResponse = z.custom<RegistrationResponseJSON>((v) => typeof v === 'object' && v !== null && 'id' in v && 'response' in v)
@@ -142,6 +143,9 @@ export const identityRouter = router({
       tiles: filter?.tiles ?? [],
     }
   }),
+
+  // Germany is an additional aggregate: it does not change global or per-region collection state.
+  germanyProgress: publicProcedure.query(({ ctx }) => germanyProgress(ctx.db, ctx.identity.id)),
 
   // Name and photo are yours (spec §⚖️): local to the identity, never in a payload before a passkey exists.
   setName: publicProcedure.input(z.object({ displayName: z.string().trim().max(40) })).mutation(({ ctx, input }) =>
