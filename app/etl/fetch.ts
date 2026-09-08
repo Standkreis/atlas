@@ -1,5 +1,5 @@
 // The fetch layer, ported from scripts/etl-probe/lib.mjs (record 0002 E11): GET JSON or text with a URL-keyed disk
-// cache under etl/.cache/<host>/, a per-host budget per run (50,000, `ETL_BUDGET`), per-host gaps as reserved slots, an in-flight cap for GBIF, retries with backoff, one User-Agent.
+// cache under etl/.cache/<host>/, a total network-attempt budget per process (50,000, `ETL_BUDGET`), per-host gaps as reserved slots, an in-flight cap for GBIF, retries with backoff, one User-Agent.
 // The probe ran ~7,000 responses on exactly these settings with zero 429s.
 import { createHash } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
@@ -28,6 +28,7 @@ const MAX_INFLIGHT: Record<string, number> = { 'api.gbif.org': 6 }
 const ATTEMPTS = 5
 
 const budget: Record<string, number> = {}
+let networkAttempts = 0
 /** The next free slot per host, reserved before sleeping: parallel callers queue instead of firing together. */
 const nextSlot: Record<string, number> = {}
 const inflight: Record<string, number> = {}
@@ -49,8 +50,66 @@ const release = (host: string) => {
 const stats = { hits: 0, misses: 0, retries: 0, tooMany: 0 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+export type RequestStats = {
+  perHost: Record<string, number>
+  networkAttempts?: number
+  hits: number
+  misses: number
+  retries: number
+  tooMany: number
+}
+
+const emptyRequestStats = (): RequestStats => ({ perHost: {}, networkAttempts: 0, hits: 0, misses: 0, retries: 0, tooMany: 0 })
+
+export class ResponseCaptureFailure extends Error {
+  readonly requests: RequestStats
+
+  constructor(cause: unknown, requests: RequestStats) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause })
+    this.name = 'ResponseCaptureFailure'
+    this.requests = requests
+  }
+}
+
+export const failedCaptureRequests = (error: unknown): RequestStats | null => (
+  error instanceof ResponseCaptureFailure ? error.requests : null
+)
+
 const cachePolicy = new AsyncLocalStorage<{ refresh: boolean }>()
 export const withFreshCache = <T>(fn: () => Promise<T>): Promise<T> => cachePolicy.run({ refresh: true }, fn)
+type ResponseCapture = { entries: { url: string; response: string }[]; requests: RequestStats }
+/**
+ * Capture the effective responses read by an ETL operation without retaining their bodies.
+ * The returned digest is stable for the same URL/response pairs, regardless of completion order.
+ * Each async context owns its entries, so concurrent runs cannot contaminate one another.
+ */
+export async function withResponseCapture<T>(fn: () => Promise<T>): Promise<{ value: T; fingerprint: string; requests: RequestStats }> {
+  const capture: ResponseCapture = { entries: [], requests: emptyRequestStats() }
+  let value: T
+  try {
+    value = await responseCapture.run(capture, fn)
+  } catch (error) {
+    throw new ResponseCaptureFailure(error, capture.requests)
+  }
+  const fingerprint = createHash('sha256')
+  for (const entry of [...capture.entries].sort((a, b) => a.url.localeCompare(b.url) || a.response.localeCompare(b.response))) {
+    fingerprint.update(entry.url).update('\0').update(entry.response).update('\n')
+  }
+  return { value, fingerprint: fingerprint.digest('hex'), requests: capture.requests }
+}
+const responseCapture = new AsyncLocalStorage<ResponseCapture>()
+const recordResponse = (url: string, response: string) => responseCapture.getStore()?.entries.push({ url, response })
+const recordRequest = (kind: 'hits' | 'misses' | 'retries' | 'tooMany', amount = 1) => {
+  const captured = responseCapture.getStore()?.requests
+  if (captured) captured[kind] += amount
+}
+const recordAttempt = (host: string) => {
+  const captured = responseCapture.getStore()?.requests
+  if (!captured) return
+  captured.networkAttempts = (captured.networkAttempts ?? 0) + 1
+  captured.perHost[host] = (captured.perHost[host] ?? 0) + 1
+}
+const bodyFingerprint = (body: string) => createHash('sha256').update(body).digest('hex')
 export const CACHE_TTL_MS = 30 * 86_400_000
 type Opts = { headers?: Record<string, string>; text?: boolean; bytes?: boolean; maxAgeMs?: number; signal?: AbortSignal }
 /** An API key travels in the query string (xeno-canto v3); it never reaches a log line or an error message. */
@@ -66,12 +125,13 @@ export async function get(url: string, { headers = {}, text = false, bytes = fal
   const file = join(dir, createHash('sha1').update(url).digest('hex') + (text ? '.txt' : '.json'))
   if (DISK && !bytes && !cachePolicy.getStore()?.refresh && existsSync(file) && Date.now() - statSync(file).mtimeMs < maxAgeMs) {
     stats.hits++
+    recordRequest('hits')
     const raw = readFileSync(file, 'utf8')
+    recordResponse(url, bodyFingerprint(raw))
     return text ? raw : JSON.parse(raw)
   }
-  budget[host] = (budget[host] ?? 0) + 1
-  if (budget[host] > BUDGET) throw new Error(`budget exhausted for ${host} (${BUDGET}/run)`)
   stats.misses++
+  recordRequest('misses')
   const gap = MIN_GAP[host] ?? 100
   const slot = async () => {
     const at = Math.max(Date.now(), nextSlot[host] ?? 0)
@@ -90,16 +150,22 @@ export async function get(url: string, { headers = {}, text = false, bytes = fal
     let lastErr: Error | undefined
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
       await slot()
+      if (networkAttempts >= BUDGET) throw new Error(`total request budget exhausted (${BUDGET} network attempts)`)
+      networkAttempts += 1
+      budget[host] = (budget[host] ?? 0) + 1
+      recordAttempt(host)
       try {
         const timeout = AbortSignal.timeout(15_000)
         const r = await fetch(url, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout, headers: { 'User-Agent': UA, Accept: text || bytes ? '*/*' : 'application/json', ...headers } })
         if (r.status === 404) {
           if (!bytes) store(dir, file, text ? '' : 'null')
+          if (!bytes) recordResponse(url, '404')
           return text ? '' : null
         }
         if (r.status === 429 || r.status >= 500) {
-          if (r.status === 429) stats.tooMany++
+          if (r.status === 429) { stats.tooMany++; recordRequest('tooMany') }
           stats.retries++
+          recordRequest('retries')
           lastErr = new Error(`${r.status} ${redact(url)}`)
           await sleep(1500 * 2 ** attempt)
           continue
@@ -109,11 +175,13 @@ export async function get(url: string, { headers = {}, text = false, bytes = fal
         const body = await r.text()
         if (!text) JSON.parse(body)
         store(dir, file, body)
+        if (!bytes) recordResponse(url, bodyFingerprint(body))
         return text ? body : JSON.parse(body)
       } catch (e) {
         lastErr = e as Error
         if (!/fetch failed|ECONNRESET|ETIMEDOUT|UND_ERR/.test(lastErr.message)) throw e
         stats.retries++
+        recordRequest('retries')
         await sleep(1500 * 2 ** attempt)
       }
     }
@@ -121,8 +189,8 @@ export async function get(url: string, { headers = {}, text = false, bytes = fal
   }
 }
 
-/** Requests actually sent per host this run (cache hits excluded), plus hit/miss/retry/429 counters; `misses` is the network total. */
-export const requests = () => ({ perHost: { ...budget }, ...stats })
+/** Requests actually attempted per host, plus cache-miss, retry and 429 counters. */
+export const requests = (): RequestStats => ({ perHost: { ...budget }, networkAttempts, ...stats })
 
 /** Query string; array values repeat the key (GBIF style), undefined values are dropped. */
 export const q = (params: Record<string, string | number | boolean | (string | number)[] | undefined>) =>

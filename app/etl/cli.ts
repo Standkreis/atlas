@@ -1,6 +1,8 @@
 // The ETL CLI (handoff 0006 Track A). npm run etl -- <command> [args]
 //   region <prepared name | canonical key | gadmGid> query units → accepted-key aggregation → one regional set
 //   registry --mapping <path> checked-in BKG registry + locally reviewed GADM mapping → versioned region rows
+//   germany --registry <id> --run <key> [--concurrency 1] [--json]
+//                             resumable staged Germany catalogue → deduplicated national taxon union
 //   refresh [--days 30]       re-run the region job for regions older than 30 days
 //   content [--region <name>] [--purge <key>] [--limit n] [--force]
 //                             fill Taxon content (names, intro, facts, assets, interactions) once per taxon; --force refetches only the GloBI edges of filled taxa (0028)
@@ -44,6 +46,22 @@ async function main() {
       console.log(`\n${r.name} · ${r.total} obs · set ${r.set} · lookalike pairs ${r.lookalikes} · "nur jetzt" (month ${month}) ${r.nowInMonth(month)}`)
       console.log(TILES.map((t) => `${TILE_ICON[t]} ${r.perTile[t] ?? 0}`).join('  '))
       console.log(`${r.seconds.toFixed(1)} s · requests ${JSON.stringify(r.requests)}`)
+      break
+    }
+    case 'germany': {
+      const registryVersionId = flag('registry')
+      const runKey = flag('run')
+      if (!registryVersionId || !runKey) throw new Error('usage: etl germany --registry <version-id> --run <new-or-resumable-key> [--concurrency 1] [--json]')
+      const { formatNationwideReport, runGermany } = await import('./nationwide')
+      const json = rest.includes('--json')
+      const result = await runGermany({
+        registryVersionId,
+        runKey,
+        concurrency: Number(flag('concurrency') ?? 1),
+        log: json ? (message) => console.error(message) : console.log,
+      })
+      console.log(json ? JSON.stringify(result.report, null, 2) : `\n${formatNationwideReport(result.report)}`)
+      if (result.report.catalogue.status !== 'complete') process.exitCode = 2
       break
     }
     case 'refresh': {
@@ -108,7 +126,7 @@ async function main() {
       break
     }
     default:
-      console.log('usage: npm run etl -- registry --mapping <reviewed-local-json> | region <prepared name | canonical key | gadmGid> [--month m] | refresh [--days 30] | content [--region <name>] [--purge <gbifKey>] [--limit n] [--force [--keys k1,k2]] | facts [--region <name>] [--purge] [--force] [--limit n] | sounds [--region <name>] [--limit n] | prose --region <name> [--driver files|api] [--run <name>] | prose --load --run <name> | prose --purge [--region <name>] | sweep')
+      console.log('usage: npm run etl -- registry --mapping <reviewed-local-json> | germany --registry <version-id> --run <key> [--concurrency 1] [--json] | region <prepared name | canonical key | gadmGid> [--month m] | refresh [--days 30] | content [--region <name>] [--purge <gbifKey>] [--limit n] [--force [--keys k1,k2]] | facts [--region <name>] [--purge] [--force] [--limit n] | sounds [--region <name>] [--limit n] | prose --region <name> [--driver files|api] [--run <name>] | prose --load --run <name> | prose --purge [--region <name>] | sweep')
       process.exitCode = 1
   }
 }
