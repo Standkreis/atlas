@@ -11,6 +11,13 @@ Personal atlas over open biodiversity data. Owner: Sven Reiser. Application code
 - Delegate when an independent task benefits from it and the host allows it. Give each worker bounded ownership. No mandatory file-count threshold or model-specific context ceiling.
 - Report evidence, uncertainty and delivery state concisely. Challenge assumptions when evidence warrants it. Attribution must identify the agent actually used; do not append a fixed Claude model identity.
 
+## Communication and review experience
+
+- Write for Sven's ADHD-friendly scanning: lead with the outcome, then decisions, actions, blockers and delivery state before supporting detail. Keep paragraphs short and avoid walls of text.
+- Make multi-part output visually navigable with concise headings, whitespace, bullets, checklists, tables or small diagrams when they improve scanning. Keep simple answers simple.
+- Use relevant emoji in headings and status markers as stable visual landmarks across conversations, issues, handoffs, findings, reviews and status reports. Keep them purposeful and consistent so they guide rather than distract.
+- Default to concise summaries with progressive detail. Link evidence instead of repeating large logs or diffs.
+
 ## Project boundaries
 
 - Read `app/AGENTS.md` before application work, including when starting from the repository root.
