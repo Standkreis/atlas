@@ -1,11 +1,13 @@
 import { afterAll, beforeAll, afterEach, describe, expect, it, vi } from 'vitest'
 import { createHash } from 'node:crypto'
 const disk = vi.hoisted(() => ({ mtime: Date.now(), body: '{"source":"cache"}' }))
+const guard = vi.hoisted(() => ({ dispatch: vi.fn(async <T>(fn: () => Promise<T>) => fn()), block: vi.fn(async () => {}) }))
+vi.mock('./inat-request-ledger', () => ({ dispatchInat: guard.dispatch, blockInatUntil: guard.block }))
 vi.mock('node:fs', () => ({ existsSync: () => true, mkdirSync: () => {}, readFileSync: () => disk.body, writeFileSync: () => {}, statSync: () => ({ mtimeMs: disk.mtime }) }))
 let layer: typeof import('./fetch')
 beforeAll(async () => { vi.stubEnv('VERCEL', ''); layer = await import('./fetch') })
 afterAll(() => vi.unstubAllEnvs())
-afterEach(() => { layer.resetFetchSchedulingForTest(); vi.useRealTimers(); vi.unstubAllGlobals(); disk.mtime = Date.now() })
+afterEach(() => { layer.resetFetchSchedulingForTest(); vi.useRealTimers(); vi.unstubAllGlobals(); disk.mtime = Date.now(); guard.dispatch.mockClear(); guard.block.mockClear() })
 
 const digest = (...parts: string[]) => {
   const hash = createHash('sha256')
@@ -27,6 +29,21 @@ describe('Retry-After', () => {
 })
 
 describe('ETL cache freshness', () => {
+  it('keeps cached iNaturalist reads free and guards every dispatched retry/error attempt', async () => {
+    vi.useFakeTimers()
+    const network = vi.fn().mockResolvedValueOnce(new Response('slow down', { status: 429, headers: { 'Retry-After': '2' } })).mockResolvedValueOnce(Response.json({ ok: true }))
+    vi.stubGlobal('fetch', network)
+    expect(await layer.get('https://api.inaturalist.org/test')).toEqual({ source: 'cache' })
+    expect(guard.dispatch).not.toHaveBeenCalled()
+    const result = layer.withFreshCache(() => layer.get('https://api.inaturalist.org/test'))
+    await vi.advanceTimersByTimeAsync(3_000)
+    await expect(result).resolves.toEqual({ ok: true })
+    expect(guard.dispatch).toHaveBeenCalledTimes(2)
+    expect(guard.block).toHaveBeenCalledTimes(1)
+    expect(network).toHaveBeenCalledTimes(2)
+    expect(network.mock.calls[0]?.[1]).toMatchObject({ redirect: 'error' })
+  })
+
   it('reuses fresh data but a refresh run fetches even a fresh cached response', async () => {
     const network = vi.fn(async () => Response.json({ source: 'network' }))
     vi.stubGlobal('fetch', network)

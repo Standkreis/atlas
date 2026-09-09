@@ -1,11 +1,12 @@
 // The fetch layer, ported from scripts/etl-probe/lib.mjs (record 0002 E11): GET JSON or text with a URL-keyed disk
-// cache under etl/.cache/<host>/, a total network-attempt budget per process (50,000, `ETL_BUDGET`), per-host gaps as reserved slots, an in-flight cap for GBIF, retries with backoff, one User-Agent.
-// The probe ran ~7,000 responses on exactly these settings with zero 429s.
+// cache under etl/.cache/<host>/, a total network-attempt budget per process (50,000, `ETL_BUDGET`),
+// durable shared iNaturalist allowance, per-host slots, GBIF in-flight cap, retries and one User-Agent.
 import { createHash } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { blockInatUntil, dispatchInat } from './inat-request-ledger'
 
 export const UA = 'standkreis-dex/0.1 (https://github.com/svreiser/standkreis-dex; svreiser@gmail.com)'
 export const CACHE = join(dirname(fileURLToPath(import.meta.url)), '.cache')
@@ -178,12 +179,20 @@ export async function get(url: string, { headers = {}, text = false, bytes = fal
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
       await slot()
       if (networkAttempts >= BUDGET) throw new Error(`total request budget exhausted (${BUDGET} network attempts)`)
-      networkAttempts += 1
-      budget[host] = (budget[host] ?? 0) + 1
-      recordAttempt(host)
       try {
-        const timeout = AbortSignal.timeout(15_000)
-        const r = await fetch(url, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout, headers: { 'User-Agent': UA, Accept: text || bytes ? '*/*' : 'application/json', ...headers } })
+        const dispatch = () => {
+          // Recheck after a shared-ledger wait; another host may have consumed the process budget.
+          if (networkAttempts >= BUDGET) throw new Error(`total request budget exhausted (${BUDGET} network attempts)`)
+          signal?.throwIfAborted()
+          networkAttempts += 1
+          budget[host] = (budget[host] ?? 0) + 1
+          recordAttempt(host)
+          const timeout = AbortSignal.timeout(15_000)
+          return fetch(url, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+            ...(host === 'api.inaturalist.org' ? { redirect: 'error' as const } : {}),
+            headers: { 'User-Agent': UA, Accept: text || bytes ? '*/*' : 'application/json', ...headers } })
+        }
+        const r = await (host === 'api.inaturalist.org' ? dispatchInat(dispatch, { signal }) : dispatch())
         if (r.status === 404) {
           if (!bytes) store(dir, file, text ? '' : 'null')
           if (!bytes) recordResponse(url, '404')
@@ -196,6 +205,7 @@ export async function get(url: string, { headers = {}, text = false, bytes = fal
           lastErr = new Error(`${r.status} ${redact(url)}`)
           const retryAt = Date.now() + retryAfterMs(r.headers.get('retry-after'), attempt)
           blockedUntil[host] = Math.max(blockedUntil[host] ?? 0, retryAt)
+          if (host === 'api.inaturalist.org') await blockInatUntil(retryAt)
           continue
         }
         if (!r.ok) throw new Error(`${r.status} ${redact(url)}`)

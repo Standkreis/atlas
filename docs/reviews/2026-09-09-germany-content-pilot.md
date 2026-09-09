@@ -136,3 +136,33 @@ uses bounded batches with individual request reports; source responses and prior
 survived the host crash. All 6,874 union taxa remain in scope, including honest no-image
 fallbacks. Existing production photos remain governed by the separate preservation-first
 migration plan. Final national counts, frozen samples and transfer approval are still pending.
+
+## 🔬 Bounded naming ambiguity review — 13:15 UTC addendum
+
+Independent Codex reviewer `/root/audit19_scientific_final` reviewed the twelve ambiguous or
+non-species naming outcomes present at this interim snapshot. All twelve retained scientific
+fallbacks and empty common-name selections; no guessed label was published. Six associated
+Commons references matched the selected species-ranked item's file and retained credit/licence
+metadata. No confirmed application naming or Commons-assignment defect was found. This is a
+bounded source-record review, not a final nationwide ambiguity count or decoded-image review.
+
+Nine cases showed spelling or gender-ending variants. The other cases must not be flattened
+into generic duplicates: *Melitaea diamina* had a species/subspecies identifier collision;
+*Fragaria ×ananassa* had a species/nothospecies rank collision; and *Rubus fruticosus* had an
+explicit homonym collision. The Fragaria item rejected by the species-rank gate is a
+nothospecies, not a cultivar. That gate's `non-species` outcome does not invalidate or remove
+the accepted hybrid from the catalogue.
+
+For Rubus, the [selected authored record](https://www.wikidata.org/w/index.php?title=Q13541716&oldid=2521608079)
+agrees with the GBIF Linnaean name; the
+[other same-spelling record](https://www.wikidata.org/w/index.php?title=Q135502823&oldid=2535545416)
+is explicitly homonymous, not an established synonym. The
+[Commons file-specific source](https://commons.wikimedia.org/w/index.php?title=File:Blackberry_(Rubus_fruticosus).jpg&oldid=1271223496)
+supports the stored credit and CC BY-SA 4.0 grant. Source consistency of a detached-fruit
+photograph does not independently certify its biological identification. No taxon IDs,
+catalogue membership or personal progress were merged from these findings.
+
+The local repeatable-read evidence snapshot is bound by SHA-256
+`432dce0de130c1cf730e05d9e4eb97d2ad6c18c33c6b22b5670b08562c11e6e3`.
+Raw records remain outside Git. Any additional ambiguous outcomes require review after the
+final names pass; final sample decoding and complete fresh URL checks remain separate gates.

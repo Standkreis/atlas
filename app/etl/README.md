@@ -22,7 +22,7 @@ TypeScript on `tsx`, the app's Prisma client, and `ffmpeg-static` (dev dependenc
 | `registry/germany-regions.json` · `registry/registry.ts` | Pinned BKG/BBSR region and Kreis-unit snapshot, complete source/licence metadata and strict invariant validation. No GADM ids, geometry or crosswalk are redistributed in Git |
 | `registry-mapping.ts` · `registry-import.ts` | Strict local-only GBIF/GADM mapping validation and the transactional, idempotent Postgres importer. Mapping provenance and reviewed query ids live only in the operational database |
 | `accepted-taxonomy.ts` · `composite-aggregation.ts` | Deduplicated accepted-key resolution and pure composite count aggregation. Floors/cuts happen after the merge; ties use accepted key ascending |
-| `fetch.ts` | `get` with cache, total-attempt budget (`ETL_BUDGET`, 50,000/run), gaps as reserved slots (iNat 1,100 ms, Wikidata and GloBI 300 ms, GBIF 200 ms with at most 2 in flight, else 100 ms), 5 attempts, shared-host `Retry-After`/bounded fallback cooldown, one User-Agent · request-scoped and process counters · `pool` · `q` |
+| `fetch.ts` | `get` with cache, total-attempt budget (`ETL_BUDGET`, 50,000/run), durable shared iNat rolling-24h allowance (9,000 default; 10,000 ceiling), gaps as reserved slots (iNat 1,100 ms, Wikidata and GloBI 300 ms, GBIF 200 ms with at most 2 in flight, else 100 ms), 5 attempts, shared-host `Retry-After`/bounded fallback cooldown, one User-Agent · request-scoped and process counters · `pool` · `q` |
 | `gbif.ts` | `resolveRegion`, `gbifFacet`, `gbifSpecies`, `gbifMatch`, the occurrence window (`ETL_YEARS`, default `2016,2026`) |
 | `rules.ts` | Pure: `tileOf`, `cutTile`, `monthShares` (per 100,000), `words`, `nowRatio`, `isNow`. Shared with the read routers |
 | `prune.ts` | Pure: `pickNames`, `iucnCode`, the Commons reject list, iNat licences, `foldKind`, `capEdges`, `parseAnAge`. Tested in `src/server/routers/taxon.test.ts` |
@@ -93,6 +93,39 @@ and size outliers. The human report is the default. `--json` emits the full dura
 automation. A partial run exits with status 2 after writing its report; rerun the identical command
 to continue. Network concurrency is capped at four, GBIF scheduling/retries remain governed by
 `fetch.ts`, and `ETL_BUDGET` counts every actual network attempt, including retries.
+
+### Shared iNaturalist allowance
+
+The [official API practices](https://www.inaturalist.org/pages/api+recommended+practices)
+recommend about one request/second and around 10,000 API requests/day. Uncached
+`api.inaturalist.org` requests require `ETL_INAT_LEDGER`, one existing absolute `.json` file
+shared by **every** worktree and batch process on the host. This is additional to the per-process
+`ETL_BUDGET`, not a replacement. Cache hits are free; `ETL_BUDGET=0` remains cache-only and
+does not require a ledger. CDN image checks are separate from API request accounting.
+
+Initialize deliberately through `initializeInatLedger` in `inat-request-ledger.ts`, supplying
+the absolute path, explicit UTC `holdUntil`, and a retained reason explaining prior activity.
+For unknown previous traffic, hold until at least 24 hours after its last possible request;
+never infer zero history from missing logs, cache files, a new worktree, or a process restart.
+The default `dailyLimit` is 9,000 as a conservative margin; an explicit limit can never exceed
+10,000. Initialization refuses existing
+history. It performs no provider or database requests; initialization itself is not permission
+to resume a paused job.
+
+The ledger reserves attempts durably **before dispatch**, counts retries/failures conservatively,
+enforces a rolling 24-hour allowance and 1,100 ms shared gap, and persists Retry-After cooldowns.
+Automatic API redirects are refused so they cannot dispatch uncounted follow-up requests.
+Requests reserved just before an abort/crash can remain counted without reaching the provider.
+Missing/corrupt files, backward clocks, failed persistence and unresolved locks fail closed.
+`.lock` and `.next` files are recovery evidence: never age-delete/steal a lock or reset a ledger
+to regain quota. Stop all participating workers, preserve the files, establish that no owner can
+dispatch, and review history/uncertainty before any manual recovery; uncertainty requires a new
+documented hold covering the unaccounted window. Store these files outside disposable worktrees,
+in a private local directory; do not share them across machines/network filesystems.
+
+Only participating processes are counted. Browsers, scripts bypassing `get`, other machines,
+and previously untracked requests remain external uncertainty, not automatically free allowance.
+Retain per-batch reports alongside the ledger and stop before changing provider-accounting scope.
 
 ### Resumable reference galleries ([#36](https://github.com/Standkreis/atlas/issues/36))
 
