@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { TILES } from '../src/domain/rules'
 import { inatLicence, inatLicenceUrl, inatLicensed, normalizedRemoteUrl, validReferenceImage } from '../src/domain/referenceImages'
 import { safeReferenceUrl, type NetworkCheck } from './gallery-network-audit'
+import { scientificGalleryExclusion } from './gallery'
 import { CONTENT_WORK_VERSIONS, canonicalContent, contentDigest, contentSnapshotDigests, qualifiedReference, relevantWork, writeGalleryArtifact } from './catalogue-gallery-transfer'
 
 export type ContentTaxon = Record<string, unknown> & { id: string; gbifKey: number; sciName: string; rank: string; tile: string; commonNames: unknown; intro: unknown; facts: unknown; prose: unknown; contentAt: unknown }
@@ -180,6 +181,8 @@ export function buildContentAudit(snapshot: ContentAuditSnapshot, review: Conten
     if (assets.length > 12 || assets.some((asset, index) => asset.position !== index)) fail('gallery-order', taxon.id, 'gallery must have zero to 12 images at consecutive positions starting at zero')
     const urls = new Set<string>(), pages = new Set<string>()
     for (const asset of assets) {
+      const exclusion = scientificGalleryExclusion(asset)
+      if (exclusion) fail('gallery-scientific-exclusion', asset.id, `${exclusion.ruleId}: ${exclusion.reason}; ${exclusion.evidence}`)
       bump(galleries.origins, asset.origin)
       if (asset.position === 0) bump(galleries.leadOrigins, asset.origin)
       if (!validReferenceImage(asset) || !safeReferenceUrl(asset.url) || !nonempty(asset.caption)) { fail('gallery-metadata', asset.id, 'invalid render/source URL, author, caption or licence metadata'); continue }
@@ -230,6 +233,11 @@ export function buildContentAudit(snapshot: ContentAuditSnapshot, review: Conten
         const item = object(rejection)
         if (!nonempty(item?.reason) || !nonempty(item?.source)) { fail('gallery-rejection-shape', taxon.id, 'malformed candidate rejection'); continue }
         const reason = item!.reason as string
+        if (reason === 'ambiguous-species-attribution') {
+          const source = item!.source as string
+          const exclusion = source.startsWith('commons:') ? scientificGalleryExclusion({ origin: 'commons', sourceId: source.slice(8) }) : null
+          if (!exclusion || canonicalContent(item!.review ?? null) !== canonicalContent(exclusion)) fail('gallery-exclusion-evidence', taxon.id, 'scientific source rejection lacks its exact reviewed rule/evidence')
+        }
         bump(galleries.rejections, reason)
         if (reason === 'gallery-cap') capped = true
         else galleries.rejectedCandidates++

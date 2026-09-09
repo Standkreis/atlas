@@ -8,9 +8,9 @@ import { commonsInfo, commonsLicenceUrl, fetchInatGallery } from './sources'
 import { runTaxonWork, type TaxonWorkResult } from './taxon-work'
 import { wikidataFor } from './wikidata'
 
-// v4 requires detailed native-free iNaturalist provenance; imported/unknown originals are
-// withheld until their licence can be verified. Earlier checkpoints remain historical evidence.
-export const GALLERY_VERSION = 'licensed-gallery-v4'
+// v5 retains v4's native-free iNaturalist gate and withholds the reviewed ambiguous
+// Red bartsia Commons source. Earlier checkpoints remain historical evidence, not current proof.
+export const GALLERY_VERSION = 'licensed-gallery-v5'
 export type GalleryTaxon = { id: string; gbifKey: number; sciName: string }
 export type GalleryFetch = GallerySelection & { coverage: { inat: boolean; commons: boolean } }
 

@@ -166,3 +166,29 @@ The local repeatable-read evidence snapshot is bound by SHA-256
 `432dce0de130c1cf730e05d9e4eb97d2ad6c18c33c6b22b5670b08562c11e6e3`.
 Raw records remain outside Git. Any additional ambiguous outcomes require review after the
 final names pass; final sample decoding and complete fresh URL checks remain separate gates.
+
+## 🔬 Approved image withholding — 16:28 UTC addendum
+
+The owner [approved withholding](https://github.com/Standkreis/atlas/issues/21#issuecomment-5605162646)
+Commons `File:Red bartsia 800.jpg` from both new Odontites galleries pending identification.
+The source category and description conflict; its CC BY-SA 3.0 grant is not the defect.
+The exact source evidence retains SHA-256
+`075799c48c4aad347569c306d8acaa84d5ddcb7de89f99fd300ba3018920818f`.
+Both accepted taxon identities and catalogue memberships remain unchanged.
+
+Version `licensed-gallery-v5` re-evaluated all 3,588 completed v4 taxa in fifteen bounded
+cache-only batches: zero network requests, zero failures, exactly two changed galleries.
+The full earlier completed-work snapshot and every unaffected reference Asset row retained
+identical before/after digests, including IDs and timestamps. Reference rows changed from
+18,897 to 18,895; vulgaris retains five images, vernus three with a new eligible lead.
+Old v4 checkpoints and raw source responses remain historical evidence. No production data
+was changed. Final whole-union completion and newly bound artifacts remain outstanding.
+An immediate unchanged v5 repeat over those same 3,588 keys examined zero taxa and made zero
+network requests. Fresh disposable checks passed 71 integration and 370 unit tests, typecheck,
+lint (six existing warnings, no errors), 2,413-page static export `mtubbtqy`, production server
+build `mtubc8qh`, bilingual phone/desktop journeys and gallery/offline private-cache checks.
+
+The separate names retry completed all 6,874 checkpoints with 72 Wikidata requests, one retry,
+zero HTTP 429 responses and zero failed/lost work. This closes the processing backlog, not the
+final scientific review of ambiguous outcomes. The iNaturalist hold remains until at least
+10 September 14:40 UTC, conditional on no intervening callers.

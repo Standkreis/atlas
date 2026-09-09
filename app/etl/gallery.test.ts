@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { selectGallery, type CommonsCandidate, type InatGallerySource, type InatPhotoCandidate } from './gallery'
+import { scientificGalleryExclusion, selectGallery, type CommonsCandidate, type InatGallerySource, type InatPhotoCandidate } from './gallery'
 import { fetchInatGallery } from './sources'
 
 const photo = (id: number, extra: Partial<InatPhotoCandidate> = {}): InatPhotoCandidate => ({
@@ -25,6 +25,39 @@ const commons = (extra: Partial<CommonsCandidate> = {}): CommonsCandidate => ({
 })
 
 describe('licensed gallery selection', () => {
+  it.each(['Odontites vulgaris', 'Odontites vernus'])('withholds only the reviewed ambiguous Commons source for %s, preserving other images', (scientificName) => {
+    const candidate = commons({ sourceId: 'File:Red bartsia 800.jpg', title: 'File:Red bartsia 800.jpg',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Red_bartsia_800.jpg',
+      renderUrl: 'https://upload.wikimedia.org/wikipedia/commons/d/db/Red_bartsia_800.jpg?utm_source=commons' })
+    for (const defaultId of [1, null]) {
+      const input = { scientificName, inat: inat([photo(1), photo(2)], defaultId, scientificName), commons: candidate }
+      const before = structuredClone(input)
+      const selected = selectGallery(input)
+      expect(selected.assets.map((asset) => [asset.position, asset.origin, asset.sourceUrl])).toEqual([
+        [0, 'inat', 'https://www.inaturalist.org/photos/1'], [1, 'inat', 'https://www.inaturalist.org/photos/2'],
+      ])
+      expect(selected.rejections).toEqual([{ source: 'commons:File:Red bartsia 800.jpg', reason: 'ambiguous-species-attribution',
+        review: { ruleId: 'commons-red-bartsia-ambiguous-species-v1', reason: 'ambiguous-species-attribution', evidence: 'app/etl/README.md#reviewed-scientific-image-exclusions', evidenceSha256: expect.stringMatching(/^[a-f0-9]{64}$/) } }])
+      expect(input).toEqual(before)
+      expect(selectGallery(input)).toEqual(selected)
+    }
+    expect(selectGallery({ scientificName, commons: candidate })).toMatchObject({ status: 'ok', assets: [] })
+    expect(selectGallery({ scientificName, commons: commons({ title: 'Odontites vernus', categories: 'Odontites vulgaris' }) }).assets).toHaveLength(1)
+  })
+
+  it('matches exact reviewed Commons identities across URL spellings without excluding similarly named sources', () => {
+    for (const sourceUrl of ['https://commons.wikimedia.org/wiki/File:Red_bartsia_800.jpg?x=1', 'https://commons.wikimedia.org/wiki/File:Red%20bartsia%20800.jpg', 'https://commons.wikimedia.org/w/index.php?title=File:Red_bartsia_800.jpg&oldid=460093141']) {
+      expect(scientificGalleryExclusion({ origin: 'commons', sourceUrl })?.reason).toBe('ambiguous-species-attribution')
+    }
+    expect(scientificGalleryExclusion({ origin: 'commons', sourceId: 'File:Red_bartsia_800.jpg' })).not.toBeNull()
+    expect(scientificGalleryExclusion({ origin: 'commons', url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Red_bartsia_800.jpg/640px-Red_bartsia_800.jpg?x=2' })).not.toBeNull()
+    for (const image of [
+      { origin: 'inat', sourceId: 'File:Red bartsia 800.jpg' },
+      { origin: 'commons', sourceId: 'File:Red bartsia 800 different.jpg' },
+      { origin: 'commons', sourceUrl: 'https://other.example/wiki/File:Red_bartsia_800.jpg' },
+    ]) expect(scientificGalleryExclusion(image)).toBeNull()
+  })
+
   it('keeps the lead ladder and places Commons after an accepted default', () => {
     const selected = selectGallery({ scientificName: 'Turdus merula', inat: inat([photo(2), photo(1)], 2), commons: commons() })
     expect(selected.assets.map((asset) => [asset.position, asset.origin, asset.sourceUrl])).toEqual([

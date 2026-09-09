@@ -148,8 +148,8 @@ narrows it further and rejects any key outside the selected set. `--limit` bound
 not the first N catalogue members: repeated limited runs advance through pending work. Invalid
 scope is rejected before any work row is seeded. No model or paid content API is used.
 
-The globally unique checkpoint is `(taxonId, gallery, licensed-gallery-v4)`. Version 4
-requires matching detailed iNaturalist `taxon_photos` records to consistently identify a
+The globally unique checkpoint is `(taxonId, gallery, licensed-gallery-v5)`. Version 5
+retains version 4's requirement for matching detailed iNaturalist `taxon_photos` records to consistently identify a
 `LocalPhoto` with explicitly null `native_page_url` and `native_photo_id`. The abbreviated
 `default_photo`, LocalPhoto type alone, and an iNaturalist CDN URL cannot prove native provenance.
 Default candidates inherit proof only from the same photo ID's full detailed records. Imported,
@@ -164,13 +164,35 @@ production photos, whose preservation/visibility is owned by the separate migrat
 Version 4 retains version 3's correction that
 canonicalizes legacy HTTP and localized Creative Commons deed links only when their family,
 version and jurisdiction exactly match the declared licence. Credentials and nondefault ports
-remain invalid. Versions 1–3 are historical checkpoints, not current completion evidence.
+remain invalid. Versions 1–4 are historical checkpoints, not current completion evidence.
 Completed work,
 including a valid zero-image result, is reused across catalogue versions. Failed or expired work
 is retried once per invocation; a live lease is left to its owner. Stop/restart with the same
 command to resume. There is no destructive force flag; an intentional rules refresh requires a
 reviewed gallery-version change. A lost lease cannot publish. Gallery replacement and work
 completion share one transaction, while unchanged galleries keep their Asset IDs and timestamps.
+
+#### Reviewed scientific image exclusions
+
+On 2026-09-09 the owner approved withholding the exact Commons source
+`File:Red bartsia 800.jpg` from the new galleries for Odontites vulgaris (GBIF 5415024) and
+Odontites vernus (8971475), retaining both species, memberships and other photos. The retained
+Commons category says vulgaris while the [pinned source description](https://commons.wikimedia.org/w/index.php?title=File:Red_bartsia_800.jpg&oldid=460093141)
+says vernus; this is unresolved species attribution, not a licence defect or taxon-merge decision.
+The reviewed source-evidence bundle has SHA-256
+`075799c48c4aad347569c306d8acaa84d5ddcb7de89f99fd300ba3018920818f`.
+
+Version 5 applies rule `commons-red-bartsia-ambiguous-species-v1` to this exact Commons file
+identity before ordering/capping. Rejections retain `ambiguous-species-attribution`, the rule,
+evidence reference and digest; the final content audit independently blocks that source or a
+scientific rejection without its reviewed evidence. No species/category-wide rejection is added.
+Existing production rows remain subject to the separately reviewed preservation migration.
+
+Re-evaluate prior completed galleries using retained responses and `ETL_BUDGET=0`; do not copy
+v4 completion rows into v5. Cache misses remain explicit failed/retryable work, not zero-image
+successes. Preserve old checkpoints and raw source evidence. Unchanged galleries retain IDs;
+changed galleries get consecutive positions. Regenerate final content/gallery artifacts and
+their review bindings after replay; catalogue membership and the union fingerprint stay unchanged.
 
 The report's examined/changed/unchanged/zero/capped/rejected/failed/lost counts and source/image
 totals describe this invocation; `work.counts` includes reusable completed work in the selected

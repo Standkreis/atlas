@@ -77,13 +77,19 @@ This API alternative requires a detailed `LocalPhoto` record with explicitly nul
 fields. The global iNaturalist mapping does not establish an imported Flickr/Commons photo's
 original licence version; an abbreviated `default_photo` alone cannot prove native provenance.
 Under the [owner-approved conservative release rule](https://github.com/Standkreis/atlas/issues/21#issuecomment-5601624909),
-`licensed-gallery-v4` excludes imported, unknown or contradictory iNaturalist candidates from
+`licensed-gallery-v5` retains v4's exclusion of imported, unknown or contradictory iNaturalist candidates from
 new galleries. Matching detailed records must consistently establish native-free provenance;
 the type or image host alone is insufficient. Rejections retain reasons and bounded provenance,
 with complete responses kept in the cache. There is no automatic original-source verifier or
 licence relabelling. Earlier gallery versions are historical work, not current completion
 evidence. Existing production photos follow the separately reviewed preservation-first plan;
 this local selector does not authorize their replacement or deletion.
+Version 5 additionally applies the [owner-approved exact Commons-photo exclusion](https://github.com/Standkreis/atlas/issues/21#issuecomment-5605162646)
+for `File:Red bartsia 800.jpg`: its conflicting Odontites attribution remains unresolved.
+Both species and their other photos remain. Preserve the scientific rejection's rule and evidence,
+and replay earlier completed work from cache rather than relabelling v4 checkpoints. The final
+audit rejects this source independently of reported work completion. See the
+[selection contract](../../app/etl/README.md#reviewed-scientific-image-exclusions).
 Source-linked photographs can depict diagnostic traces rather than an adult animal; do not
 silently claim field-identification certainty or introduce an unreviewed visual classifier.
 

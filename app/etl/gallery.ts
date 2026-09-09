@@ -4,6 +4,33 @@ export { normalizedRemoteUrl, commonsLicenceFamily, commonsLicenceUrlMatches } f
 
 export const GALLERY_LIMIT = 12
 
+const RED_BARTSIA_REVIEW = {
+  ruleId: 'commons-red-bartsia-ambiguous-species-v1',
+  reason: 'ambiguous-species-attribution' as const,
+  evidence: 'app/etl/README.md#reviewed-scientific-image-exclusions',
+  evidenceSha256: '075799c48c4aad347569c306d8acaa84d5ddcb7de89f99fd300ba3018920818f',
+}
+
+/** Exact reviewed source identity, not a species/name/category or licence-family exclusion. */
+export function scientificGalleryExclusion(image: { origin: string; sourceId?: string; sourceUrl?: string | null; url?: string | null }) {
+  if (image.origin !== 'commons') return null
+  const file = (value: string) => {
+    try { return decodeURIComponent(value).replace(/_/g, ' ').trim() === 'File:Red bartsia 800.jpg' } catch { return false }
+  }
+  if (image.sourceId && file(image.sourceId)) return RED_BARTSIA_REVIEW
+  try {
+    const page = new URL(image.sourceUrl ?? '')
+    if (page.hostname === 'commons.wikimedia.org' &&
+      ((page.pathname.startsWith('/wiki/') && file(page.pathname.slice(6))) ||
+        (page.pathname === '/w/index.php' && file(page.searchParams.get('title') ?? '')))) return RED_BARTSIA_REVIEW
+  } catch { /* Invalid source URLs remain subject to the separate metadata gate. */ }
+  try {
+    const render = new URL(image.url ?? '')
+    if (render.hostname === 'upload.wikimedia.org' && /^\/wikipedia\/commons\/(?:thumb\/)?d\/db\/Red_bartsia_800\.jpg(?:\/[^/]+)?$/.test(decodeURIComponent(render.pathname))) return RED_BARTSIA_REVIEW
+  } catch { /* Invalid render URLs remain subject to the separate metadata gate. */ }
+  return null
+}
+
 export type InatPhotoProvenance = {
   status: 'native-free-local-photo' | 'unverified-imported-licence' | 'unknown-provenance'
   detailedRecords: number
@@ -69,11 +96,13 @@ export type GalleryRejectionReason =
   | 'gallery-cap'
   | 'unverified-imported-licence'
   | 'unknown-provenance'
+  | 'ambiguous-species-attribution'
 
 export type GalleryRejection = {
   source: string
   reason: GalleryRejectionReason
   provenance?: InatPhotoProvenance
+  review?: typeof RED_BARTSIA_REVIEW
 }
 
 export type GallerySelection = {
@@ -133,6 +162,11 @@ function commonsCandidate(raw: CommonsCandidate, sciName: string, rejections: Ga
   const sourceId = clean(raw.sourceId)
   const source = `commons:${sourceId || '?'}`
   if (!sourceId) return reject(rejections, source, 'invalid-source-id')
+  const exclusion = scientificGalleryExclusion({ origin: 'commons', sourceId, sourceUrl: raw.sourceUrl, url: raw.renderUrl })
+  if (exclusion) {
+    rejections.push({ source, reason: exclusion.reason, review: exclusion })
+    return null
+  }
   if (commonsRejected(raw.title, raw.categories)) return reject(rejections, source, 'rejected-commons-subject')
   if (!clean(raw.renderUrl)) return reject(rejections, source, 'missing-render-url')
   const render = httpsUrl(raw.renderUrl)

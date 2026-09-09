@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createHash } from 'node:crypto'
 import { buildContentAudit, networkReviewTemplate, parseContentAuditArgs, parseContentNetworkReview, parseContentUrlReport, requireLocalContentDatabase, validateOfficialApiRecord, type ContentAuditReport, type ContentAuditSnapshot, type ContentNetworkReview, type ContentAsset, type ContentWork, type ContentUrlCheckReport } from './catalogue-content-audit'
 import { CONTENT_WORK_VERSIONS, contentDigest, contentSnapshotDigests } from './catalogue-gallery-transfer'
+import { scientificGalleryExclusion } from './gallery'
 
 const at = '2026-09-09T10:00:00.000Z'
 const clock = () => new Date(at)
@@ -34,6 +35,35 @@ function checkedUrls(data: ContentAuditSnapshot, generatedAt = at): ContentUrlCh
 const codes = (snapshot: ContentAuditSnapshot) => buildContentAudit(snapshot).defects.map((defect) => defect.code)
 
 describe('German catalogue content audit', () => {
+  it('independently blocks the reviewed excluded photo despite complete v5 work and passing network evidence', () => {
+    const data = fixture(), asset = data.assets[0]!
+    Object.assign(asset, { origin: 'commons', sourceUrl: 'https://commons.wikimedia.org/wiki/File:Red%20bartsia%20800.jpg',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/d/db/Red_bartsia_800.jpg?utm_source=commons',
+      licence: 'CC BY-SA 3.0', licenceUrl: 'https://creativecommons.org/licenses/by-sa/3.0/' })
+    const summary = data.work.find((row) => row.taxonId === asset.taxonId && row.kind === 'gallery')!.resultSummary as Record<string, unknown>
+    Object.assign(summary, { inatImages: 0, commonsImages: 1, coverage: { inat: false, commons: true } })
+    const audit = buildContentAudit(data, approved(buildContentAudit(data)), checkedUrls(data), clock)
+    expect(audit.versions.gallery).toBe('licensed-gallery-v5')
+    expect(audit.work.gallery.complete).toBe(4)
+    expect(audit.defects.map((finding) => finding.code)).toEqual(['gallery-scientific-exclusion'])
+    expect(audit.verdict).toBe('blocked')
+  })
+
+  it('requires current v5 checkpoints and retains scientific exclusion evidence separately from licence rejection', () => {
+    const data = fixture()
+    for (const row of data.work.filter((work) => work.kind === 'gallery')) row.version = 'licensed-gallery-v4'
+    expect(buildContentAudit(data).work.gallery).toMatchObject({ missing: 4, complete: 0 })
+    for (const row of data.work.filter((work) => work.kind === 'gallery')) row.version = CONTENT_WORK_VERSIONS.gallery
+    const summary = data.work.find((row) => row.kind === 'gallery')!.resultSummary as Record<string, unknown>
+    const rejection = { source: 'commons:File:Red bartsia 800.jpg', reason: 'ambiguous-species-attribution',
+      review: scientificGalleryExclusion({ origin: 'commons', sourceId: 'File:Red bartsia 800.jpg' }) }
+    summary.rejections = [rejection]
+    expect(buildContentAudit(data).galleries.rejections).toEqual({ 'ambiguous-species-attribution': 1 })
+    expect(codes(data)).toEqual([])
+    rejection.review = null
+    expect(codes(data)).toContain('gallery-exclusion-evidence')
+  })
+
   it('requires representative network evidence without confusing metadata validity with image rendering', () => {
     const data = fixture(), audit = buildContentAudit(data)
     expect(audit.defects).toEqual([])
