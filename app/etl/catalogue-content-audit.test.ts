@@ -169,6 +169,19 @@ describe('German catalogue content audit', () => {
     const record = { results: [{ id: 123, name: scientificName, default_photo: photo, taxon_photos: [{ photo }] }] }
     expect(() => validateOfficialApiRecord(sample, asset, scientificName, record)).not.toThrow()
     expect(sample.sourcePageChecked).toBe(false)
+    const abbreviatedDefault = { id: photo.id, url: photo.url, attribution: photo.attribution, license_code: photo.license_code }
+    expect(() => validateOfficialApiRecord(sample, asset, scientificName, { results: [{ ...record.results[0], default_photo: abbreviatedDefault }] })).not.toThrow()
+    // A detailed-looking default is not taxon_photos evidence, nor is another photo's detail.
+    for (const details of [undefined, [], [{ photo: { ...photo, id: photo.id + 1 } }]]) {
+      expect(() => validateOfficialApiRecord(sample, asset, scientificName, { results: [{ ...record.results[0], taxon_photos: details }] })).toThrow('does not reproduce')
+    }
+    // A clean peer cannot hide any incomplete matching detailed record, in either order.
+    for (const missing of [{ type: undefined }, { native_page_url: undefined }, { native_photo_id: undefined }]) {
+      const incomplete = { photo: { ...photo, ...missing } }
+      for (const details of [[{ photo }, incomplete], [incomplete, { photo }]]) {
+        expect(() => validateOfficialApiRecord(sample, asset, scientificName, { results: [{ ...record.results[0], taxon_photos: details }] })).toThrow('does not reproduce')
+      }
+    }
     expect(() => validateOfficialApiRecord(sample, asset, scientificName, { results: [{ id: 123, name: scientificName, taxon_photos: [{ photo: { ...photo, attribution_name: 'Author' } }] }] })).not.toThrow()
     for (const malformed of [null, {}, { results: [] }, { results: [record.results[0], record.results[0]] },
       { results: [{ ...record.results[0], id: 124 }] }, { results: [{ ...record.results[0], name: 'Different species' }] },
@@ -177,7 +190,7 @@ describe('German catalogue content audit', () => {
     }
     for (const changed of [{ id: photo.id + 1 }, { url: asset.url.replace('/medium.jpg', '/different.jpg') }, { attribution: 'Someone else' }, { license_code: 'cc-by-nc' }, { license_code: null },
       { type: 'FlickrPhoto' }, { native_page_url: 'https://www.flickr.com/photos/example/123' }, { native_photo_id: '123' }, { type: undefined, native_page_url: undefined, native_photo_id: undefined }]) {
-      expect(() => validateOfficialApiRecord(sample, asset, scientificName, { results: [{ id: 123, name: scientificName, default_photo: { ...photo, ...changed } }] })).toThrow('does not reproduce')
+      expect(() => validateOfficialApiRecord(sample, asset, scientificName, { results: [{ id: 123, name: scientificName, taxon_photos: [{ photo: { ...photo, ...changed } }] }] })).toThrow('does not reproduce')
     }
     // A duplicate photo ID with conflicting source metadata must not be hidden by a first-match lookup.
     expect(() => validateOfficialApiRecord(sample, asset, scientificName, { results: [{ ...record.results[0], taxon_photos: [{ photo: { ...photo, license_code: null } }] }] })).toThrow('does not reproduce')

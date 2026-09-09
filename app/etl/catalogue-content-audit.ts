@@ -96,6 +96,7 @@ export function validateOfficialApiRecord(sample: ContentNetworkReview['samples'
   if (!taxon || !Number.isSafeInteger(taxon.id) || request.pathname !== `/v1/taxa/${taxon.id}` || taxon.name !== scientificName ||
     (taxon.taxon_photos !== undefined && !Array.isArray(taxon.taxon_photos))) return reject()
   const photos: Record<string, unknown>[] = []
+  const detailedPhotos: Record<string, unknown>[] = []
   if (taxon.default_photo !== null && taxon.default_photo !== undefined) {
     const photo = object(taxon.default_photo)
     if (!photo) return reject()
@@ -105,12 +106,14 @@ export function validateOfficialApiRecord(sample: ContentNetworkReview['samples'
     const photo = object(object(entry)?.photo)
     if (!photo) return reject()
     photos.push(photo)
+    detailedPhotos.push(photo)
   }
   const matched = photos.filter((photo) => photo.id === evidence.photoId)
-  if (!matched.length) return reject()
+  const matchedDetailed = detailedPhotos.filter((photo) => photo.id === evidence.photoId)
   // The common iNaturalist version map is not proof of an imported source's original licence.
-  // default_photo omits provenance; require a detailed native-free LocalPhoto counterpart.
-  if (!matched.some((photo) => photo.type === 'LocalPhoto' && photo.native_page_url === null && photo.native_photo_id === null) ||
+  // Only actual taxon_photos entries count as detailed evidence, even if default_photo has
+  // identical fields. Every matching detailed peer must be complete and native-free.
+  if (!matchedDetailed.length || !matchedDetailed.every((photo) => photo.type === 'LocalPhoto' && photo.native_page_url === null && photo.native_photo_id === null) ||
     matched.some((photo) => (photo.type != null && photo.type !== 'LocalPhoto') ||
       (photo.native_page_url != null && photo.native_page_url !== '') || (photo.native_photo_id != null && photo.native_photo_id !== ''))) return reject()
   const clean = (value: unknown) => typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : ''

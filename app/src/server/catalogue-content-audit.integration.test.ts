@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { Client } from 'pg'
 import { db } from '../../etl/db'
 import { CONTENT_WORK_VERSIONS, contentDigest } from '../../etl/catalogue-gallery-transfer'
-import { buildContentAudit, loadContentSnapshot, networkReviewTemplate, writeContentAuditBundle } from '../../etl/catalogue-content-audit'
+import { buildContentAudit, loadContentSnapshot, networkReviewTemplate, writeContentAuditBundle, type ContentNetworkReview } from '../../etl/catalogue-content-audit'
 
 const prefix = 'issue21-content-audit'
 const registry = `${prefix}-registry`, catalogue = `${prefix}-catalogue`, member = `${prefix}-member`, outside = `${prefix}-outside`, owner = `${prefix}-owner`, sighting = `${prefix}-sighting`
@@ -101,12 +101,14 @@ describe('local content audit and gallery transfer selection', () => {
     expect(lines.filter((line) => line.type === 'row' && line.table === 'Asset').map((line) => line.row.id)).toEqual([`${prefix}-public`])
     expect(lines.filter((line) => line.type === 'row' && line.table === 'TaxonEnrichmentWork')).toHaveLength(2)
     const cachePath = join(directory, 'official-api-record.json')
-    const cacheBytes = JSON.stringify({ results: [{ id: 456, name: 'Reviewus contentus', default_photo: {
+    const defaultPhoto = {
       id: 123, license_code: 'cc-by', attribution: 'Photographer', medium_url: 'https://inaturalist-open-data.s3.amazonaws.com/photos/123/medium.jpg',
-      type: 'LocalPhoto', native_page_url: null, native_photo_id: null,
-    }, taxon_photos: [] }] })
+    }
+    const detailedPhoto = { ...defaultPhoto, type: 'LocalPhoto', native_page_url: null, native_photo_id: null }
+    const apiTaxon = { id: 456, name: 'Reviewus contentus', default_photo: defaultPhoto, taxon_photos: [{ photo: detailedPhoto }] }
+    const cacheBytes = JSON.stringify({ results: [apiTaxon] })
     await writeFile(cachePath, cacheBytes)
-    const apiReview = { ...JSON.parse(await readFile(reviewPath, 'utf8')), samples: template.samples.map((sample) => ({ ...sample,
+    const apiReview: ContentNetworkReview = { ...JSON.parse(await readFile(reviewPath, 'utf8')), samples: template.samples.map((sample) => ({ ...sample,
       rendered: true, sourcePageChecked: false, attributionChecked: true, licenceChecked: true, evidence: 'Synthetic retained official API fixture, not a live public page.',
       officialApiEvidence: { provider: 'iNaturalist', photoId: 123, sourcePageUrl: 'https://www.inaturalist.org/photos/123', requestUrl: 'https://api.inaturalist.org/v1/taxa/456', cachePath,
         cacheSha256: createHash('sha256').update(cacheBytes).digest('hex'), retrievedAt: at.toISOString(),
@@ -114,6 +116,20 @@ describe('local content audit and gallery transfer selection', () => {
     })) }
     await writeFile(reviewPath, JSON.stringify(apiReview))
     expect((await writeContentAuditBundle({ catalogue, output: directory, networkReview: reviewPath, urlChecks: urlChecksPath, now: () => at })).manifest.eligible).toBe(true)
+    // Correctly hashed bytes are still rejected when actual detailed provenance is absent
+    // or a complete matching peer masks another matching entry with missing native fields.
+    for (const invalidTaxon of [
+      { ...apiTaxon, default_photo: detailedPhoto, taxon_photos: [] },
+      { ...apiTaxon, taxon_photos: [{ photo: detailedPhoto }, { photo: defaultPhoto }] },
+    ]) {
+      const invalidBytes = JSON.stringify({ results: [invalidTaxon] })
+      await writeFile(cachePath, invalidBytes)
+      await writeFile(reviewPath, JSON.stringify({ ...apiReview, samples: apiReview.samples.map((sample) => ({ ...sample,
+        officialApiEvidence: { ...sample.officialApiEvidence, cacheSha256: createHash('sha256').update(invalidBytes).digest('hex') },
+      })) }))
+      await expect(writeContentAuditBundle({ catalogue, output: directory, networkReview: reviewPath, urlChecks: urlChecksPath, now: () => at })).rejects.toThrow('does not reproduce')
+    }
+    await writeFile(reviewPath, JSON.stringify(apiReview))
     await writeFile(cachePath, JSON.stringify({ results: [] }))
     await expect(writeContentAuditBundle({ catalogue, output: directory, networkReview: reviewPath, urlChecks: urlChecksPath, now: () => at })).rejects.toThrow('evidence bytes changed')
     expect(await db.asset.findMany({ where: { id: { startsWith: prefix } }, orderBy: { id: 'asc' } })).toEqual(before)
