@@ -219,3 +219,29 @@ The bounded final names evidence is SHA-256
 its Commons-cache follow-up is
 `e3956306cb2dfe26a382062c42537b69d25ee052fa3022fb3508d797a8e85979`.
 Raw public evidence remains outside Git. This review made no provider requests or data changes.
+
+## 🖼️ Changed-gallery and nationwide response checks — 17:04 UTC addendum
+
+On a separate full-data local clone, build `mtuc4u10` returned all 6,874 `taxon.page` responses
+with HTTP 200 and valid identity, name fallback and ordered gallery envelopes. There were no
+request failures or HTTP 500s, and the union fingerprint stayed unchanged. This checks API
+shape and local transport, not production performance or completion of unfinished galleries.
+
+Reviewer `/root/cache_only_fast_fail` then checked both changed Odontites galleries in isolated
+Chrome at exact 390×844 and 1280×900. All eight remaining images decoded at each size (16
+states), with exact active author/licence/source metadata and links. Vernus uses photo 49060867
+as its new lead; vulgaris retains five images and vernus three. Home/End/arrows, both-end
+clamps, 44×44 controls and no horizontal overflow passed. Only eight unique image-CDN URLs
+were requested; the withheld Commons image appeared in neither the data, DOM nor network.
+No provider API calls or botanical identification claims were made. Root inspected the two
+curated captures below. Raw observations and other captures remain outside Git.
+
+![Vernus replacement lead and attribution on phone](2026-09-09-germany-content/phone-odontites-vernus-attribution.webp)
+
+![Vulgaris preserved lead and attribution on desktop](2026-09-09-germany-content/desktop-odontites-vulgaris-attribution.webp)
+
+A separate zero-budget cache-readiness pass found three additional valid no-image outcomes;
+normal scoped replay completed them without requests. Current v5 progress is 3,591 complete
+and 3,283 still requiring fresh source requests. Do not interpret API zero-image responses for
+unfinished taxa as completed source coverage. The explicit provider hold and final artifact,
+URL and representative source-review gates remain unchanged.
