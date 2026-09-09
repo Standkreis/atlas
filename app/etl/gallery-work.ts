@@ -8,7 +8,9 @@ import { commonsInfo, commonsLicenceUrl, fetchInatGallery } from './sources'
 import { runTaxonWork, type TaxonWorkResult } from './taxon-work'
 import { wikidataFor } from './wikidata'
 
-export const GALLERY_VERSION = 'licensed-gallery-v1'
+// v3 canonicalizes legacy HTTP and localized Creative Commons deeds without changing rights.
+// Keep v1 and the HTTP-only v2 pilot checkpoints as history, never silently reusing stale work.
+export const GALLERY_VERSION = 'licensed-gallery-v3'
 export type GalleryTaxon = { id: string; gbifKey: number; sciName: string }
 export type GalleryFetch = GallerySelection & { coverage: { inat: boolean; commons: boolean } }
 

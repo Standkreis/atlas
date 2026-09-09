@@ -105,7 +105,11 @@ narrows it further and rejects any key outside the selected set. `--limit` bound
 not the first N catalogue members: repeated limited runs advance through pending work. Invalid
 scope is rejected before any work row is seeded. No model or paid content API is used.
 
-The globally unique checkpoint is `(taxonId, gallery, licensed-gallery-v1)`. Completed work,
+The globally unique checkpoint is `(taxonId, gallery, licensed-gallery-v3)`. Version 3
+canonicalizes legacy HTTP and localized Creative Commons deed links only when their family,
+version and jurisdiction exactly match the declared licence. Credentials and nondefault ports
+remain invalid. Versions 1 and 2 are historical checkpoints, not current completion evidence.
+Completed work,
 including a valid zero-image result, is reused across catalogue versions. Failed or expired work
 is retried once per invocation; a live lease is left to its owner. Stop/restart with the same
 command to resume. There is no destructive force flag; an intentional rules refresh requires a
@@ -126,6 +130,23 @@ transactional replacement filter and preserve completed global galleries, sounds
 avatars and every user-owned image. Facts/prose follow only successfully filled taxa. The legacy
 content command still provides optional rich content; the gallery command alone does not claim
 complete prose, facts, sounds or interactions.
+
+### German index-ready names and content audit ([#21](https://github.com/Standkreis/atlas/issues/21))
+
+After galleries, run `npm run --silent etl -- names --catalogue <completed-id> --json`.
+The same `--region`, `--keys`, `--limit` and `--concurrency` scope flags are supported. Names
+reuse the gallery pass's Wikidata response cache; run the phases sequentially so their
+per-process host pacing is not multiplied. The `(taxonId, names, wikidata-names-v1)` checkpoint
+records matching evidence and selected/added labels. Existing nonempty names and unrelated
+global content remain unchanged. Missing, ambiguous and non-species matches complete with an
+honest scientific-name fallback; malformed responses fail and remain retryable.
+
+Use the [content audit and filtered transfer runbook](../../docs/operations/germany-content-audit.md)
+for whole-union coverage, resumable live image-URL checks, representative decoded/browser
+review and a reference-only gallery artifact. Names change the Taxon payload: regenerate and
+re-review the base catalogue artifact after enrichment, then bind both final artifacts to the
+same frozen local data. Neither artifact generation nor localhost activation transfers data to
+production. The separately agreed migration/recovery plan remains a release prerequisite.
 
 Why the region job precedes the content job: a species enters a set first, content follows. GloBI targets outside every set get a `Taxon` row (tile from GBIF's ranks, `contentAt` null) and are never picked up by the content job unless they gain a plausibility row or a sighting (record 0002 E13).
 

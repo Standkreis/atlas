@@ -3,6 +3,8 @@
 //   registry --mapping <path> checked-in BKG registry + locally reviewed GADM mapping → versioned region rows
 //   germany --registry <id> --run <key> [--concurrency 1] [--reuse-cache] [--json]
 //                             resumable staged Germany catalogue → deduplicated national taxon union
+//   names --catalogue <completed-id> [--region <key|name|uuid>] [--keys k1,k2] [--limit n] [--concurrency n] [--json]
+//                             bounded Wikidata common-name enrichment over the completed catalogue union
 //   refresh [--days 30]       re-run the region job for regions older than 30 days
 //   content [--region <name>] [--purge <key>] [--limit n] [--force]
 //                             fill Taxon content (names, intro, facts, assets, interactions) once per taxon; --force refetches only the GloBI edges of filled taxa (0028)
@@ -83,6 +85,14 @@ async function main() {
       if (result.failed || result.lost) process.exitCode = 2
       break
     }
+    case 'names': {
+      const { runNames, formatNamesReport, parseNamesArgs } = await import('./names-work')
+      const { json, ...options } = parseNamesArgs(rest)
+      const result = await runNames({ ...options, log: json ? console.error : console.log })
+      console.log(json ? JSON.stringify(result, null, 2) : formatNamesReport(result))
+      if (result.failed || result.lost) process.exitCode = 2
+      break
+    }
     case 'content': {
       const { runContent } = await import('./content')
       const keys = flag('keys')?.split(',').map(Number).filter(Number.isFinite)
@@ -139,7 +149,7 @@ async function main() {
       break
     }
     default:
-      console.log('usage: npm run etl -- registry --mapping <reviewed-local-json> | germany --registry <version-id> --run <key> [--concurrency 1] [--reuse-cache] [--json] | region <prepared name | canonical key | gadmGid> [--month m] | refresh [--days 30] | content [--region <name>] [--purge <gbifKey>] [--limit n] [--force [--keys k1,k2]] | facts [--region <name>] [--purge] [--force] [--limit n] | sounds [--region <name>] [--limit n] | prose --region <name> [--driver files|api] [--run <name>] | prose --load --run <name> | prose --purge [--region <name>] | sweep')
+      console.log('usage: npm run etl -- registry --mapping <reviewed-local-json> | germany --registry <version-id> --run <key> [--concurrency 1] [--reuse-cache] [--json] | names --catalogue <completed-id> [--region <key|name|uuid>] [--keys k1,k2] [--limit n] [--concurrency n] [--json] | region <prepared name | canonical key | gadmGid> [--month m] | refresh [--days 30] | content [--region <name>] [--purge <gbifKey>] [--limit n] [--force [--keys k1,k2]] | facts [--region <name>] [--purge] [--force] [--limit n] | sounds [--region <name>] [--limit n] | prose --region <name> [--driver files|api] [--run <name>] | prose --load --run <name> | prose --purge [--region <name>] | sweep')
       process.exitCode = 1
   }
 }

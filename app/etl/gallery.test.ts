@@ -105,6 +105,8 @@ describe('licensed gallery selection', () => {
     ['unsupported-licence', { licence: 'CC BY-NC 4.0' }],
     ['missing-licence-url', { licenceUrl: null }],
     ['invalid-licence-url', { licenceUrl: 'https://creativecommons.org/licenses/by/4.0/' }],
+    ['invalid-licence-url', { licenceUrl: 'https://user:pass@creativecommons.org/licenses/by-sa/4.0/' }],
+    ['invalid-licence-url', { licenceUrl: 'https://creativecommons.org:8443/licenses/by-sa/4.0/' }],
     ['missing-source-page', { sourceUrl: '' }],
     ['insecure-source-page', { sourceUrl: 'http://commons.wikimedia.org/wiki/File:X.jpg' }],
     ['rejected-commons-subject', { title: 'File:Turdus merula specimen.jpg' }],

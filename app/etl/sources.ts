@@ -148,7 +148,23 @@ export async function commonsInfo(p18Urls: string[], strict = false): Promise<Ma
 }
 
 /** Commons gives no LicenseUrl for public-domain and "Attribution" files: the PD mark, else the file page that states the terms. */
-export const commonsLicenceUrl = (licence: string, url: string | null, descriptionUrl: string) => url ?? (/public domain|pd/i.test(licence) ? 'https://creativecommons.org/publicdomain/mark/1.0/' : descriptionUrl)
+export function commonsLicenceUrl(licence: string, url: string | null, descriptionUrl: string) {
+  if (url) {
+    try {
+      const canonical = new URL(url)
+      // Legacy HTTP and localized /deed.en URLs identify the same canonical HTTPS deed.
+      // Never change the licence family, version or jurisdiction; verify all three below.
+      if (['http:', 'https:'].includes(canonical.protocol) && canonical.hostname === 'creativecommons.org' &&
+        !canonical.username && !canonical.password && !canonical.port) {
+        canonical.protocol = 'https:'
+        canonical.search = ''; canonical.hash = ''
+        canonical.pathname = canonical.pathname.replace(/\/deed\.[a-z]{2,3}(?:[_-][a-z]{2,4})?\/?$/i, '/')
+        if (commonsLicenceUrlMatches(licence, canonical.href)) return canonical.href
+      }
+    } catch { /* Leave malformed metadata invalid; selection reports its rejection. */ }
+  }
+  return url ?? (/public domain|pd/i.test(licence) ? 'https://creativecommons.org/publicdomain/mark/1.0/' : descriptionUrl)
+}
 
 /** Ladder step 2: the P18 file unless it is a specimen, plate, larva, egg or map, or lacks author or licence. */
 export function commonsAsset(info: Map<string, ImageInfo>, p18: string | undefined, sciName: string): AssetDraft | null {
