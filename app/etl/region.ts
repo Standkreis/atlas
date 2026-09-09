@@ -398,7 +398,9 @@ async function executeRegion(
       where: {
         status: 'active',
         habitatRulesVersion: { gt: 0 },
-        registryVersion: { entries: { some: { id: target.registryEntryId } } },
+        // A live Region row can be reused by multiple registry snapshots. Protect by that
+        // stable row, not only by the entry ID supplied to this invocation.
+        registryVersion: { entries: { some: { regionId: target.regionId } } },
       },
       select: { runKey: true },
     })
