@@ -393,6 +393,19 @@ async function executeRegion(
   dependencies: RegionJobDependencies,
 ): Promise<RegionResult> {
   const started = Date.now()
+  if (target.registryEntryId) {
+    const protectedCatalogue = await db.catalogueVersion.findFirst({
+      where: {
+        status: 'active',
+        habitatRulesVersion: { gt: 0 },
+        registryVersion: { entries: { some: { id: target.registryEntryId } } },
+      },
+      select: { runKey: true },
+    })
+    if (protectedCatalogue) {
+      throw new Error(`region ${target.name} belongs to active filtered catalogue ${protectedCatalogue.runKey}; build a new nationwide candidate instead`)
+    }
+  }
   await db.region.update({ where: { id: target.regionId }, data: { status: 'queued', error: null } })
   try {
     const calculation = await calculateRegion(target, log, dependencies)

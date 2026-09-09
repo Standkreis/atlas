@@ -144,7 +144,7 @@ const recordAttempt = (host: string) => {
 }
 const bodyFingerprint = (body: string) => createHash('sha256').update(body).digest('hex')
 export const CACHE_TTL_MS = 30 * 86_400_000
-type Opts = { headers?: Record<string, string>; text?: boolean; bytes?: boolean; maxAgeMs?: number; signal?: AbortSignal }
+type Opts = { headers?: Record<string, string>; text?: boolean; bytes?: boolean; maxAgeMs?: number; timeoutMs?: number; signal?: AbortSignal }
 /** An API key travels in the query string (xeno-canto v3); it never reaches a log line or an error message. */
 const redact = (url: string) => url.replace(/([?&]key=)[^&]+/, '$1…')
 
@@ -152,7 +152,8 @@ const redact = (url: string) => url.replace(/([?&]key=)[^&]+/, '$1…')
 export async function get<T = unknown>(url: string, opts?: Opts & { text?: false; bytes?: false }): Promise<T | null>
 export async function get(url: string, opts: Opts & { text: true }): Promise<string>
 export async function get(url: string, opts: Opts & { bytes: true }): Promise<Uint8Array | null>
-export async function get(url: string, { headers = {}, text = false, bytes = false, maxAgeMs = CACHE_TTL_MS, signal }: Opts = {}): Promise<unknown> {
+export async function get(url: string, { headers = {}, text = false, bytes = false, maxAgeMs = CACHE_TTL_MS, timeoutMs = 15_000, signal }: Opts = {}): Promise<unknown> {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_TIMER_MS) throw new Error('request timeout must be a positive bounded integer')
   const host = new URL(url).hostname
   const dir = join(CACHE, host)
   const file = join(dir, createHash('sha1').update(url).digest('hex') + (text ? '.txt' : '.json'))
@@ -192,7 +193,7 @@ export async function get(url: string, { headers = {}, text = false, bytes = fal
       budget[host] = (budget[host] ?? 0) + 1
       recordAttempt(host)
       try {
-        const timeout = AbortSignal.timeout(15_000)
+        const timeout = AbortSignal.timeout(timeoutMs)
         const r = await fetch(url, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout, headers: { 'User-Agent': UA, Accept: text || bytes ? '*/*' : 'application/json', ...headers } })
         if (r.status === 404) {
           if (!bytes) store(dir, file, text ? '' : 'null')

@@ -69,18 +69,18 @@ describe('bounded authoritative match checkpoints', () => {
     expect(() => wormsMatchUrl(Array.from({ length: 51 }, (_, index) => `Species ${index}`))).toThrow('1–50')
   })
 
-  it('deduplicates names, batches at 50, and resumes in another resolver without source I/O', async () => {
+  it('deduplicates names, uses the measured operational batch size, and resumes without source I/O', async () => {
     const store = new MemoryStore()
     const lookup = vi.fn(async (names: readonly string[]) => JSON.stringify(names.map(() => [])))
     const names = Array.from({ length: 103 }, (_, index) => `Species ${String(index).padStart(3, '0')}`)
     const result = await catalogueHabitatResolver('cat', store, lookup, now)([...names, names[0]!])
     expect(result.size).toBe(103)
-    expect(lookup.mock.calls.map(([batch]) => batch.length)).toEqual([50, 50, 3])
+    expect(lookup.mock.calls.map(([batch]) => batch.length)).toEqual([20, 20, 20, 20, 20, 3])
     const resumed = await catalogueHabitatResolver('cat', store, lookup, now)(names.slice().reverse())
     expect([...resumed]).toEqual([...result])
-    expect(lookup).toHaveBeenCalledTimes(3)
+    expect(lookup).toHaveBeenCalledTimes(6)
     const audit = habitatAudit([...store.batches.values()])
-    expect(audit).toMatchObject({ batches: 3, names: 103, reasons: { unmatched: 103 }, sourceDates: ['2026-09-09'] })
+    expect(audit).toMatchObject({ batches: 6, names: 103, reasons: { unmatched: 103 }, sourceDates: ['2026-09-09'] })
     expect(JSON.stringify(audit)).not.toContain('rawResponse')
   })
 
@@ -95,7 +95,7 @@ describe('bounded authoritative match checkpoints', () => {
 
   it('persists successful batches before request exhaustion and retries only missing names', async () => {
     const store = new MemoryStore()
-    const names = Array.from({ length: 51 }, (_, index) => `Species ${String(index).padStart(3, '0')}`)
+    const names = Array.from({ length: 21 }, (_, index) => `Species ${String(index).padStart(3, '0')}`)
     const lookup = vi.fn(async (batch: readonly string[]) => {
       if (batch.length === 1) throw new Error('total request budget exhausted (1 network attempts)')
       return JSON.stringify(batch.map(() => []))
@@ -103,8 +103,8 @@ describe('bounded authoritative match checkpoints', () => {
     await expect(catalogueHabitatResolver('cat', store, lookup, now)(names)).rejects.toThrow('request budget exhausted')
     expect(store.batches.size).toBe(1)
     const retry = vi.fn(async (batch: readonly string[]) => JSON.stringify(batch.map(() => [])))
-    expect((await catalogueHabitatResolver('cat', store, retry, now)(names)).size).toBe(51)
-    expect(retry.mock.calls).toEqual([[[names[50]]]])
+    expect((await catalogueHabitatResolver('cat', store, retry, now)(names)).size).toBe(21)
+    expect(retry.mock.calls).toEqual([[[names[20]]]])
   })
 
   it.each(['null', '[]', '[{}]', '[[null]]', '[[null,null]]', 'not json'])('refuses malformed/incomplete source envelopes: %s', async (raw) => {

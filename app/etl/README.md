@@ -75,7 +75,8 @@ Germany run while one is `building` or `partial` is rejected; finish or explicit
 first.
 
 Germany habitat rule v1 also pins the WoRMS Aphia source contract. Every distinct accepted
-regional-set name is matched in batches of at most 50 (`marine_only=false`). Only a unique exact
+regional-set name is matched in operational batches of 20 (below the API maximum of 50) with a
+60-second source timeout and `marine_only=false`. Only a unique exact
 accepted-name match with positive marine and no positive freshwater/terrestrial evidence is
 excluded, before staging membership, lookalikes, picker summaries and the national union.
 Unmatched, ambiguous, inexact and habitat-unknown names are retained and reported. See the
@@ -83,7 +84,11 @@ Unmatched, ambiguous, inexact and habitat-unknown names are retained and reporte
 The raw bounded batch envelopes stay in local `CatalogueHabitatBatch` checkpoints; reports expose
 derived evidence, source dates, fingerprints and request statistics. Successful batches are reused
 within this catalogue after interruption; missing WoRMS batches are always fetched fresh, including
-with `--reuse-cache`. Use a new run key when moving from a historical unfiltered candidate.
+with `--reuse-cache`. The habitat audit's checkpointed successful-request total is durable across
+process interruption; it may overlap the region-attempt request statistics and is reported
+separately. Use a new run key when moving from a historical unfiltered candidate. Once a filtered
+catalogue is active, the single-region publishers refuse its registry entries because they cannot
+update the pinned national union atomically; refresh through a new nationwide candidate instead.
 
 Each region is leased and calculated into `CatalogueRegionBuild`, `CataloguePlausibility`, and
 `CatalogueLookalike`. These candidate tables do not change live regions, live plausibility,

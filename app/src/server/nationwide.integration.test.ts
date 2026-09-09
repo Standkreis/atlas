@@ -6,7 +6,7 @@ import { WORMS_SOURCE, wormsMatchUrl } from '../../etl/marine-habitat'
 import { importRegionRegistry } from '../../etl/registry-import'
 import { parseRegionQueryMapping } from '../../etl/registry-mapping'
 import { parseRegionRegistry, type RegionRegistry } from '../../etl/registry/registry'
-import type { RegistryRegionCalculation, RegionJobDependencies } from '../../etl/region'
+import { runRegion, runRegistryRegion, type RegistryRegionCalculation, type RegionJobDependencies } from '../../etl/region'
 import { runTaxonWork } from '../../etl/taxon-work'
 import { db } from './db'
 import { germanyProgress } from './germanyProgress'
@@ -453,6 +453,13 @@ describe('nationwide catalogue orchestration', () => {
     await db.catalogueVersion.update({ where: { id: result.catalogueId }, data: { status: 'active', auditedAt: new Date(), activatedAt: new Date() } })
     await db.regionRegistryVersion.update({ where: { id: REGISTRY_ID }, data: { active: true } })
     try {
+      await expect(runRegistryRegion(REGISTRY_ID, NORTH_KEY, () => undefined)).rejects.toThrow('build a new nationwide candidate')
+      await db.region.update({ where: { id: targets.get(NORTH_KEY)!.regionId }, data: { status: 'ready' } })
+      try {
+        await expect(runRegion(NORTH_KEY, () => undefined)).rejects.toThrow('build a new nationwide candidate')
+      } finally {
+        await db.region.update({ where: { id: targets.get(NORTH_KEY)!.regionId }, data: { status: 'unprepared' } })
+      }
       const progress = await germanyProgress(db, 'marine-fixture-no-identity', async () => ({ status: 'ok', regionKeys: [] }))
       expect(progress.catalogue).toMatchObject({ id: result.catalogueId, species: 2, discovered: 0, studied: 0 })
       const picker = await searchRegions(db, { q: 'Atlas North', limit: 10, month: 1 })

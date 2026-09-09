@@ -10,8 +10,10 @@ regions and a marine catalogue remain deferred.
 
 Resolve every distinct accepted GBIF scientific name present in any calculated German
 regional set through the [WoRMS Aphia match service](https://www.marinespecies.org/rest/),
-`GET /AphiaRecordsByMatchNames`, using at most 50 `scientificnames[]` per call and explicit
-`marine_only=false`. Responses contain one ordered match list per name. GBIF remains the
+`GET /AphiaRecordsByMatchNames`, using operational batches of 20 `scientificnames[]` per call
+(below the published maximum of 50), a 60-second source-specific timeout, and explicit
+`marine_only=false`. A real German-name probe established that a 20-name response can take about
+29 seconds, beyond the shared 15-second default. Responses contain one ordered match list per name. GBIF remains the
 taxon identity authority; WoRMS supplies evidence for this membership decision.
 
 Habitat rule v1 excludes a name only when its result has exactly one record, and all these
@@ -67,6 +69,12 @@ The additive migration records `habitatRulesVersion`, source contract, bounded
 rule 0 and their original membership. A new input fingerprint prevents resuming an old
 run key under the new rule. The old candidate is not rewritten.
 
+After a habitat-filtered catalogue is active, the legacy single-region publishers refuse entries
+from its pinned registry. Publishing one recalculated region cannot also update the immutable
+national union, so it could otherwise restore a marine taxon regionally while national progress
+kept the filtered denominator. Operators must refresh those regions through a new nationwide
+candidate and checked activation.
+
 Each valid batch is saved before the next request, including the exact raw response,
 ordered names, source contract/terms/citation, timestamp, fingerprint, and successful
 batch request accounting. Concurrent regions serialize shared-name discovery; subsequent
@@ -76,11 +84,13 @@ failures fail the regional attempt and cannot become permanent “unmatched” e
 The shared HTTP scheduler limits WoRMS to one in-flight request, reserves a one-second
 host gap, honors Retry-After, and charges retries to `ETL_BUDGET`.
 
-Nested batch capture contributes requests once to the enclosing region, including
-handled failures. The habitat audit separately exposes successful batch request evidence
-as a subset, not an amount to add again. A hard process kill can occur between a network
-attempt and its durable accounting; persisted request totals cannot claim to include
-uncheckpointed attempts. This is also a limitation of the existing GBIF runner.
+Nested batch capture contributes requests once to the enclosing region attempt, including handled
+failures. The habitat audit separately exposes the durable total stored in successful batch
+checkpoints. These categories can overlap during an ordinary completed attempt. After a hard kill
+between checkpointing and regional staging, the durable habitat total can instead include work
+absent from the region-attempt total. They are therefore reported separately and must not be added
+or described as strict subsets of one another. A hard kill before any checkpoint can still leave
+an unrecorded network attempt; this is also a limitation of the existing GBIF runner.
 
 ## Verification and rollout boundary
 

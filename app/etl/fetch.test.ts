@@ -43,6 +43,13 @@ describe('ETL cache freshness', () => {
     expect(await layer.get('https://api.gbif.org/test')).toEqual({ fresh: true })
     expect(network.mock.calls).toHaveLength(1)
   })
+  it('allows a bounded source-specific request timeout', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ patient: true })))
+    await layer.withFreshCache(() => layer.get('https://www.marinespecies.org/slow-source', { timeoutMs: 60_000 }))
+    expect(timeout).toHaveBeenCalledWith(60_000)
+    await expect(layer.withFreshCache(() => layer.get('https://www.marinespecies.org/invalid-timeout', { timeoutMs: 0 }))).rejects.toThrow('positive bounded integer')
+  })
   it('retries a transient server error and returns the eventual success', async () => {
     vi.useFakeTimers()
     const before = layer.requests()

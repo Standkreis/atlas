@@ -9,7 +9,9 @@ export const WORMS_SOURCE = {
   method: 'GET',
   namesParameter: 'scientificnames[]',
   marine_only: false,
-  maxNames: 50,
+  apiMaxNames: 50,
+  batchSize: 20,
+  requestTimeoutMs: 60_000,
   contractVersion: 1,
   citation: 'WoRMS Editorial Board (2026). World Register of Marine Species. Available at VLIZ. doi:10.14284/170',
   doi: 'https://doi.org/10.14284/170',
@@ -68,7 +70,7 @@ export function decideMarineHabitat(sciName: string, matches: unknown): HabitatD
 }
 
 export function wormsMatchUrl(names: readonly string[]): string {
-  if (!names.length || names.length > WORMS_SOURCE.maxNames || new Set(names).size !== names.length
+  if (!names.length || names.length > WORMS_SOURCE.apiMaxNames || new Set(names).size !== names.length
     || names.some((name) => !name.trim() || name !== name.trim())) throw new Error('WoRMS batch requires 1–50 unique, nonempty names')
   const url = new URL(WORMS_SOURCE.endpoint)
   for (const name of names) url.searchParams.append(WORMS_SOURCE.namesParameter, name)
@@ -78,7 +80,7 @@ export function wormsMatchUrl(names: readonly string[]): string {
 
 export type HabitatLookup = (names: readonly string[]) => Promise<string>
 /** Force a new source read for missing catalogue checkpoints, even with GBIF --reuse-cache. */
-export const fetchWormsMatches: HabitatLookup = (names) => withFreshCache(() => get(wormsMatchUrl(names), { text: true }))
+export const fetchWormsMatches: HabitatLookup = (names) => withFreshCache(() => get(wormsMatchUrl(names), { text: true, timeoutMs: WORMS_SOURCE.requestTimeoutMs }))
 
 type BatchEnvelope = {
   version: 1
@@ -144,8 +146,8 @@ export function catalogueHabitatResolver(
       }
       for (const batch of await store.loadHabitat(catalogueId, unique)) remember(batch)
       const missing = unique.filter((name) => !known.has(name))
-      for (let index = 0; index < missing.length; index += WORMS_SOURCE.maxNames) {
-        const batchNames = missing.slice(index, index + WORMS_SOURCE.maxNames)
+      for (let index = 0; index < missing.length; index += WORMS_SOURCE.batchSize) {
+        const batchNames = missing.slice(index, index + WORMS_SOURCE.batchSize)
         const url = wormsMatchUrl(batchNames)
         const captured = await withResponseCapture(() => lookup(batchNames))
         // Validate cardinality and record shape before persisting a reusable success.
@@ -198,15 +200,16 @@ export function habitatAudit(batches: StoredHabitatBatch[]) {
   if (new Set(decisions.map((decision) => decision.sciName)).size !== decisions.length) throw new Error('habitat audit contains overlapping name checkpoints')
   const reasons: Partial<Record<HabitatReason, number>> = {}
   for (const decision of decisions) reasons[decision.reason] = (reasons[decision.reason] ?? 0) + 1
-  const successfulBatchRequests: RequestStats = { perHost: {}, networkAttempts: 0, hits: 0, misses: 0, retries: 0, tooMany: 0 }
+  const checkpointedSuccessfulRequests: RequestStats = { perHost: {}, networkAttempts: 0, hits: 0, misses: 0, retries: 0, tooMany: 0 }
   for (const { envelope: { requests } } of decoded) {
-    successfulBatchRequests.networkAttempts = (successfulBatchRequests.networkAttempts ?? 0) + (requests.networkAttempts ?? 0)
-    for (const [host, count] of Object.entries(requests.perHost)) successfulBatchRequests.perHost[host] = (successfulBatchRequests.perHost[host] ?? 0) + count
-    for (const kind of ['hits', 'misses', 'retries', 'tooMany'] as const) successfulBatchRequests[kind] += requests[kind]
+    checkpointedSuccessfulRequests.networkAttempts = (checkpointedSuccessfulRequests.networkAttempts ?? 0) + (requests.networkAttempts ?? 0)
+    for (const [host, count] of Object.entries(requests.perHost)) checkpointedSuccessfulRequests.perHost[host] = (checkpointedSuccessfulRequests.perHost[host] ?? 0) + count
+    for (const kind of ['hits', 'misses', 'retries', 'tooMany'] as const) checkpointedSuccessfulRequests[kind] += requests[kind]
   }
   return { source: WORMS_SOURCE, version: MARINE_RULE_VERSION, batches: batches.length, names: decisions.length, reasons, decisions,
     sourceDates: [...new Set(decoded.map((batch) => batch.envelope.fetchedAt.slice(0, 10)))].sort(),
     fingerprint: fingerprint(batches.map((batch) => batch.recordFingerprint).sort()),
-    // Subset of nationwide requests, not additional requests to add a second time.
-    successfulBatchRequests }
+    // Durable successful-batch total. It can overlap region-attempt stats; after a hard kill it
+    // can also contain a checkpoint whose enclosing region never persisted its attempt stats.
+    checkpointedSuccessfulRequests }
 }
