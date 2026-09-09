@@ -29,6 +29,75 @@ describe('Retry-After', () => {
 })
 
 describe('ETL cache freshness', () => {
+  it('allows the WDQS server timeout plus margin, retains other timeouts and honors caller abort', async () => {
+    vi.useFakeTimers()
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    const controller = new AbortController()
+    let requestSignal: AbortSignal | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      if (!url.includes('query.wikidata.org')) return Response.json({ ok: true })
+      requestSignal = init.signal!
+      return new Promise<Response>((_resolve, reject) => requestSignal!.addEventListener('abort', () => reject(requestSignal!.reason), { once: true }))
+    }))
+    try {
+      const pending = layer.withFreshCache(() => layer.get('https://query.wikidata.org/sparql?abort-test', { signal: controller.signal }))
+      const rejected = expect(pending).rejects.toThrow('caller stopped')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(timeout).toHaveBeenLastCalledWith(65_000)
+      controller.abort(new Error('caller stopped'))
+      await rejected
+      expect(requestSignal?.aborted).toBe(true)
+      await layer.withFreshCache(() => layer.get('https://api.gbif.org/timeout-control'))
+      expect(timeout).toHaveBeenLastCalledWith(15_000)
+    } finally { timeout.mockRestore() }
+  })
+
+  it('serializes Wikidata through response completion and keeps a 1100 ms minimum dispatch gap', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-09T10:00:00Z'))
+    const calls: number[] = [], complete: Array<() => void> = []
+    vi.stubGlobal('fetch', vi.fn(() => {
+      calls.push(Date.now())
+      return new Promise<Response>((done) => complete.push(() => done(Response.json({ ok: true }))))
+    }))
+    const reads = [1, 2, 3].map((n) => layer.withFreshCache(() => layer.get(`https://query.wikidata.org/sparql?test=${n}`)))
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(calls).toHaveLength(1) // Gap elapsed, but the first response is still in flight.
+    complete[0]!()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(calls).toHaveLength(2)
+    complete[1]!()
+    await vi.advanceTimersByTimeAsync(1_099)
+    expect(calls).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(calls).toHaveLength(3)
+    complete[2]!()
+    await Promise.all(reads)
+    expect(calls.slice(1).every((at, i) => at - calls[i]! >= 1_100)).toBe(true)
+  })
+
+  it('honors Wikidata Retry-After before the retry and any queued request', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-09T10:00:00Z'))
+    const calls: number[] = []
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      calls.push(Date.now())
+      return calls.length === 1 ? new Response('limited', { status: 429, headers: { 'Retry-After': '4' } }) : Response.json({ ok: true })
+    }))
+    const first = layer.withResponseCapture(() => layer.withFreshCache(() => layer.get('https://query.wikidata.org/sparql?first')))
+    const queued = layer.withFreshCache(() => layer.get('https://query.wikidata.org/sparql?queued'))
+    await vi.advanceTimersByTimeAsync(3_999)
+    expect(calls).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(calls).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(1_099)
+    expect(calls).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(1)
+    const [result] = await Promise.all([first, queued])
+    expect(calls.map((at) => at - calls[0]!)).toEqual([0, 4_000, 5_100])
+    expect(result.requests).toMatchObject({ perHost: { 'query.wikidata.org': 2 }, retries: 1, tooMany: 1 })
+  })
+
   it('keeps cached iNaturalist reads free and guards every dispatched retry/error attempt', async () => {
     vi.useFakeTimers()
     const network = vi.fn().mockResolvedValueOnce(new Response('slow down', { status: 429, headers: { 'Retry-After': '2' } })).mockResolvedValueOnce(Response.json({ ok: true }))

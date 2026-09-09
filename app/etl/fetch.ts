@@ -22,10 +22,12 @@ function store(dir: string, file: string, body: string) {
   }
 }
 const BUDGET = Number(process.env.ETL_BUDGET ?? 50_000)
-/** Minimum gap between two requests to one host, ms. iNaturalist allows ~1/s; Wikidata and GloBI ~3/s. */
-const MIN_GAP: Record<string, number> = { 'api.inaturalist.org': 1100, 'query.wikidata.org': 300, 'api.globalbioticinteractions.org': 300, 'api.gbif.org': 200, 'xeno-canto.org': 1100, 'gift.uni-goettingen.de': 500 }
-/** GBIF publishes no fixed safe search rate. Keep requests conservative and let Retry-After extend the shared host cooldown. */
-const MAX_INFLIGHT: Record<string, number> = { 'api.gbif.org': 2 }
+/** Conservative minimum gaps, not guaranteed quotas: WDQS limits processing time, not a fixed request rate. */
+const MIN_GAP: Record<string, number> = { 'api.inaturalist.org': 1100, 'query.wikidata.org': 1100, 'api.globalbioticinteractions.org': 300, 'api.gbif.org': 200, 'xeno-canto.org': 1100, 'gift.uni-goettingen.de': 500 }
+/** Serialize WDQS work; let Retry-After extend host cooldowns. GBIF retains its two-request cap. */
+const MAX_INFLIGHT: Record<string, number> = { 'api.gbif.org': 2, 'query.wikidata.org': 1 }
+/** WDQS documents a 60 s query timeout; allow its response plus a small transport margin. */
+const REQUEST_TIMEOUT_MS: Record<string, number> = { 'query.wikidata.org': 65_000 }
 const ATTEMPTS = 5
 
 const budget: Record<string, number> = {}
@@ -187,7 +189,7 @@ export async function get(url: string, { headers = {}, text = false, bytes = fal
           networkAttempts += 1
           budget[host] = (budget[host] ?? 0) + 1
           recordAttempt(host)
-          const timeout = AbortSignal.timeout(15_000)
+          const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS[host] ?? 15_000)
           return fetch(url, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
             ...(host === 'api.inaturalist.org' ? { redirect: 'error' as const } : {}),
             headers: { 'User-Agent': UA, Accept: text || bytes ? '*/*' : 'application/json', ...headers } })

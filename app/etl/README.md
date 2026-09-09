@@ -22,7 +22,7 @@ TypeScript on `tsx`, the app's Prisma client, and `ffmpeg-static` (dev dependenc
 | `registry/germany-regions.json` · `registry/registry.ts` | Pinned BKG/BBSR region and Kreis-unit snapshot, complete source/licence metadata and strict invariant validation. No GADM ids, geometry or crosswalk are redistributed in Git |
 | `registry-mapping.ts` · `registry-import.ts` | Strict local-only GBIF/GADM mapping validation and the transactional, idempotent Postgres importer. Mapping provenance and reviewed query ids live only in the operational database |
 | `accepted-taxonomy.ts` · `composite-aggregation.ts` | Deduplicated accepted-key resolution and pure composite count aggregation. Floors/cuts happen after the merge; ties use accepted key ascending |
-| `fetch.ts` | `get` with cache, total-attempt budget (`ETL_BUDGET`, 50,000/run), durable shared iNat rolling-24h allowance (9,000 default; 10,000 ceiling), gaps as reserved slots (iNat 1,100 ms, Wikidata and GloBI 300 ms, GBIF 200 ms with at most 2 in flight, else 100 ms), 5 attempts, shared-host `Retry-After`/bounded fallback cooldown, one User-Agent · request-scoped and process counters · `pool` · `q` |
+| `fetch.ts` | `get` with cache, total-attempt budget (`ETL_BUDGET`, 50,000/run), durable shared iNat rolling-24h allowance (9,000 default; 10,000 ceiling), gaps as reserved slots (iNat/Wikidata 1,100 ms, Wikidata at most 1 in flight, GloBI 300 ms, GBIF 200 ms with at most 2 in flight, else 100 ms), 5 attempts, shared-host `Retry-After`/bounded fallback cooldown, one User-Agent · request-scoped and process counters · `pool` · `q` |
 | `gbif.ts` | `resolveRegion`, `gbifFacet`, `gbifSpecies`, `gbifMatch`, the occurrence window (`ETL_YEARS`, default `2016,2026`) |
 | `rules.ts` | Pure: `tileOf`, `cutTile`, `monthShares` (per 100,000), `words`, `nowRatio`, `isNow`. Shared with the read routers |
 | `prune.ts` | Pure: `pickNames`, `iucnCode`, the Commons reject list, iNat licences, `foldKind`, `capEdges`, `parseAnAge`. Tested in `src/server/routers/taxon.test.ts` |
@@ -93,6 +93,16 @@ and size outliers. The human report is the default. `--json` emits the full dura
 automation. A partial run exits with status 2 after writing its report; rerun the identical command
 to continue. Network concurrency is capped at four, GBIF scheduling/retries remain governed by
 `fetch.ts`, and `ETL_BUDGET` counts every actual network attempt, including retries.
+
+Wikidata Query Service calls are serialized within each process with a minimum 1,100 ms
+dispatch gap, including retries. This is conservative load reduction, not a guaranteed provider
+quota: [WDQS usage constraints](https://www.mediawiki.org/wiki/Wikidata_Query_Service/Implementation#Usage_constraints)
+describe a per-client allowance of 60 query-processing seconds per 60 seconds, not three requests
+per second. Expensive queries can still exhaust that allowance; honor Retry-After, retain 429/retry
+counts, and pause/reassess repeated throttling. Run names/gallery provider phases sequentially;
+this in-process scheduler does not coordinate unrelated Wikidata clients or processes.
+WDQS alone has a 65-second client timeout to allow its documented 60-second server query timeout
+plus transport margin; other hosts retain 15 seconds, and caller cancellation still applies.
 
 ### Shared iNaturalist allowance
 
