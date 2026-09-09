@@ -12,7 +12,7 @@ import { clearPrivateData, PRIVATE_RESET_KEY, PRIVATE_PAUSE_KEY, purgePrivatePho
 import { acceptIdentity, expectedIdentity, identityFetch, invalidateIdentity } from '@/components/ClientIdentity'
 import { IDENTITY_KEY, pauseOutbox, resumeOutbox, load, flush } from '@/components/Queue'
 
-export const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>()
+export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>()
 
 // Same origin in dev and `next start`; the static export (Capacitor) points NEXT_PUBLIC_API_URL at the API host.
 const identityBoundaryLink: TRPCLink<AppRouter> = () => ({ op, next }) => next({ ...op, context: { ...op.context, expectedIdentity: expectedIdentity() } })

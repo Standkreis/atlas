@@ -105,10 +105,10 @@ export const identityRouter = router({
   me: publicProcedure.query(async ({ ctx }) => {
     const [devices, filter] = await Promise.all([
       ctx.db.passkey.count({ where: { identityId: ctx.identity.id } }),
-      ctx.db.filter.findUnique({ where: { identityId: ctx.identity.id }, include: { region: { select: { id: true, name: true, status: true } } } }),
+      ctx.db.filter.findUnique({ where: { identityId: ctx.identity.id }, include: { region: { select: { id: true, name: true, higher: true, status: true } } } }),
     ])
     // The identity's regions (handoff 0018 R2) in the order they were added; the active one is `region`.
-    const rows = filter?.regionIds.length ? await ctx.db.region.findMany({ where: { id: { in: filter.regionIds } }, select: { id: true, name: true, status: true } }) : []
+    const rows = filter?.regionIds.length ? await ctx.db.region.findMany({ where: { id: { in: filter.regionIds } }, select: { id: true, name: true, higher: true, status: true } }) : []
     const byId = new Map(rows.map((r) => [r.id, r]))
     const regions = (filter?.regionIds ?? []).flatMap((id) => byId.get(id) ?? [])
     // The verified address only (handoff 0020 E7): `email` is set together with `emailVerifiedAt` and cleared together.

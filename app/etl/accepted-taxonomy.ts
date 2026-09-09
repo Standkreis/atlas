@@ -1,5 +1,5 @@
 import { pool } from './fetch'
-import { gbifSpecies, type Species } from './gbif'
+import { gbifSpecies, gbifSpeciesMatch, type Match, type Species } from './gbif'
 
 export type AcceptedSpecies = {
   sourceKey: number
@@ -18,6 +18,7 @@ export type AcceptedTaxonomyResult = {
 }
 
 export type SpeciesLookup = (key: number) => Promise<Species | null>
+export type SpeciesMatchLookup = (name: string, kingdom?: string) => Promise<Match | null>
 
 function assertSpeciesKey(value: number, label: string) {
   if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be a positive safe integer`)
@@ -38,6 +39,29 @@ function speciesRecordError(requestedKey: number, species: Species | null): stri
   return null
 }
 
+function normalizedName(species: Species): string {
+  return (species.canonicalName ?? species.scientificName ?? '').trim().toLocaleLowerCase('en')
+}
+
+function doubtfulMatch(source: Species, match: Match | null): { acceptedKey: number } | { error: string } {
+  if (!match) return { error: `GBIF doubtful taxonomy key ${source.key} has no exact accepted name match` }
+  const key = match.acceptedUsageKey ?? match.usageKey ?? match.key
+  const status = (match.status ?? match.taxonomicStatus ?? '').toUpperCase()
+  if (match.matchType?.toUpperCase() !== 'EXACT' || status !== 'ACCEPTED') {
+    return { error: `GBIF doubtful taxonomy key ${source.key} matched ${match.matchType ?? 'unknown'}/${status || 'unknown'}, expected EXACT/ACCEPTED` }
+  }
+  if (!Number.isSafeInteger(key) || !key || key <= 0 || key === source.key) {
+    return { error: `GBIF doubtful taxonomy key ${source.key} has no distinct positive accepted match key` }
+  }
+  if (normalizedName(source) !== normalizedName(match)) {
+    return { error: `GBIF doubtful taxonomy key ${source.key} changed canonical name in its accepted match` }
+  }
+  if (source.kingdom && match.kingdom && source.kingdom !== match.kingdom) {
+    return { error: `GBIF doubtful taxonomy key ${source.key} changed kingdom in its accepted match` }
+  }
+  return { acceptedKey: key }
+}
+
 /**
  * Resolve every raw occurrence-facet key through GBIF's acceptedKey chain.
  *
@@ -47,6 +71,7 @@ function speciesRecordError(requestedKey: number, species: Species | null): stri
 export async function resolveAcceptedSpecies(
   sourceKeys: readonly number[],
   lookup: SpeciesLookup = gbifSpecies,
+  match: SpeciesMatchLookup = gbifSpeciesMatch,
 ): Promise<AcceptedTaxonomyResult> {
   const requested = [...new Set(sourceKeys)].sort((a, b) => a - b)
   requested.forEach((key) => assertSpeciesKey(key, 'source species key'))
@@ -59,6 +84,7 @@ export async function resolveAcceptedSpecies(
     if (batch.length === 0) break
     const fetched = await pool(batch, 6, lookup)
     pending = []
+    const doubtful: Species[] = []
     batch.forEach((key, index) => {
       const species = fetched[index] ?? null
       const error = speciesRecordError(key, species)
@@ -68,6 +94,10 @@ export async function resolveAcceptedSpecies(
       }
       const validSpecies = species!
       records.set(key, validSpecies)
+      if (validSpecies.taxonomicStatus?.toUpperCase() === 'DOUBTFUL' && validSpecies.acceptedKey === undefined) {
+        doubtful.push(validSpecies)
+        return
+      }
       if (validSpecies.acceptedKey !== undefined) {
         if (!Number.isSafeInteger(validSpecies.acceptedKey) || validSpecies.acceptedKey <= 0) {
           invalid.set(key, `accepted key for ${key} must be a positive safe integer`)
@@ -76,6 +106,17 @@ export async function resolveAcceptedSpecies(
         }
         if (!records.has(validSpecies.acceptedKey)) pending.push(validSpecies.acceptedKey)
       }
+    })
+    const matches = await pool(doubtful, 6, (species) => match(normalizedName(species), species.kingdom))
+    doubtful.forEach((species, index) => {
+      const result = doubtfulMatch(species, matches[index] ?? null)
+      if ('error' in result) {
+        invalid.set(species.key, result.error)
+        records.delete(species.key)
+        return
+      }
+      records.set(species.key, { ...species, acceptedKey: result.acceptedKey })
+      if (!records.has(result.acceptedKey)) pending.push(result.acceptedKey)
     })
     pending = [...new Set(pending)].sort((a, b) => a - b)
   }
@@ -98,6 +139,10 @@ export async function resolveAcceptedSpecies(
       }
       const next = species.acceptedKey
       if (next === undefined || next === acceptedKey) {
+        if (species.taxonomicStatus?.toUpperCase() !== 'ACCEPTED') {
+          rejected.push({ sourceKey, reason: `GBIF taxonomy terminal key ${acceptedKey} has status ${species.taxonomicStatus ?? 'unknown'}, expected ACCEPTED` })
+          break
+        }
         resolved.set(sourceKey, { sourceKey, acceptedKey, species })
         break
       }

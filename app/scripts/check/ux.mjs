@@ -9,6 +9,7 @@ import { join } from 'node:path'
 
 const [base = 'http://localhost:3002', locale = 'en'] = process.argv.slice(2)
 if (!['localhost', '127.0.0.1'].includes(new URL(base).hostname)) throw new Error('Run UX checks against a local disposable server only')
+const fullCatalogue = process.env.UX_FULL_CATALOGUE === '1'
 const profile = mkdtempSync(join(tmpdir(), 'dex-ux-'))
 const evidenceDir = process.env.BROWSER_EVIDENCE_DIR
 if (evidenceDir) mkdirSync(evidenceDir, { recursive: true })
@@ -20,6 +21,8 @@ let chromeFailure
 proc.on('error', (error) => { chromeFailure = error })
 proc.on('exit', (code, signal) => { if (!chromeFailure) chromeFailure = new Error(`Chrome exited before connecting (${signal ?? code})`) })
 let ws
+let offlineSwitchRegionId = null
+let offlineUnavailableRegionId = null
 try {
   let target
   for (let i = 0; i < 200 && !target && !chromeFailure; i++) {
@@ -56,6 +59,7 @@ try {
   }
   const selector = (s) => `document.querySelector(${JSON.stringify(s)})`
   const click = async (s) => { await wait(`${selector(s)} && !${selector(s)}.disabled`, s); await evaluate(`${selector(s)}.focus(); ${selector(s)}.click()`); await sleep(100) }
+  const externalMediaRequestCount = () => requests.filter(({ url, type }) => ['Fetch', 'Image'].includes(type) && !url.startsWith(base)).length
   const key = async (name, modifiers = 0) => {
     const native = name === 'Enter' ? { windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, text: '\r' } : {}
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: name, code: name, modifiers, ...native })
@@ -111,8 +115,8 @@ try {
   assert.ok(await evaluate(`${selector('[data-testid=region-location]')}.previousElementSibling.textContent.length > 20`), 'location explanation precedes its action')
   await click('[data-testid=region-location]')
   await wait(`/location|standort/i.test(${selector('[role=alert]')}?.textContent ?? '')`, 'denied location is explained')
-  await evaluate(`(() => { const input = ${selector('[data-testid=region-search]')}; const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(input, 'Mainz'); input.dispatchEvent(new Event('input', { bubbles: true })) })()`)
-  await wait(`${selector('[data-testid=region-result]')} && Object.keys(${selector('[data-testid=region-result]')}).some(k => k.startsWith('__reactProps'))`, 'bounded region search result')
+  await evaluate(`(() => { const input = ${selector('[data-testid=region-search]')}; const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(input, 'Mainz-Bingen'); input.dispatchEvent(new Event('input', { bubbles: true })) })()`)
+  await wait(`${selector('[data-testid=region-result]')}?.textContent?.includes('Mainz-Bingen') && Object.keys(${selector('[data-testid=region-result]')}).some(k => k.startsWith('__reactProps'))`, 'exact bounded region search result')
   await evaluate(`${selector('[data-testid=region-search]')}.focus()`)
   await key('Tab')
   await key('Tab')
@@ -226,6 +230,88 @@ try {
   assert.equal(await evaluate(`document.activeElement === ${selector('[data-testid=filter-button]')}`), true, 'closing dialog restores trigger')
   assert.equal(await evaluate(`!!${selector('main')}.closest('[inert]')`), false, 'background interactive again')
   assert.equal(await evaluate('document.body.style.overflow'), '', 'scroll lock removed')
+  await click('[data-testid=tab-you]')
+  await wait(selector('[data-testid=display-name]'), 'profile opens')
+  await click('[data-testid=change-region]')
+  await wait(selector('[data-testid=region-sheet]'))
+  await wait(`document.querySelectorAll('[data-testid=region-row]').length === 1`, 'region management renders only the saved region')
+  for (const [width, height, mobile] of [[390, 844, true], [1440, 900, false]]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile })
+    assert.equal(await evaluate(`document.documentElement.scrollWidth <= innerWidth && ${selector('[data-testid=region-sheet] .sheet-panel')}.getBoundingClientRect().width <= Math.min(innerWidth, 520)`), true, `region management stays bounded at ${width}x${height}`)
+    if (evidenceDir) {
+      const { data } = await send('Page.captureScreenshot', { format: 'png' })
+      writeFileSync(join(evidenceDir, `${locale}-profile-regions-${width}.png`), Buffer.from(data, 'base64'))
+    }
+  }
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
+  const initialRegionId = await evaluate(`${selector('[data-testid=region-row]')}.dataset.region`)
+  assert.equal(await evaluate(`${selector('[data-testid=region-remove]')}.disabled`), true, 'active final region cannot be removed')
+  await click('[data-testid=region-add]')
+  await wait(selector('[data-testid=region-picker-panel]'))
+  assert.equal(await evaluate(`document.querySelectorAll('[data-testid=region-result]').length`), 1, 'add-region picker shows only the saved region until search')
+  if (fullCatalogue) {
+    const searchFor = async (name) => {
+      await evaluate(`(() => { const input = ${selector('[data-testid=region-search]')}; const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(input, ${JSON.stringify(name)}); input.dispatchEvent(new Event('input', { bubbles: true })) })()`)
+      await wait(`document.querySelector('[data-testid=region-result]')?.textContent.includes(${JSON.stringify(name)})`, `${name} appears in national region search`)
+      return evaluate(`document.querySelector('[data-testid=region-result]').dataset.region`)
+    }
+    offlineSwitchRegionId = await searchFor('Südwestpfalz')
+    const imagesBeforeSouthWest = externalMediaRequestCount()
+    await click('[data-testid=region-result]')
+    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 2`, 'Südwestpfalz is added without replacing Mainz-Bingen')
+    await wait(`!${selector('[data-testid=region-add]')}.disabled`, 'Südwestpfalz add settles')
+    await sleep(300)
+    assert.equal(externalMediaRequestCount(), imagesBeforeSouthWest, 'adding a saved region starts no image fetch or render')
+    assert.equal(await evaluate(`(async () => !(await caches.has('dex-pack-${offlineSwitchRegionId}')) && localStorage.getItem('dex.offline.ready.${offlineSwitchRegionId}') === null)()`), true, 'adding a saved region creates no offline pack')
+    await click(`[data-testid=region-row][data-region="${offlineSwitchRegionId}"] [data-testid=region-pick]`)
+    await wait(`!${selector('[data-testid=region-sheet]')}`, 'switch closes region management')
+    await click('[data-testid=tab-dex]')
+    await wait(selector('[data-testid=grid] [data-taxon]'), 'Südwestpfalz dex set is loaded and persisted')
+    await click('[data-testid=tab-you]')
+    await click('[data-testid=change-region]')
+    await click('[data-testid=region-add]')
+    await send('Browser.setPermission', { permission: { name: 'geolocation' }, setting: 'granted', origin: base })
+    await send('Emulation.setGeolocationOverride', { latitude: 52.52, longitude: 13.405, accuracy: 25 })
+    await click('[data-testid=region-location]')
+    await wait(`Array.from(document.querySelectorAll('[data-testid=region-result]')).some(row => row.textContent.includes('Berlin'))`, 'Berlin resolves from the current location')
+    const berlinId = await evaluate(`Array.from(document.querySelectorAll('[data-testid=region-result]')).find(row => row.textContent.includes('Berlin')).dataset.region`)
+    await evaluate(`Array.from(document.querySelectorAll('[data-testid=region-result]')).find(row => row.dataset.region === ${JSON.stringify(berlinId)})?.click()`)
+    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 3`, 'Berlin is added from location')
+    await wait(`!${selector('[data-testid=region-add]')}.disabled`, 'Berlin location add settles')
+    await send('Emulation.clearGeolocationOverride')
+    await send('Browser.setPermission', { permission: { name: 'geolocation' }, setting: 'denied', origin: base })
+    await click(`[data-testid=region-row][data-region="${berlinId}"] [data-testid=region-pick]`)
+    await wait(`!${selector('[data-testid=region-sheet]')}`, 'Berlin switch closes region management')
+    await click('[data-testid=tab-dex]')
+    await wait(selector('[data-testid=grid] [data-taxon]'), 'Berlin dex set is loaded and persisted')
+    await click('[data-testid=tab-you]')
+    await click('[data-testid=change-region]')
+    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 3`, 'all saved regions survive switches')
+    await click('[data-testid=region-add]')
+    offlineUnavailableRegionId = await searchFor('Hamburg')
+    await send('Network.setBlockedURLs', { urls: ['*identity.setFilter*'] })
+    await click('[data-testid=region-result]')
+    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 3 && !!document.querySelector('[data-testid=region-line]')`, 'failed add rolls optimistic saved state back')
+    await send('Network.setBlockedURLs', { urls: [] })
+    await click('[data-testid=region-add]')
+    await searchFor('Hamburg')
+    const imagesBeforeHamburg = externalMediaRequestCount()
+    await click('[data-testid=region-result]')
+    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 4`, 'Hamburg adds after transport recovers')
+    await wait(`!${selector('[data-testid=region-add]')}.disabled`, 'Hamburg retry settles')
+    await sleep(300)
+    assert.equal(externalMediaRequestCount(), imagesBeforeHamburg, 'adding an uncached region starts no image fetch or render')
+    assert.equal(await evaluate(`(async () => !(await caches.has('dex-pack-${offlineUnavailableRegionId}')) && localStorage.getItem('dex.offline.ready.${offlineUnavailableRegionId}') === null)()`), true, 'adding an uncached region creates no offline pack')
+    await click(`[data-testid=region-row][data-region="${initialRegionId}"] [data-testid=region-remove]`)
+    await wait(`document.querySelectorAll('[data-testid=region-row]').length === 3`, 'inactive Mainz-Bingen is removed')
+    assert.equal(await evaluate(`${selector('[data-testid=region-row][data-active] [data-testid=region-remove]')}.disabled`), true, 'active region remains protected with multiple saved regions')
+  } else {
+    await click('[data-testid=region-add]')
+  }
+  await key('Escape')
+  await wait(`!${selector('[data-testid=region-sheet]')}`)
+  await click('[data-testid=tab-dex]')
+  await wait(selector('[data-testid=grid]'))
   console.log('UX: onboarding, navigation and keyboard dialogs passed')
   await send('Network.enable')
   await send('Network.setBlockedURLs', { urls: ['*journal.days*'] })
@@ -291,7 +377,42 @@ try {
   await wait(`!!${selector('[data-testid=germany-offline]')}`, 'cached national result is qualified as offline')
   assert.equal(await evaluate(`${selector('[data-testid=germany-discovered] dd')}.textContent.trim()`), '1', 'location-independent discovery refreshes and persists')
   assert.notEqual(await evaluate(`${selector('[data-testid=germany-sightings] dd')}.textContent.trim()`), '1', 'unconfirmed German land containment does not become a German sighting')
-  console.log(JSON.stringify({ locale, viewport: '390x844 + 1280x900', onboarding: 'pass', dialogs: 'pass', radioKeyboard: 'pass', navigation: 'pass', germanyProgress: 'pass', journalError: 'pass', manualSave: 'pass', offlineReload: 'pass', species: cellCount, workerSessions: workers.length }))
+  await wait(selector('[data-testid=display-name]'), 'profile opens from the shell offline')
+  await click('[data-testid=change-region]')
+  await wait(selector('[data-testid=region-offline-management]'), 'offline region-management boundary is explicit')
+  if (fullCatalogue) {
+    assert.ok(offlineSwitchRegionId, 'a second cached region was prepared')
+    assert.ok(offlineUnavailableRegionId, 'an uncached saved region was prepared')
+    const activeBeforeUnavailableTap = await evaluate(`${selector('[data-testid=region-row][data-active]')}.dataset.region`)
+    await click(`[data-testid=region-row][data-region="${offlineUnavailableRegionId}"] [data-testid=region-pick]`)
+    await wait(`${selector('[data-testid=region-line]')}?.textContent.includes('Hamburg')`, 'an uncached saved region is named in its explanation')
+    assert.equal(await evaluate(`${selector('[data-testid=region-row][data-active]')}.dataset.region`), activeBeforeUnavailableTap, 'an unavailable offline tap does not change the active region')
+    assert.equal(await evaluate(`document.querySelectorAll('[data-testid=region-line]').length`), 1, 'an unavailable offline tap renders one explanation')
+    await click('[data-testid=region-add]')
+    await wait(selector('[data-testid=region-picker-panel]'))
+    assert.match(await evaluate(`${selector('[data-testid=region-picker-panel]')}.textContent`), /offline|verbindung/i, 'offline picker explains why catalogue search is unavailable')
+    await click('[data-testid=region-add]')
+    await click(`[data-testid=region-row][data-region="${offlineSwitchRegionId}"] [data-testid=region-pick]`)
+    await wait(`localStorage.getItem('dex.region.pending') === ${JSON.stringify(offlineSwitchRegionId)}`, 'offline region intent is persisted before transport')
+    await send('Page.reload')
+    await wait(selector('[data-testid=display-name]'), 'Profile reloads offline after a cached region switch')
+    await click('[data-testid=change-region]')
+    await wait(`${selector(`[data-testid=region-row][data-region="${offlineSwitchRegionId}"]`)}?.hasAttribute('data-active')`, 'offline reload keeps the selected cached region active')
+    await key('Escape')
+    const online = { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }
+    await send('Network.emulateNetworkConditions', online)
+    for (const worker of workers) await send('Network.emulateNetworkConditions', online, worker)
+    await wait(`navigator.onLine && fetch('/api/health').then(response => response.ok, () => false)`, 'page and service-worker transport return online')
+    // CDP network emulation restores transport without consistently emitting the browser's native online event.
+    // Dispatch the event explicitly so this deterministic check exercises RegionReplay's real reconnect path.
+    await evaluate(`window.dispatchEvent(new Event('online'))`)
+    await wait(`localStorage.getItem('dex.region.pending') === null`, 'online replay acknowledges and clears the pending region intent')
+  } else {
+    await click('[data-testid=region-add]')
+    await wait(selector('[data-testid=region-picker-panel]'))
+    assert.match(await evaluate(`${selector('[data-testid=region-picker-panel]')}.textContent`), /offline|verbindung/i, 'offline picker explains why catalogue search is unavailable')
+  }
+  console.log(JSON.stringify({ locale, viewport: '390x844 + 1280x900', onboarding: 'pass', dialogs: 'pass', regionManagement: 'pass', radioKeyboard: 'pass', navigation: 'pass', germanyProgress: 'pass', journalError: 'pass', manualSave: 'pass', offlineReload: 'pass', species: cellCount, workerSessions: workers.length }))
 } finally {
   ws?.close()
   proc.kill()
