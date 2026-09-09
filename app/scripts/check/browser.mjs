@@ -5,43 +5,66 @@ import landManifest from '../../src/server/data/germany-land.manifest.json' with
 const database = new URL(process.env.DATABASE_URL ?? '')
 if (!['localhost', '127.0.0.1'].includes(database.hostname) || !/^\/dex_check_[a-z0-9_]+$/.test(database.pathname)) throw new Error('Browser tests require a local dex_check_* database')
 const base = 'http://localhost:3002'
+const fullCatalogue = process.env.UX_FULL_CATALOGUE === '1'
 // Give the current month's preview taxon two distinct local images. The older non-lead catches
 // regressions to createdAt ordering, and its URL is a byte-request sentinel in the browser audit.
+const previewAssetIds = ['00000000-0000-4000-8100-000000000000', '00000000-0000-4000-8100-000000000001']
+let shiftedPreviewAssets = []
 const fixtureDb = new pg.Client({ connectionString: database.href })
 await fixtureDb.connect()
 try {
+  await fixtureDb.query('BEGIN')
+  await fixtureDb.query(`DELETE FROM "Asset" WHERE id = ANY($1::text[])`, [previewAssetIds])
+  const { rows: [demo] } = await fixtureDb.query(`SELECT p."taxonId" FROM "Plausibility" p JOIN "Region" r ON r.id = p."regionId"
+    WHERE r.name = 'Mainz-Bingen' AND p.peak > 0
+    ORDER BY p."monthShare"[EXTRACT(MONTH FROM CURRENT_DATE)::int]::numeric / p.peak DESC LIMIT 1`)
+  if (!demo) throw new Error('Mainz-Bingen preview taxon missing')
+  const { rows: existingPreviewAssets } = await fixtureDb.query(`SELECT id, position FROM "Asset" WHERE "taxonId" = $1 ORDER BY id`, [demo.taxonId])
+  shiftedPreviewAssets = existingPreviewAssets
+  if (shiftedPreviewAssets.length) {
+    const shift = 2 - Math.min(...shiftedPreviewAssets.map(({ position }) => position))
+    if (shift > 0) await fixtureDb.query(`UPDATE "Asset" SET position = position + $1 WHERE "taxonId" = $2`, [shift, demo.taxonId])
+  }
   await fixtureDb.query(`
-    WITH demo AS (
-      SELECT p."taxonId" FROM "Plausibility" p JOIN "Region" r ON r.id = p."regionId"
-      WHERE r.name = 'Mainz-Bingen' AND p.peak > 0
-      ORDER BY p."monthShare"[EXTRACT(MONTH FROM CURRENT_DATE)::int]::numeric / p.peak DESC LIMIT 1
-    )
     INSERT INTO "Asset" (id, kind, url, author, licence, "licenceUrl", "sourceUrl", origin, position, "createdAt", "taxonId")
     SELECT '00000000-0000-4000-8100-00000000000' || image.position, 'image'::"AssetKind", image.url,
       'Browser fixture (mock metadata)', 'CC0 1.0', 'https://creativecommons.org/publicdomain/zero/1.0/',
       'https://atlas-fixture.invalid/source/' || image.position, 'commons', image.position,
-      CASE WHEN image.position = 0 THEN NOW() ELSE '2000-01-01'::timestamp END, demo."taxonId"
-    FROM demo CROSS JOIN (VALUES
+      CASE WHEN image.position = 0 THEN NOW() ELSE '2000-01-01'::timestamp END, $1
+    FROM (VALUES
       (0, 'https://atlas-fixture.invalid/onboarding-lead-fixture.webp'),
       (1, 'https://atlas-fixture.invalid/onboarding-nonlead-sentinel.webp')
     ) AS image(position, url)
     ON CONFLICT (id) DO UPDATE SET url = EXCLUDED.url, licence = EXCLUDED.licence,
-      "licenceUrl" = EXCLUDED."licenceUrl", "sourceUrl" = EXCLUDED."sourceUrl", origin = EXCLUDED.origin
-  `)
-  // Add the smallest active, geometry-compatible German catalogue so the suite exercises the ready national summary.
-  const now = new Date()
-  const { rows: [mainz] } = await fixtureDb.query(`UPDATE "Region" SET "canonicalKey" = 'de-krg-07339', "countryCode" = 'DE' WHERE name = 'Mainz-Bingen' RETURNING id, name`)
-  if (!mainz) throw new Error('Mainz-Bingen seed region missing')
-  const registryId = 'browser-registry-de', sourceId = 'browser-source-de', entryId = 'browser-entry-mainz'
-  const catalogueId = 'browser-catalogue-de', buildId = 'browser-build-mainz'
-  await fixtureDb.query(`INSERT INTO "RegionRegistryVersion" (id, "countryCode", version, "artifactSha256", "expectedRegions", "expectedSourceUnits", active, "activatedAt") VALUES ($1, 'DE', $2, $3, 1, 1, true, $4) ON CONFLICT ("countryCode", version) DO UPDATE SET "artifactSha256" = EXCLUDED."artifactSha256", active = true, "activatedAt" = EXCLUDED."activatedAt"`, [registryId, landManifest.registryVersion, landManifest.registrySha256, now])
-  await fixtureDb.query(`INSERT INTO "RegionRegistrySource" (id, "registryVersionId", role, name, url, "topicDate", "downloadedAt", sha256, "licenceId", "licenceUrl", attribution) VALUES ($1, $2, 'regions', 'Browser fixture from checked-in BKG land artefact', 'local://germany-land', $3, $4, $5, $6, $7, $8) ON CONFLICT ("registryVersionId", role) DO NOTHING`, [sourceId, registryId, landManifest.source.topicDate, now, landManifest.geometrySha256, landManifest.source.licence.id, landManifest.source.licence.url, landManifest.source.attribution])
-  await fixtureDb.query(`INSERT INTO "RegionRegistryEntry" (id, "registryVersionId", "sourceId", "regionId", "sourceCode", "sourceName", "displayName", "stateCode", "stateName") VALUES ($1, $2, $3, $4, '07339', $5, $5, '07', 'Rheinland-Pfalz') ON CONFLICT ("registryVersionId", "regionId") DO NOTHING`, [entryId, registryId, sourceId, mainz.id, mainz.name])
-  await fixtureDb.query(`INSERT INTO "RegionRegistryAlias" (id, "registryEntryId", kind, name, "normalizedName") VALUES ('browser-alias-mainz', $1, 'displayName', 'Mainz-Bingen', 'mainz bingen') ON CONFLICT DO NOTHING`, [entryId])
-  const { rows: [{ count }] } = await fixtureDb.query(`SELECT count(*)::int AS count FROM "Plausibility" WHERE "regionId" = $1`, [mainz.id])
-  await fixtureDb.query(`INSERT INTO "CatalogueVersion" (id, "countryCode", "runKey", "registryVersionId", "inputFingerprint", "sourceFingerprint", "responseFingerprint", "unionFingerprint", "plausibleRulesVersion", "tileMappingVersion", "observationWindowVersion", "yearFrom", "yearTo", "occurrencePredicates", status, "expectedRegions", "completedRegions", "unionTaxa", "generatedAt", "auditedAt", "activatedAt", "updatedAt") VALUES ($1, 'DE', 'browser-fixture-v1', $2, 'browser-fixture', 'browser-fixture', 'browser-fixture', 'browser-fixture', 1, 1, 1, 2016, 2025, '{"basis":"browser fixture"}', 'active', 1, 1, $3, $4, $4, $4, $4) ON CONFLICT ("countryCode", "runKey") DO UPDATE SET status = 'active', "unionTaxa" = EXCLUDED."unionTaxa", "activatedAt" = EXCLUDED."activatedAt", "updatedAt" = EXCLUDED."updatedAt"`, [catalogueId, registryId, count, now])
-  await fixtureDb.query(`INSERT INTO "CatalogueRegionBuild" (id, "catalogueVersionId", "registryVersionId", "registryEntryId", status, "completedAt", "totalObservations", "monthTotals", "regionSize", "nowCounts", "perTile", "rejectedTaxa", "requestStats", "responseFingerprint", "setFingerprint", "updatedAt") VALUES ($1, $2, $3, $4, 'complete', $5, 1, $6, $7, $6, '{"bird":100,"mammal":100,"amphibian":50,"reptile":20,"fish":20,"insect":200,"plant":300,"fungus":139}', '[]', '{}', 'browser-fixture', 'browser-fixture', $5) ON CONFLICT ("catalogueVersionId", "registryEntryId") DO NOTHING`, [buildId, catalogueId, registryId, entryId, now, Array(12).fill(count), count])
-  await fixtureDb.query(`INSERT INTO "CatalogueTaxon" ("catalogueVersionId", "taxonId", "createdAt") SELECT $1, "taxonId", $2 FROM "Plausibility" WHERE "regionId" = $3 ON CONFLICT DO NOTHING`, [catalogueId, now, mainz.id])
+      "licenceUrl" = EXCLUDED."licenceUrl", "sourceUrl" = EXCLUDED."sourceUrl", origin = EXCLUDED.origin,
+      position = EXCLUDED.position, "createdAt" = EXCLUDED."createdAt", "taxonId" = EXCLUDED."taxonId"
+  `, [demo.taxonId])
+  if (fullCatalogue) {
+    const { rows: states } = await fixtureDb.query(`SELECT c."expectedRegions", c."completedRegions", c."unionTaxa", count(b.id)::int AS builds FROM "CatalogueVersion" c JOIN "RegionRegistryVersion" v ON v.id = c."registryVersionId" AND v.active JOIN "CatalogueRegionBuild" b ON b."catalogueVersionId" = c.id AND b.status = 'complete' WHERE c."countryCode" = 'DE' AND c.status = 'active' GROUP BY c.id`)
+    const state = states[0]
+    if (states.length !== 1 || state.expectedRegions !== 362 || state.completedRegions !== 362 || state.builds !== 362 || state.unionTaxa < 1) throw new Error('Full-catalogue browser checks require one active, complete 362-region local catalogue')
+    const { rows: [{ count }] } = await fixtureDb.query(`SELECT count(*)::int AS count FROM "Plausibility" p JOIN "Region" r ON r.id = p."regionId" WHERE r.name = 'Mainz-Bingen' AND r.status = 'ready'`)
+    if (count < 1) throw new Error('Full-catalogue browser checks require activated Mainz-Bingen live rows')
+  } else {
+    // Add the smallest active, geometry-compatible German catalogue so the ordinary CI suite exercises a ready national summary.
+    const now = new Date()
+    const { rows: [mainz] } = await fixtureDb.query(`UPDATE "Region" SET "canonicalKey" = 'de-krg-07339', "countryCode" = 'DE' WHERE name = 'Mainz-Bingen' RETURNING id, name`)
+    if (!mainz) throw new Error('Mainz-Bingen seed region missing')
+    const registryId = 'browser-registry-de', sourceId = 'browser-source-de', entryId = 'browser-entry-mainz'
+    const catalogueId = 'browser-catalogue-de', buildId = 'browser-build-mainz'
+    await fixtureDb.query(`INSERT INTO "RegionRegistryVersion" (id, "countryCode", version, "artifactSha256", "expectedRegions", "expectedSourceUnits", active, "activatedAt") VALUES ($1, 'DE', $2, $3, 1, 1, true, $4) ON CONFLICT ("countryCode", version) DO UPDATE SET "artifactSha256" = EXCLUDED."artifactSha256", active = true, "activatedAt" = EXCLUDED."activatedAt"`, [registryId, landManifest.registryVersion, landManifest.registrySha256, now])
+    await fixtureDb.query(`INSERT INTO "RegionRegistrySource" (id, "registryVersionId", role, name, url, "topicDate", "downloadedAt", sha256, "licenceId", "licenceUrl", attribution) VALUES ($1, $2, 'regions', 'Browser fixture from checked-in BKG land artefact', 'local://germany-land', $3, $4, $5, $6, $7, $8) ON CONFLICT ("registryVersionId", role) DO NOTHING`, [sourceId, registryId, landManifest.source.topicDate, now, landManifest.geometrySha256, landManifest.source.licence.id, landManifest.source.licence.url, landManifest.source.attribution])
+    await fixtureDb.query(`INSERT INTO "RegionRegistryEntry" (id, "registryVersionId", "sourceId", "regionId", "sourceCode", "sourceName", "displayName", "stateCode", "stateName") VALUES ($1, $2, $3, $4, '07339', $5, $5, '07', 'Rheinland-Pfalz') ON CONFLICT ("registryVersionId", "regionId") DO NOTHING`, [entryId, registryId, sourceId, mainz.id, mainz.name])
+    await fixtureDb.query(`INSERT INTO "RegionRegistryAlias" (id, "registryEntryId", kind, name, "normalizedName") VALUES ('browser-alias-mainz', $1, 'displayName', 'Mainz-Bingen', 'mainz bingen') ON CONFLICT DO NOTHING`, [entryId])
+    const { rows: [{ count }] } = await fixtureDb.query(`SELECT count(*)::int AS count FROM "Plausibility" WHERE "regionId" = $1`, [mainz.id])
+    await fixtureDb.query(`INSERT INTO "CatalogueVersion" (id, "countryCode", "runKey", "registryVersionId", "inputFingerprint", "sourceFingerprint", "responseFingerprint", "unionFingerprint", "plausibleRulesVersion", "tileMappingVersion", "observationWindowVersion", "yearFrom", "yearTo", "occurrencePredicates", status, "expectedRegions", "completedRegions", "unionTaxa", "generatedAt", "auditedAt", "activatedAt", "updatedAt") VALUES ($1, 'DE', 'browser-fixture-v1', $2, 'browser-fixture', 'browser-fixture', 'browser-fixture', 'browser-fixture', 1, 1, 1, 2016, 2025, '{"basis":"browser fixture"}', 'active', 1, 1, $3, $4, $4, $4, $4) ON CONFLICT ("countryCode", "runKey") DO UPDATE SET status = 'active', "unionTaxa" = EXCLUDED."unionTaxa", "activatedAt" = EXCLUDED."activatedAt", "updatedAt" = EXCLUDED."updatedAt"`, [catalogueId, registryId, count, now])
+    await fixtureDb.query(`INSERT INTO "CatalogueRegionBuild" (id, "catalogueVersionId", "registryVersionId", "registryEntryId", status, "completedAt", "totalObservations", "monthTotals", "regionSize", "nowCounts", "perTile", "rejectedTaxa", "requestStats", "responseFingerprint", "setFingerprint", "updatedAt") VALUES ($1, $2, $3, $4, 'complete', $5, 1, $6, $7, $6, '{"bird":100,"mammal":100,"amphibian":50,"reptile":20,"fish":20,"insect":200,"plant":300,"fungus":139}', '[]', '{}', 'browser-fixture', 'browser-fixture', $5) ON CONFLICT ("catalogueVersionId", "registryEntryId") DO NOTHING`, [buildId, catalogueId, registryId, entryId, now, Array(12).fill(count), count])
+    await fixtureDb.query(`INSERT INTO "CatalogueTaxon" ("catalogueVersionId", "taxonId", "createdAt") SELECT $1, "taxonId", $2 FROM "Plausibility" WHERE "regionId" = $3 ON CONFLICT DO NOTHING`, [catalogueId, now, mainz.id])
+  }
+  await fixtureDb.query('COMMIT')
+} catch (error) {
+  await fixtureDb.query('ROLLBACK')
+  throw error
 } finally { await fixtureDb.end() }
 const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', '3002'], { stdio: 'inherit', env: { ...process.env, VERCEL: '1', BLOB_READ_WRITE_TOKEN: '', PHOTO_DIR: '/tmp/dex-check-photos', ANTHROPIC_API_KEY: 'check-only', ANTHROPIC_BASE_URL: 'http://127.0.0.1:9', RESEND_API_KEY: 'check-only', RESEND_BASE_URL: 'http://127.0.0.1:9', WEBAUTHN_RP_ID: 'localhost', WEBAUTHN_ORIGIN: base, WEBAUTHN_SECRET: 'check-only-secret-with-at-least-32-characters' } })
 const run = (script, args) => new Promise((resolve, reject) => {
@@ -68,6 +91,12 @@ try {
   const cleanup = new pg.Client({ connectionString: database.href })
   await cleanup.connect()
   try {
-    await cleanup.query(`DELETE FROM "Asset" WHERE id IN ('00000000-0000-4000-8100-000000000000', '00000000-0000-4000-8100-000000000001')`)
+    await cleanup.query('BEGIN')
+    await cleanup.query(`DELETE FROM "Asset" WHERE id = ANY($1::text[])`, [previewAssetIds])
+    for (const asset of shiftedPreviewAssets) await cleanup.query(`UPDATE "Asset" SET position = $1 WHERE id = $2`, [asset.position, asset.id])
+    await cleanup.query('COMMIT')
+  } catch (error) {
+    await cleanup.query('ROLLBACK')
+    throw error
   } finally { await cleanup.end() }
 }
