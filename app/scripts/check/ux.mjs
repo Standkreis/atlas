@@ -115,8 +115,8 @@ try {
   assert.ok(await evaluate(`${selector('[data-testid=region-location]')}.previousElementSibling.textContent.length > 20`), 'location explanation precedes its action')
   await click('[data-testid=region-location]')
   await wait(`/location|standort/i.test(${selector('[role=alert]')}?.textContent ?? '')`, 'denied location is explained')
-  await evaluate(`(() => { const input = ${selector('[data-testid=region-search]')}; const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(input, 'Mainz'); input.dispatchEvent(new Event('input', { bubbles: true })) })()`)
-  await wait(`${selector('[data-testid=region-result]')} && Object.keys(${selector('[data-testid=region-result]')}).some(k => k.startsWith('__reactProps'))`, 'bounded region search result')
+  await evaluate(`(() => { const input = ${selector('[data-testid=region-search]')}; const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(input, 'Mainz-Bingen'); input.dispatchEvent(new Event('input', { bubbles: true })) })()`)
+  await wait(`${selector('[data-testid=region-result]')}?.textContent?.includes('Mainz-Bingen') && Object.keys(${selector('[data-testid=region-result]')}).some(k => k.startsWith('__reactProps'))`, 'exact bounded region search result')
   await evaluate(`${selector('[data-testid=region-search]')}.focus()`)
   await key('Tab')
   await key('Tab')
@@ -235,6 +235,15 @@ try {
   await click('[data-testid=change-region]')
   await wait(selector('[data-testid=region-sheet]'))
   await wait(`document.querySelectorAll('[data-testid=region-row]').length === 1`, 'region management renders only the saved region')
+  for (const [width, height, mobile] of [[390, 844, true], [1440, 900, false]]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile })
+    assert.equal(await evaluate(`document.documentElement.scrollWidth <= innerWidth && ${selector('[data-testid=region-sheet] .sheet-panel')}.getBoundingClientRect().width <= Math.min(innerWidth, 520)`), true, `region management stays bounded at ${width}x${height}`)
+    if (evidenceDir) {
+      const { data } = await send('Page.captureScreenshot', { format: 'png' })
+      writeFileSync(join(evidenceDir, `${locale}-profile-regions-${width}.png`), Buffer.from(data, 'base64'))
+    }
+  }
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
   const initialRegionId = await evaluate(`${selector('[data-testid=region-row]')}.dataset.region`)
   assert.equal(await evaluate(`${selector('[data-testid=region-remove]')}.disabled`), true, 'active final region cannot be removed')
   await click('[data-testid=region-add]')
@@ -393,6 +402,10 @@ try {
     const online = { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }
     await send('Network.emulateNetworkConditions', online)
     for (const worker of workers) await send('Network.emulateNetworkConditions', online, worker)
+    await wait(`navigator.onLine && fetch('/api/health').then(response => response.ok, () => false)`, 'page and service-worker transport return online')
+    // CDP network emulation restores transport without consistently emitting the browser's native online event.
+    // Dispatch the event explicitly so this deterministic check exercises RegionReplay's real reconnect path.
+    await evaluate(`window.dispatchEvent(new Event('online'))`)
     await wait(`localStorage.getItem('dex.region.pending') === null`, 'online replay acknowledges and clears the pending region intent')
   } else {
     await click('[data-testid=region-add]')
