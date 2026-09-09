@@ -49,7 +49,13 @@ No values here. Set in Vercel → Settings → Environment Variables unless the 
 | Push to `main` | Production deploy → atlas.standkreis.de |
 | Push to any other branch | Preview deploy on a `*.vercel.app` URL, against the same Neon DB (Preview is connected). Passkeys fail there by design (RP id) |
 
-The build command runs `scripts/deploy/migrate.mjs` first: it polls `select 1` until Neon's compute is awake (the Free tier suspends after 5 idle minutes and the cold start beat Prisma's 10 s lock timeout three times on 2026-09-06, `P1002`), then `prisma migrate deploy` with up to three attempts, both over `DATABASE_URL_UNPOOLED` (`prisma.config.ts` prefers it). **Migrations run only there**, never from the Mac (owner's dev rule: no reset, no push, no dev migrate against production). Then `npm run build`: `prebuild` mints the build id, `next build`, `postbuild` writes the worker manifest.
+The build command runs `scripts/deploy/migrate.mjs` first. Since 2026-09-09, that wrapper permits migration work only when Vercel reports the exact Production context (`VERCEL=1`, `VERCEL_ENV=production`, and an absent or matching `VERCEL_TARGET_ENV`). Preview and Development skip before database credentials are read; missing, malformed, unknown, or contradictory platform context fails closed before loading the database driver, waking Neon, waiting, or spawning Prisma. Production retains the existing wake polling and three `prisma migrate deploy` attempts over `DATABASE_URL_UNPOOLED` (`prisma.config.ts` also prefers it).
+
+This guard protects the build migration entrypoint only. It does not isolate Preview runtime connections or prevent application reads/writes when Preview still has shared database credentials. Do not publish a schema-bearing Preview from an older branch/base that lacks this guard, and do not redeploy such an older unguarded artifact. Old deployments are not retroactively protected. An exact Production target authorizes this wrapper's context check; it does not prove that the resulting deployment has been promoted, assigned the production domain, or is serving users.
+
+Local and CI schema checks continue through `npm run db:check:setup`, which accepts only a fresh disposable local `dex_check_*` database; never invent a production-like Vercel context as a local bypass. Do not run local `vercel build --prod` with production credentials: the guard is not a substitute for the local-only database policy. The repository's separate migration review and production-data rules still apply.
+
+After the guarded migration step, `npm run build` runs normally: `prebuild` mints the build id, `next build`, and `postbuild` writes the worker manifest.
 
 ## 🩺 Health, cron, background work
 
