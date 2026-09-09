@@ -1,6 +1,6 @@
 # 🔬 Germany catalogue audit
 
-This runbook implements the reproducible audit gate for [issue #19](https://github.com/Standkreis/atlas/issues/19). It inspects a completed, staged Germany catalogue in local Postgres. It does not query GBIF, mutate catalogue rows, access Neon or create a production dump.
+This runbook implements the reproducible audit gate for [issue #19](https://github.com/Standkreis/atlas/issues/19). It inspects a completed, staged Germany catalogue in local Postgres. The default audit is read-only; the explicit reviewed `--activate-local` step publishes the candidate locally. Neither mode queries GBIF or accesses Neon.
 
 ## 🎯 What the gate proves
 
@@ -25,7 +25,7 @@ The tool does not pretend that an outlier formula establishes ecological credibi
 | Eastern | Görlitz |
 | Western/composite | Südwestpfalz |
 
-One human reviews the evidence for species plausibility, naming, seasonality and query-boundary fit. A region appearing under several lenses is reviewed once, with every reason retained.
+The reviewer inspects evidence for species plausibility, naming, seasonality and query-boundary fit and records their actual identity; an agent review is labelled as an agent review. A region appearing under several lenses is reviewed once, with every reason retained.
 
 ## ▶️ Generate, review, repeat
 
@@ -55,7 +55,9 @@ npx tsx etl/catalogue-audit.ts \
 
 `--activate-local` is deliberately unavailable for a non-local database host. Under one serializable transaction it locks the German cutover, verifies the complete candidate and its bound review again, derives any missing `nowCounts` introduced while the long run was in flight, replaces only live regional `Plausibility` and `Lookalike`, copies the staged month totals, refreshes the compatibility picker summary, removes the affected region keys from taxon prose, marks every included `Region` ready, activates the pinned registry/catalogue and retires earlier German active versions. Identity, sightings, studies, reusable taxon content and all assets remain untouched. A non-empty but incorrect `nowCounts` array remains a defect; only the migration-era empty value is backfilled.
 
-The command then performs the required post-activation audit and writes `transfer-artifact.jsonl`. The artifact is read under one repeatable-read snapshot, paged in batches of 1,000 rows, incrementally hashed and atomically renamed. It contains only the allowlisted registry, region, accepted-taxon and catalogue tables; every completed build includes `completedAt`. Every returned column must exactly match the reviewed allowlist, so schema drift fails the export instead of silently widening it. Its byte digest, row count and per-table digests are recorded in the manifest.
+The command then performs the required post-activation audit and writes `transfer-artifact.jsonl`. The audit and artifact share one exported repeatable-read snapshot, held open until streaming finishes; concurrent writes cannot slip unreviewed rows into the payload. Active-catalogue audits also verify the live membership and lookalikes against staged rows in both directions, check regional summaries, and require exactly one active German catalogue and its matching active registry. A later live refresh or changed activation state fails the gate instead of being mistaken for an intact cutover.
+
+The artifact is paged in batches of 1,000 rows, incrementally hashed and atomically renamed. It contains only the allowlisted registry, region, accepted-taxon and catalogue tables; every completed build includes `completedAt`. Every returned column must exactly match the reviewed allowlist, so schema drift fails the export instead of silently widening it. Its byte digest, row count and per-table digests are recorded in the manifest.
 
 Exit status `0` means the post-activation manifest and payload are eligible. Status `2` means mechanical defects, missing activation, failed reviews or missing reviews still block it. Status `1` means the audit itself could not run.
 
@@ -64,7 +66,13 @@ Exit status `0` means the post-activation manifest and payload are eligible. Sta
 - `defect` means stored data violates the catalogue contract or a deterministic shared rule. Fix or rerun the responsible pipeline; do not sign it away.
 - `coverage-limit` describes known upstream limits without failing an otherwise index-ready catalogue. Missing German common names use the scientific-name fallback. GBIF facet counts cannot remove provider/syndication duplicates. GBIF/GADM query units approximate BKG boundaries and do not prove polygon equivalence. The reviewed national GADM crosswalk remains operational data under its licence; the audit records its digest and findings but does not commit the mapping.
 
-The mechanical outlier fence is a triage device, not a biological acceptance threshold. A human review must explain credible extremes or mark the affected check failed.
+The [9 September scope decision](../records/2026-09-09-germany-without-worms.md)
+leaves WoRMS out. Coastal species are retained under the ordinary GBIF rules and
+reported as a limitation; no habitat-filtered experimental candidate is eligible
+for this release. Regional sizes describe observation-driven sets, and seasonal
+labels are observation profiles rather than guarantees of biological absence.
+
+The mechanical outlier fence is a triage device, not a biological acceptance threshold. The attributed review must explain credible extremes or mark the affected check failed.
 
 ## 📦 Transfer boundary
 

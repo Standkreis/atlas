@@ -181,15 +181,19 @@ export async function writeTransferJsonl(options: {
   }
 }
 
-export async function exportLocalCatalogueArtifact(options: { catalogueId: string; path: string; pageSize?: number }): Promise<TransferExport> {
+export async function exportLocalCatalogueArtifact(options: { catalogueId: string; path: string; snapshotId: string; pageSize?: number }): Promise<TransferExport> {
   const connectionString = process.env.DATABASE_URL
   if (!connectionString) throw new Error('catalogue export requires an explicit local DATABASE_URL')
   const hostname = new URL(connectionString).hostname
   if (!['localhost', '127.0.0.1', '[::1]'].includes(hostname)) throw new Error(`catalogue export is local-only; database host ${hostname} is not local`)
+  // SET TRANSACTION SNAPSHOT cannot bind a SQL parameter. Accept only PostgreSQL's own snapshot
+  // identifier syntax, never arbitrary SQL. The exporting audit transaction must remain open.
+  if (!/^[0-9a-f]+-[0-9a-f]+-\d+$/i.test(options.snapshotId)) throw new Error('invalid audit snapshot identifier')
   const client = new Client({ connectionString })
   await client.connect()
   try {
     await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')
+    await client.query(`SET TRANSACTION SNAPSHOT '${options.snapshotId}'`)
     const state = await client.query('SELECT status FROM "CatalogueVersion" WHERE id=$1', [options.catalogueId])
     if (state.rows[0]?.status !== 'active') throw new Error('only the active, post-audit catalogue can be exported')
     const result = await writeTransferJsonl({

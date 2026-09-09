@@ -166,6 +166,14 @@ export type AuditSnapshot = {
     record: unknown
     recordFingerprint: string
   }>
+  liveState?: {
+    registryActive: boolean
+    activeCatalogues: number
+    activeRegistries: number
+    plausibilityMatches: boolean
+    lookalikesMatch: boolean
+    regionSummariesMatch: boolean
+  }
 }
 
 export type Finding = {
@@ -585,6 +593,11 @@ export function buildCatalogueAudit(
   if (recomputedInputFingerprint !== snapshot.catalogue.inputFingerprint) defects.push({ code: 'input-fingerprint', severity: 'defect', scope: 'catalogue', message: 'stored input fingerprint does not match pinned catalogue inputs' })
   if (!['complete', 'active'].includes(snapshot.catalogue.status)) defects.push({ code: 'catalogue-incomplete', severity: 'defect', scope: 'catalogue', message: `catalogue status is ${snapshot.catalogue.status}` })
   if (snapshot.catalogue.status !== 'active') defects.push({ code: 'activation-required', severity: 'defect', scope: 'catalogue', message: 'reviewed catalogue has not been atomically activated' })
+  if (snapshot.catalogue.status === 'active' && snapshot.liveState) {
+    const live = snapshot.liveState
+    if (!live.registryActive || live.activeCatalogues !== 1 || live.activeRegistries !== 1) defects.push({ code: 'live-activation-state', severity: 'defect', scope: 'catalogue', message: 'active catalogue must have exactly one active German catalogue and its matching active registry' })
+    if (!live.plausibilityMatches || !live.lookalikesMatch || !live.regionSummariesMatch) defects.push({ code: 'live-regional-drift', severity: 'defect', scope: 'catalogue', message: 'live regional membership, lookalikes or summaries differ from the reviewed staged catalogue' })
+  }
   if (snapshot.catalogue.expectedRegions !== snapshot.regions.length) defects.push({ code: 'region-count', severity: 'defect', scope: 'catalogue', message: `expected ${snapshot.catalogue.expectedRegions} regions but loaded ${snapshot.regions.length}` })
   if (snapshot.catalogue.completedRegions !== complete) defects.push({ code: 'completed-count', severity: 'defect', scope: 'catalogue', message: `stored completedRegions ${snapshot.catalogue.completedRegions} differs from ${complete}` })
   if (!snapshot.catalogue.generatedAt || !snapshot.catalogue.responseFingerprint || !snapshot.catalogue.unionFingerprint) defects.push({ code: 'catalogue-fingerprints', severity: 'defect', scope: 'catalogue', message: 'complete catalogue requires generatedAt and response/union fingerprints' })
@@ -983,6 +996,45 @@ export async function loadAuditSnapshot(idOrRunKey: string, reader: typeof db | 
   })
   const taxonomy = await reader.catalogueTaxonomyResolution.findMany({ where: { catalogueVersionId: catalogue.id }, orderBy: { sourceKey: 'asc' } })
 
+  let liveState: AuditSnapshot['liveState']
+  if (catalogue.status === 'active') {
+    // Compare both directions: equal counts alone miss replacement rows and changed seasonality.
+    const [state] = await reader.$queryRaw<Array<{ plausibilityMatches: boolean; lookalikesMatch: boolean; regionSummariesMatch: boolean }>>`
+      WITH builds AS (
+        SELECT b.*, e."regionId" FROM "CatalogueRegionBuild" b
+        JOIN "RegionRegistryEntry" e ON e.id = b."registryEntryId"
+        WHERE b."catalogueVersionId" = ${catalogue.id}
+      ), staged_p AS (
+        SELECT b."regionId", p."taxonId", p.obs, p."monthShare", p.peak, p.words
+        FROM "CataloguePlausibility" p JOIN builds b ON b.id = p."regionBuildId"
+      ), live_p AS (
+        SELECT p."regionId", p."taxonId", p.obs, p."monthShare", p.peak, p.words
+        FROM "Plausibility" p WHERE p."regionId" IN (SELECT "regionId" FROM builds)
+      ), staged_l AS (
+        SELECT b."regionId", l."taxonId", l."siblingId"
+        FROM "CatalogueLookalike" l JOIN builds b ON b.id = l."regionBuildId"
+      ), live_l AS (
+        SELECT l."regionId", l."taxonId", l."siblingId"
+        FROM "Lookalike" l WHERE l."regionId" IN (SELECT "regionId" FROM builds)
+      )
+      SELECT
+        NOT EXISTS ((SELECT * FROM staged_p EXCEPT SELECT * FROM live_p) UNION ALL (SELECT * FROM live_p EXCEPT SELECT * FROM staged_p)) AS "plausibilityMatches",
+        NOT EXISTS ((SELECT * FROM staged_l EXCEPT SELECT * FROM live_l) UNION ALL (SELECT * FROM live_l EXCEPT SELECT * FROM staged_l)) AS "lookalikesMatch",
+        NOT EXISTS (
+          SELECT 1 FROM builds b JOIN "Region" r ON r.id = b."regionId"
+          WHERE r."monthTotals" IS DISTINCT FROM b."monthTotals"
+            OR r."refreshedAt" IS DISTINCT FROM b."completedAt"
+            OR r."pickerSummary"->'setSize' IS DISTINCT FROM to_jsonb(b."regionSize")
+            OR r."pickerSummary"->'nowCounts' IS DISTINCT FROM to_jsonb(b."nowCounts")
+        ) AS "regionSummariesMatch"
+    `
+    liveState = {
+      ...state!, registryActive: registry.active,
+      activeCatalogues: await reader.catalogueVersion.count({ where: { countryCode: 'DE', status: 'active' } }),
+      activeRegistries: await reader.regionRegistryVersion.count({ where: { countryCode: 'DE', active: true } }),
+    }
+  }
+
   const regionById = new Map(regionRows.map((region) => [region.id, region]))
   const aliasesByEntry = Map.groupBy(aliases, (alias) => alias.registryEntryId)
   const unitsByEntry = Map.groupBy(sourceUnits, (unit) => unit.registryEntryId)
@@ -1094,6 +1146,7 @@ export async function loadAuditSnapshot(idOrRunKey: string, reader: typeof db | 
     regions,
     union,
     taxonomy: taxonomy.map((row) => ({ sourceKey: row.sourceKey, acceptedKey: row.acceptedKey, rejectionReason: row.rejectionReason, record: row.record, recordFingerprint: row.recordFingerprint })),
+    liveState,
   }
 }
 
@@ -1117,18 +1170,23 @@ export function makeReviewTemplate(audit: CatalogueAudit): ReviewFile {
 }
 
 export async function writeAuditBundle(options: { catalogue: string; output: string; review?: string; activateLocal?: boolean }): Promise<{ audit: CatalogueAudit; manifest: TransferManifest }> {
+  assertLocalDatabaseUrl()
   const review = options.review ? parseReviewFile(JSON.parse(await readFile(resolve(options.review), 'utf8'))) : null
   if (options.activateLocal) {
     if (!review) throw new Error('--activate-local requires --review')
     await activateLocalCatalogue({ catalogue: options.catalogue, review })
   }
-  const snapshot = await loadAuditSnapshot(options.catalogue)
-  const audit = buildCatalogueAudit(snapshot, review)
   const output = resolve(options.output), artifactPath = resolve(output, 'transfer-artifact.jsonl')
   await mkdir(output, { recursive: true })
-  const transfer = audit.verdict === 'ready-for-transfer'
-    ? await exportLocalCatalogueArtifact({ catalogueId: snapshot.catalogue.id, path: artifactPath })
-    : null
+  const { snapshot, audit, transfer } = await db.$transaction(async (tx) => {
+    const [exported] = await tx.$queryRaw<Array<{ snapshotId: string }>>`SELECT pg_export_snapshot() AS "snapshotId"`
+    const snapshot = await loadAuditSnapshot(options.catalogue, tx)
+    const audit = buildCatalogueAudit(snapshot, review)
+    const transfer = audit.verdict === 'ready-for-transfer'
+      ? await exportLocalCatalogueArtifact({ catalogueId: snapshot.catalogue.id, path: artifactPath, snapshotId: exported!.snapshotId })
+      : null
+    return { snapshot, audit, transfer }
+  }, { isolationLevel: 'RepeatableRead', maxWait: 10_000, timeout: 1_800_000 })
   if (!transfer) await unlink(artifactPath).catch(() => undefined)
   const manifest = buildTransferManifest(snapshot, audit, transfer)
   await Promise.all([

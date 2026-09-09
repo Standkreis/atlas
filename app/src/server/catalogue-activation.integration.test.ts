@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { activateLocalCatalogue, buildCatalogueAudit, loadAuditSnapshot, makeReviewTemplate, sha256, type AuditRegistryContract, type ReviewFile } from '../../etl/catalogue-audit'
@@ -167,13 +167,35 @@ describe('reviewed local catalogue activation', () => {
 
     const output = await mkdtemp(join(tmpdir(), 'atlas-activation-transfer-'))
     try {
-      const transfer = await exportLocalCatalogueArtifact({ catalogueId: CATALOGUE_ID, path: join(output, 'transfer-artifact.jsonl'), pageSize: 2 })
+      const transfer = await db.$transaction(async (tx) => {
+        const [exported] = await tx.$queryRaw<Array<{ snapshotId: string }>>`SELECT pg_export_snapshot() AS "snapshotId"`
+        const reviewed = await loadAuditSnapshot(CATALOGUE_ID, tx)
+        expect(buildCatalogueAudit(reviewed, review, contract).verdict).toBe('ready-for-transfer')
+        // A concurrent ETL/content writer changes the live database after the audit. The artifact
+        // must still contain the exact reviewed snapshot, not the writer's newer values.
+        await db.taxon.update({ where: { gbifKey: TAXON_KEY }, data: { commonNames: { de: 'Changed after audit' } } })
+        return exportLocalCatalogueArtifact({ catalogueId: CATALOGUE_ID, path: join(output, 'transfer-artifact.jsonl'), pageSize: 2, snapshotId: exported!.snapshotId })
+      }, { isolationLevel: 'RepeatableRead', timeout: 30_000 })
       expect(transfer.tables.find((table) => table.table === 'CatalogueRegionBuild')).toMatchObject({ rows: 6 })
       expect(transfer.tables.find((table) => table.table === 'CatalogueRegionBuild')?.columns).toContain('completedAt')
       expect(transfer.tables.find((table) => table.table === 'Taxon')).toMatchObject({ rows: 1 })
       expect(transfer.artifact.rows).toBeGreaterThan(20)
+      const lines = (await readFile(join(output, 'transfer-artifact.jsonl'), 'utf8')).trim().split('\n').map((line) => JSON.parse(line))
+      expect(lines.find((line) => line.type === 'row' && line.table === 'Taxon').row.commonNames).toEqual({ de: 'Auditpflanze' })
     } finally {
+      await db.taxon.update({ where: { gbifKey: TAXON_KEY }, data: { commonNames: { de: 'Auditpflanze' } } })
       await rm(output, { recursive: true, force: true })
     }
+
+    await db.plausibility.updateMany({ where: { regionId: REGION_IDS[0]! }, data: { obs: 999 } })
+    const drifted = buildCatalogueAudit(await loadAuditSnapshot(CATALOGUE_ID), review, contract)
+    expect(drifted.defects.map((finding) => finding.code)).toContain('live-regional-drift')
+    expect(drifted.verdict).toBe('blocked')
+    await expect(activateLocalCatalogue({ catalogue: CATALOGUE_ID, review, registryContract: contract })).rejects.toThrow('non-activation defects')
+    await db.plausibility.updateMany({ where: { regionId: REGION_IDS[0]! }, data: { obs: 10 } })
+
+    await db.regionRegistryVersion.update({ where: { id: REGISTRY_ID }, data: { active: false } })
+    const inactiveRegistry = buildCatalogueAudit(await loadAuditSnapshot(CATALOGUE_ID), review, contract)
+    expect(inactiveRegistry.defects.map((finding) => finding.code)).toContain('live-activation-state')
   })
 })
