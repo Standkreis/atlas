@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fingerprint } from './fingerprint'
 import {
-  catalogueHabitatResolver, decodeHabitatBatch, decideMarineHabitat, filterMarineRegion, habitatAudit,
+  catalogueHabitatResolver, decodeHabitatBatch, decideMarineHabitat, filterMarineRegion, habitatAudit, isHabitatTimeout,
   wormsMatchUrl, type HabitatEvidence, type HabitatStore, type StoredHabitatBatch,
 } from './marine-habitat'
 import type { RegistryRegionCalculation } from './region'
@@ -105,6 +105,21 @@ describe('bounded authoritative match checkpoints', () => {
     const retry = vi.fn(async (batch: readonly string[]) => JSON.stringify(batch.map(() => [])))
     expect((await catalogueHabitatResolver('cat', store, retry, now)(names)).size).toBe(21)
     expect(retry.mock.calls).toEqual([[[names[20]]]])
+  })
+
+  it('splits a slow batch deterministically and checkpoints each successful half', async () => {
+    const store = new MemoryStore()
+    const timeout = Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' })
+    const lookup = vi.fn(async (names: readonly string[]) => {
+      if (names.length > 5) throw timeout
+      return JSON.stringify(names.map(() => []))
+    })
+    const names = Array.from({ length: 20 }, (_, index) => `Slow species ${String(index).padStart(2, '0')}`)
+    expect((await catalogueHabitatResolver('cat', store, lookup, now)(names)).size).toBe(20)
+    expect(lookup.mock.calls.map(([batch]) => batch.length)).toEqual([20, 10, 5, 5, 10, 5, 5])
+    expect([...store.batches.values()].map((batch) => batch.names.length)).toEqual([5, 5, 5, 5])
+    expect([...store.batches.values()].flatMap((batch) => batch.names)).toEqual(names)
+    expect(isHabitatTimeout(new Error('different failure'))).toBe(false)
   })
 
   it.each(['null', '[]', '[{}]', '[[null]]', '[[null,null]]', 'not json'])('refuses malformed/incomplete source envelopes: %s', async (raw) => {

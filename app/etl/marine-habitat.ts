@@ -103,6 +103,15 @@ export type HabitatStore = {
   saveHabitat(catalogueId: string, batch: StoredHabitatBatch): Promise<void>
 }
 
+export function isHabitatTimeout(error: unknown): boolean {
+  let current: unknown = error
+  while (current instanceof Error) {
+    if (current.name === 'TimeoutError' || /aborted due to timeout/i.test(current.message)) return true
+    current = current.cause
+  }
+  return false
+}
+
 function parseMatches(names: readonly string[], rawResponse: string): HabitatDecision[] {
   const response: unknown = JSON.parse(rawResponse)
   if (!Array.isArray(response) || response.length !== names.length) throw new Error('WoRMS response must have one ordered match list per requested name')
@@ -146,10 +155,23 @@ export function catalogueHabitatResolver(
       }
       for (const batch of await store.loadHabitat(catalogueId, unique)) remember(batch)
       const missing = unique.filter((name) => !known.has(name))
-      for (let index = 0; index < missing.length; index += WORMS_SOURCE.batchSize) {
-        const batchNames = missing.slice(index, index + WORMS_SOURCE.batchSize)
+      const pending = Array.from({ length: Math.ceil(missing.length / WORMS_SOURCE.batchSize) }, (_, index) => (
+        missing.slice(index * WORMS_SOURCE.batchSize, (index + 1) * WORMS_SOURCE.batchSize)
+      ))
+      while (pending.length) {
+        const batchNames = pending.shift()!
         const url = wormsMatchUrl(batchNames)
-        const captured = await withResponseCapture(() => lookup(batchNames))
+        let captured: { value: string; fingerprint: string; requests: RequestStats }
+        try {
+          captured = await withResponseCapture(() => lookup(batchNames))
+        } catch (error) {
+          if (!isHabitatTimeout(error) || batchNames.length === 1) throw error
+          const middle = Math.ceil(batchNames.length / 2)
+          // Retry the same ordered names as two smaller requests. Successful halves checkpoint
+          // independently, so another interruption never repeats them.
+          pending.unshift(batchNames.slice(0, middle), batchNames.slice(middle))
+          continue
+        }
         // Validate cardinality and record shape before persisting a reusable success.
         parseMatches(batchNames, captured.value)
         const record: BatchEnvelope = { version: 1, ruleVersion: MARINE_RULE_VERSION, source: WORMS_SOURCE,

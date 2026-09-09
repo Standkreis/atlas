@@ -16,6 +16,11 @@ regional set through the [WoRMS Aphia match service](https://www.marinespecies.o
 29 seconds, beyond the shared 15-second default. Responses contain one ordered match list per name. GBIF remains the
 taxon identity authority; WoRMS supplies evidence for this membership decision.
 
+A multi-name request that reaches that timeout is deterministically split into ordered halves and
+retried. Each successful half is checkpointed immediately. Splitting continues down to one name;
+a singleton timeout fails the regional attempt and remains retryable rather than becoming false
+“unmatched” evidence.
+
 Habitat rule v1 excludes a name only when its result has exactly one record, and all these
 conditions hold:
 

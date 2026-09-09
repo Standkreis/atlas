@@ -76,7 +76,9 @@ first.
 
 Germany habitat rule v1 also pins the WoRMS Aphia source contract. Every distinct accepted
 regional-set name is matched in operational batches of 20 (below the API maximum of 50) with a
-60-second source timeout and `marine_only=false`. Only a unique exact
+60-second source timeout and `marine_only=false`. A timed-out multi-name request is split in half
+until its ordered names succeed or a single-name request fails; every successful half is
+checkpointed before continuing. Only a unique exact
 accepted-name match with positive marine and no positive freshwater/terrestrial evidence is
 excluded, before staging membership, lookalikes, picker summaries and the national union.
 Unmatched, ambiguous, inexact and habitat-unknown names are retained and reported. See the
