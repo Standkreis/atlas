@@ -68,3 +68,17 @@ report, independently bound decoded samples and reproducible base/gallery artifa
 per-process request counters from the deliberately terminated segment were not emitted;
 its stderr and database checkpoints are retained, while completed run reports retain their
 exact request/cache/retry counts. Do not present that missing segment as zero requests.
+
+## 📊 Whole-union API check (pilot content)
+
+The exact 6,874-key union was enumerated from the disposable preview database and checked via
+`taxon.page` with concurrency four. Every key returned HTTP 200 with matching identity,
+scientific display fallback, supported tile and a valid bounded gallery; there were no failures
+or HTTP 500 responses. The union fingerprint remained
+`6ede6e5b059fa0d3d5edc0e883654a1c7ecb2df08abae129c32c9953e25ae38e`.
+
+Local wall time was 8.78 seconds; per-request p50/p95/p99 were 4.9/7.2/8.9 ms. Responses totaled
+2,916,356 bytes, with a 5,234-byte maximum. These are local API/transport measurements on the
+pilot's 588-image content snapshot, not final-gallery payload measurements, browser rendering
+coverage, production latency or CDN transfer bytes. No upstream APIs/images were requested.
+The exact-key check must be repeated against the frozen final dataset in #29.
