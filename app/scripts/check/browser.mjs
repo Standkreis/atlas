@@ -8,27 +8,37 @@ const base = 'http://localhost:3002'
 const fullCatalogue = process.env.UX_FULL_CATALOGUE === '1'
 // Give the current month's preview taxon two distinct local images. The older non-lead catches
 // regressions to createdAt ordering, and its URL is a byte-request sentinel in the browser audit.
+const previewAssetIds = ['00000000-0000-4000-8100-000000000000', '00000000-0000-4000-8100-000000000001']
+let shiftedPreviewAssets = []
 const fixtureDb = new pg.Client({ connectionString: database.href })
 await fixtureDb.connect()
 try {
+  await fixtureDb.query('BEGIN')
+  await fixtureDb.query(`DELETE FROM "Asset" WHERE id = ANY($1::text[])`, [previewAssetIds])
+  const { rows: [demo] } = await fixtureDb.query(`SELECT p."taxonId" FROM "Plausibility" p JOIN "Region" r ON r.id = p."regionId"
+    WHERE r.name = 'Mainz-Bingen' AND p.peak > 0
+    ORDER BY p."monthShare"[EXTRACT(MONTH FROM CURRENT_DATE)::int]::numeric / p.peak DESC LIMIT 1`)
+  if (!demo) throw new Error('Mainz-Bingen preview taxon missing')
+  const { rows: existingPreviewAssets } = await fixtureDb.query(`SELECT id, position FROM "Asset" WHERE "taxonId" = $1 ORDER BY id`, [demo.taxonId])
+  shiftedPreviewAssets = existingPreviewAssets
+  if (shiftedPreviewAssets.length) {
+    const shift = 2 - Math.min(...shiftedPreviewAssets.map(({ position }) => position))
+    if (shift > 0) await fixtureDb.query(`UPDATE "Asset" SET position = position + $1 WHERE "taxonId" = $2`, [shift, demo.taxonId])
+  }
   await fixtureDb.query(`
-    WITH demo AS (
-      SELECT p."taxonId" FROM "Plausibility" p JOIN "Region" r ON r.id = p."regionId"
-      WHERE r.name = 'Mainz-Bingen' AND p.peak > 0
-      ORDER BY p."monthShare"[EXTRACT(MONTH FROM CURRENT_DATE)::int]::numeric / p.peak DESC LIMIT 1
-    )
     INSERT INTO "Asset" (id, kind, url, author, licence, "licenceUrl", "sourceUrl", origin, position, "createdAt", "taxonId")
     SELECT '00000000-0000-4000-8100-00000000000' || image.position, 'image'::"AssetKind", image.url,
       'Browser fixture (mock metadata)', 'CC0 1.0', 'https://creativecommons.org/publicdomain/zero/1.0/',
       'https://atlas-fixture.invalid/source/' || image.position, 'commons', image.position,
-      CASE WHEN image.position = 0 THEN NOW() ELSE '2000-01-01'::timestamp END, demo."taxonId"
-    FROM demo CROSS JOIN (VALUES
+      CASE WHEN image.position = 0 THEN NOW() ELSE '2000-01-01'::timestamp END, $1
+    FROM (VALUES
       (0, 'https://atlas-fixture.invalid/onboarding-lead-fixture.webp'),
       (1, 'https://atlas-fixture.invalid/onboarding-nonlead-sentinel.webp')
     ) AS image(position, url)
     ON CONFLICT (id) DO UPDATE SET url = EXCLUDED.url, licence = EXCLUDED.licence,
-      "licenceUrl" = EXCLUDED."licenceUrl", "sourceUrl" = EXCLUDED."sourceUrl", origin = EXCLUDED.origin
-  `)
+      "licenceUrl" = EXCLUDED."licenceUrl", "sourceUrl" = EXCLUDED."sourceUrl", origin = EXCLUDED.origin,
+      position = EXCLUDED.position, "createdAt" = EXCLUDED."createdAt", "taxonId" = EXCLUDED."taxonId"
+  `, [demo.taxonId])
   if (fullCatalogue) {
     const { rows: states } = await fixtureDb.query(`SELECT c."expectedRegions", c."completedRegions", c."unionTaxa", count(b.id)::int AS builds FROM "CatalogueVersion" c JOIN "RegionRegistryVersion" v ON v.id = c."registryVersionId" AND v.active JOIN "CatalogueRegionBuild" b ON b."catalogueVersionId" = c.id AND b.status = 'complete' WHERE c."countryCode" = 'DE' AND c.status = 'active' GROUP BY c.id`)
     const state = states[0]
@@ -51,6 +61,10 @@ try {
     await fixtureDb.query(`INSERT INTO "CatalogueRegionBuild" (id, "catalogueVersionId", "registryVersionId", "registryEntryId", status, "completedAt", "totalObservations", "monthTotals", "regionSize", "nowCounts", "perTile", "rejectedTaxa", "requestStats", "responseFingerprint", "setFingerprint", "updatedAt") VALUES ($1, $2, $3, $4, 'complete', $5, 1, $6, $7, $6, '{"bird":100,"mammal":100,"amphibian":50,"reptile":20,"fish":20,"insect":200,"plant":300,"fungus":139}', '[]', '{}', 'browser-fixture', 'browser-fixture', $5) ON CONFLICT ("catalogueVersionId", "registryEntryId") DO NOTHING`, [buildId, catalogueId, registryId, entryId, now, Array(12).fill(count), count])
     await fixtureDb.query(`INSERT INTO "CatalogueTaxon" ("catalogueVersionId", "taxonId", "createdAt") SELECT $1, "taxonId", $2 FROM "Plausibility" WHERE "regionId" = $3 ON CONFLICT DO NOTHING`, [catalogueId, now, mainz.id])
   }
+  await fixtureDb.query('COMMIT')
+} catch (error) {
+  await fixtureDb.query('ROLLBACK')
+  throw error
 } finally { await fixtureDb.end() }
 const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', '3002'], { stdio: 'inherit', env: { ...process.env, VERCEL: '1', BLOB_READ_WRITE_TOKEN: '', PHOTO_DIR: '/tmp/dex-check-photos', ANTHROPIC_API_KEY: 'check-only', ANTHROPIC_BASE_URL: 'http://127.0.0.1:9', RESEND_API_KEY: 'check-only', RESEND_BASE_URL: 'http://127.0.0.1:9', WEBAUTHN_RP_ID: 'localhost', WEBAUTHN_ORIGIN: base, WEBAUTHN_SECRET: 'check-only-secret-with-at-least-32-characters' } })
 const run = (script, args) => new Promise((resolve, reject) => {
@@ -77,6 +91,12 @@ try {
   const cleanup = new pg.Client({ connectionString: database.href })
   await cleanup.connect()
   try {
-    await cleanup.query(`DELETE FROM "Asset" WHERE id IN ('00000000-0000-4000-8100-000000000000', '00000000-0000-4000-8100-000000000001')`)
+    await cleanup.query('BEGIN')
+    await cleanup.query(`DELETE FROM "Asset" WHERE id = ANY($1::text[])`, [previewAssetIds])
+    for (const asset of shiftedPreviewAssets) await cleanup.query(`UPDATE "Asset" SET position = $1 WHERE id = $2`, [asset.position, asset.id])
+    await cleanup.query('COMMIT')
+  } catch (error) {
+    await cleanup.query('ROLLBACK')
+    throw error
   } finally { await cleanup.end() }
 }
