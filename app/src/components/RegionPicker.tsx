@@ -101,17 +101,16 @@ export function RegionPicker({ selectedId = null, fallbackRegions = [], tone = '
   const muted = dark ? 'text-white/75' : 'text-ink-soft'
   return (
     <section aria-label={t('label')} data-testid="region-picker" className="min-w-0">
-      <div className={`sticky top-0 z-10 pb-3 ${dark ? 'bg-night-deep/95' : 'bg-paper/95'} backdrop-blur-sm`}>
+      <div className={dark ? 'pb-3' : 'sticky top-0 z-10 bg-paper/95 pb-3 backdrop-blur-sm'}>
         <div className="flex min-h-11 items-center justify-between gap-3">
           <label htmlFor={searchId} className={`text-[15px] font-semibold ${muted}`}>{t('searchLabel')}</label>
           {onDismiss && <button type="button" onClick={onDismiss} data-testid="region-picker-dismiss" className="min-h-11 px-2 text-[15px] font-semibold underline">{t('dismiss')}</button>}
         </div>
         <div className="relative">
-          <span aria-hidden className={`pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-[19px] ${muted}`}>⌕</span>
           <input id={searchId} type="search" value={query} onChange={(event) => setQuery(event.target.value)} autoComplete="off" enterKeyHint="search"
             placeholder={t('placeholder')} data-testid="region-search" aria-describedby={`${searchId}-hint`}
-            className={`h-14 w-full rounded-2xl border py-3 pr-11 pl-11 text-[17px] outline-none focus:ring-2 focus:ring-sky ${dark ? 'border-white/20 bg-white text-night placeholder:text-ink-faint' : 'border-ink/15 bg-white text-ink placeholder:text-ink-faint'}`} />
-          {query && <button type="button" onClick={() => { setQuery(''); setDebounced('') }} aria-label={t('clear')} className={`absolute top-1/2 right-1 min-h-11 min-w-11 -translate-y-1/2 rounded-xl text-[20px] ${muted}`}>×</button>}
+            className={`h-14 w-full rounded-2xl border py-3 pr-11 pl-4 text-[17px] outline-none focus:ring-2 focus:ring-sky ${dark ? 'border-white/20 bg-white text-night placeholder:text-ink-faint' : 'border-ink/15 bg-white text-ink placeholder:text-ink-faint'}`} />
+          {query && <button type="button" onClick={() => { setQuery(''); setDebounced('') }} aria-label={t('clear')} data-testid="region-search-clear" className="absolute top-1/2 right-1 min-h-11 min-w-11 -translate-y-1/2 rounded-xl text-[20px] text-ink-soft">×</button>}
         </div>
         <p id={`${searchId}-hint`} className={`mt-2 text-[13px] ${muted}`}>{offline ? t('offlineSearch') : t('searchHint')}</p>
       </div>
