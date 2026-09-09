@@ -82,3 +82,31 @@ Local wall time was 8.78 seconds; per-request p50/p95/p99 were 4.9/7.2/8.9 ms. R
 pilot's 588-image content snapshot, not final-gallery payload measurements, browser rendering
 coverage, production latency or CDN transfer bytes. No upstream APIs/images were requested.
 The exact-key check must be repeated against the frozen final dataset in #29.
+
+## 🔎 Source-evidence review addendum
+
+At 10:18–10:27 UTC, independent Codex reviewer `/root/audit19_scientific_final` decoded and
+visually inspected ten deterministic interim sample images. Both Commons file pages exposed
+their file-specific credits and licence versions. Eight iNaturalist photo pages returned a
+Cloudflare challenge, including in an ordinary collaborative browser tab. The owner
+[approved retained official API records as a distinct source-evidence method](https://github.com/Standkreis/atlas/issues/21#issuecomment-5600270992),
+not a claim that blocked public pages had been inspected.
+
+The audit binds retained JSON bytes to the exact official detail request, taxon/photo identity,
+image URL, author and licence code. Review still checks the official version mapping, and
+sample decoding and complete fresh image-URL checks remain separate gates. The current
+[iNaturalist licence module](https://github.com/inaturalist/inaturalist/blob/d65e6756e8c249d9e56798138cd55a90649a2409/app/models/shared/license_module.rb)
+maps CC families to version 4.0 and CC0 to 1.0. This establishes its current published mapping,
+not every photograph's original historical grant.
+
+That distinction is material: the original [Nimbus contaminatus Flickr photograph](https://www.flickr.com/photos/coleoptera-us/33331825142/)
+links CC BY-SA 2.0, while imported iNaturalist photo 61832344 received the common 4.0 mapping.
+The API fallback therefore requires detailed native-free provenance; an abbreviated default
+photo, a `LocalPhoto` type alone, or an iNaturalist CDN URL is insufficient. A source-record
+census at 10:24:06 UTC matched all 8,543 then-collected iNaturalist references: 7,280 had null
+native provenance and 1,263 had imported provenance. This is an interim risk census, not a
+final gallery count or a claim that every imported image has an incorrect licence.
+
+The [issue records the release-blocking finding and pending collection-policy decision](https://github.com/Standkreis/atlas/issues/21#issuecomment-5600392398).
+No source-policy change, automatic rights relabelling or production transformation is implied
+by this evidence. Final samples must be selected again and bound to the frozen content snapshot.

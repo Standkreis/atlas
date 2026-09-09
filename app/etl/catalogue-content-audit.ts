@@ -6,7 +6,7 @@ import { Client } from 'pg'
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { TILES } from '../src/domain/rules'
-import { normalizedRemoteUrl, validReferenceImage } from '../src/domain/referenceImages'
+import { inatLicence, inatLicenceUrl, inatLicensed, normalizedRemoteUrl, validReferenceImage } from '../src/domain/referenceImages'
 import { safeReferenceUrl, type NetworkCheck } from './gallery-network-audit'
 import { CONTENT_WORK_VERSIONS, canonicalContent, contentDigest, contentSnapshotDigests, qualifiedReference, relevantWork, writeGalleryArtifact } from './catalogue-gallery-transfer'
 
@@ -24,10 +24,16 @@ export type ContentAuditSnapshot = {
 type Finding = { code: string; scope: string; message: string }
 type Sample = { assetId: string; gbifKey: number; tile: string; position: number; origin: string; url: string; sourceUrl: string; licence: string; licenceUrl: string | null; reasons: string[] }
 const hash = z.string().regex(/^[0-9a-f]{64}$/)
+const officialApiEvidenceSchema = z.object({
+  provider: z.literal('iNaturalist'), photoId: z.number().int().positive(), sourcePageUrl: z.string().url(),
+  requestUrl: z.string().url(),
+  cachePath: z.string().trim().min(1), cacheSha256: hash, retrievedAt: z.string().datetime({ offset: true }),
+  licenceMappingUrl: z.string().url(),
+}).strict()
 const networkReviewSchema = z.object({
   schemaVersion: z.literal(1), catalogueId: z.string().min(1), contentFingerprint: hash,
   reviewer: z.string().trim().min(1), reviewedAt: z.string().datetime({ offset: true }), notes: z.string().trim().min(1),
-  samples: z.array(z.object({ assetId: z.string().min(1), url: z.string().url(), method: z.enum(['browser', 'decoded-image']), rendered: z.boolean(), sourcePageChecked: z.boolean(), attributionChecked: z.boolean(), licenceChecked: z.boolean(), evidence: z.string().trim().min(1) }).strict()),
+  samples: z.array(z.object({ assetId: z.string().min(1), url: z.string().url(), method: z.enum(['browser', 'decoded-image']), rendered: z.boolean(), sourcePageChecked: z.boolean(), officialApiEvidence: officialApiEvidenceSchema.optional(), attributionChecked: z.boolean(), licenceChecked: z.boolean(), evidence: z.string().trim().min(1) }).strict()),
 }).strict()
 export type ContentNetworkReview = z.infer<typeof networkReviewSchema>
 export const parseContentNetworkReview = (value: unknown) => networkReviewSchema.parse(value)
@@ -62,6 +68,60 @@ const object = (value: unknown): Record<string, unknown> | null => value !== nul
 const nonempty = (value: unknown) => typeof value === 'string' && Boolean(value.trim())
 const bump = (counts: Record<string, number>, key: string) => { counts[key] = (counts[key] ?? 0) + 1 }
 const bucket = (size: number): '0' | '1' | '2-11' | '12' => size === 0 ? '0' : size === 1 ? '1' : size < 12 ? '2-11' : '12'
+
+/** Owner-approved alternative to an inaccessible public page, never an alternative to checking rights. */
+function officialApiSourcePassed(sample: ContentNetworkReview['samples'][number], asset: ContentAsset | undefined, now: number) {
+  const evidence = sample.officialApiEvidence
+  if (!evidence || !asset || asset.origin !== 'inat' || evidence.sourcePageUrl !== asset.sourceUrl) return false
+  const source = new URL(evidence.sourcePageUrl), mapping = new URL(evidence.licenceMappingUrl), request = new URL(evidence.requestUrl)
+  const retrieved = Date.parse(evidence.retrievedAt)
+  return source.protocol === 'https:' && !source.username && !source.password && !source.port &&
+    ['www.inaturalist.org', 'inaturalist.org'].includes(source.hostname) && source.pathname === `/photos/${evidence.photoId}` &&
+    request.protocol === 'https:' && request.hostname === 'api.inaturalist.org' && !request.username && !request.password && !request.port && !request.search && !request.hash && /^\/v1\/taxa\/[1-9][0-9]*$/.test(request.pathname) &&
+    mapping.protocol === 'https:' && !mapping.username && !mapping.password && !mapping.port &&
+    (['www.inaturalist.org', 'inaturalist.org'].includes(mapping.hostname) ||
+      (mapping.hostname === 'github.com' && /^\/inaturalist\/inaturalist\/blob\/[0-9a-f]{40}\//.test(mapping.pathname))) &&
+    Number.isFinite(retrieved) && retrieved <= now && now - retrieved < 30 * 24 * 60 * 60_000
+}
+
+/** Bind the retained official detail response to the published photo, not merely a hash of arbitrary JSON. */
+export function validateOfficialApiRecord(sample: ContentNetworkReview['samples'][number], asset: ContentAsset | undefined, scientificName: string | undefined, record: unknown) {
+  const evidence = sample.officialApiEvidence
+  const reject = () => { throw new Error(`official API record does not reproduce reviewed photo ${sample.assetId}`) }
+  if (!evidence || !asset || asset.origin !== 'inat' || !scientificName) return reject()
+  const payload = object(record)
+  if (!Array.isArray(payload?.results) || payload.results.length !== 1) return reject()
+  const taxon = object(payload.results[0])
+  const request = new URL(evidence.requestUrl)
+  if (!taxon || !Number.isSafeInteger(taxon.id) || request.pathname !== `/v1/taxa/${taxon.id}` || taxon.name !== scientificName ||
+    (taxon.taxon_photos !== undefined && !Array.isArray(taxon.taxon_photos))) return reject()
+  const photos: Record<string, unknown>[] = []
+  if (taxon.default_photo !== null && taxon.default_photo !== undefined) {
+    const photo = object(taxon.default_photo)
+    if (!photo) return reject()
+    photos.push(photo)
+  }
+  for (const entry of (taxon.taxon_photos ?? []) as unknown[]) {
+    const photo = object(object(entry)?.photo)
+    if (!photo) return reject()
+    photos.push(photo)
+  }
+  const matched = photos.filter((photo) => photo.id === evidence.photoId)
+  if (!matched.length) return reject()
+  // The common iNaturalist version map is not proof of an imported source's original licence.
+  // default_photo omits provenance; require a detailed native-free LocalPhoto counterpart.
+  if (!matched.some((photo) => photo.type === 'LocalPhoto' && photo.native_page_url === null && photo.native_photo_id === null) ||
+    matched.some((photo) => (photo.type != null && photo.type !== 'LocalPhoto') ||
+      (photo.native_page_url != null && photo.native_page_url !== '') || (photo.native_photo_id != null && photo.native_photo_id !== ''))) return reject()
+  const clean = (value: unknown) => typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : ''
+  for (const photo of matched) {
+    const author = clean(photo.attribution_name) || clean(photo.attribution).replace(/^\(c\)\s*/i, '').replace(/,.*$/, '').trim()
+    const code = typeof photo.license_code === 'string' ? photo.license_code : null
+    const render = typeof photo.medium_url === 'string' ? photo.medium_url : typeof photo.url === 'string' ? photo.url.replace('square', 'medium') : null
+    if (!render || !safeReferenceUrl(render) || normalizedRemoteUrl(render) !== normalizedRemoteUrl(asset.url) || author !== asset.author || !inatLicensed(code) ||
+      inatLicence(code!) !== asset.licence || inatLicenceUrl(code!) !== asset.licenceUrl) return reject()
+  }
+}
 
 function sampleTargets(snapshot: ContentAuditSnapshot): Sample[] {
   const taxa = new Map(snapshot.taxa.map((taxon) => [taxon.id, taxon]))
@@ -189,12 +249,14 @@ export function buildContentAudit(snapshot: ContentAuditSnapshot, review: Conten
         sampleIds.add(sample.assetId)
         const asset = snapshot.assets.find((a) => a.id === sample.assetId)
         if (!asset || sample.url !== asset.url) fail('network-review-asset', sample.assetId, 'sample does not identify the current image URL')
-        if (!sample.rendered || !sample.sourcePageChecked || !sample.attributionChecked || !sample.licenceChecked) fail('network-review-failed', sample.assetId, 'sample rendering, source, attribution or licence check failed')
+        const apiPassed = officialApiSourcePassed(sample, asset, auditNow)
+        if (sample.officialApiEvidence && !apiPassed) fail('network-review-api-evidence', sample.assetId, 'official API evidence must bind this iNaturalist photo, a recent retained record and official licence-version mapping')
+        if (!sample.rendered || !(sample.sourcePageChecked || apiPassed) || !sample.attributionChecked || !sample.licenceChecked) fail('network-review-failed', sample.assetId, 'sample rendering, source, attribution or licence check failed')
       }
       for (const target of targets) {
         const sample = review.samples.find((s) => s.assetId === target.assetId)
         if (!sample) fail('network-review-missing', target.assetId, 'required representative image has no network review')
-        else if (sample.rendered && sample.sourcePageChecked && sample.attributionChecked && sample.licenceChecked) reviewed++
+        else if (sample.rendered && (sample.sourcePageChecked || officialApiSourcePassed(sample, snapshot.assets.find((a) => a.id === sample.assetId), auditNow)) && sample.attributionChecked && sample.licenceChecked) reviewed++
       }
       networkStatus = defects.some((finding) => finding.code.startsWith('network-review-')) ? 'failed' : 'sample-passed'
     }
@@ -265,11 +327,23 @@ export async function loadContentSnapshot(client: Client, catalogueId: string): 
 export async function writeContentAuditBundle(options: { catalogue: string; output: string; networkReview?: string; urlChecks?: string; now?: () => Date }) {
   const client = new Client({ connectionString: requireLocalContentDatabase() })
   const review = options.networkReview ? parseContentNetworkReview(JSON.parse(await readFile(resolve(options.networkReview), 'utf8'))) : null
+  const apiRecords = new Map<string, unknown>()
+  // Check retained bytes as well as the reviewer's assertion; no upstream calls or image mirroring.
+  for (const sample of review?.samples ?? []) if (sample.officialApiEvidence) {
+    const evidence = sample.officialApiEvidence
+    const bytes = await readFile(resolve(evidence.cachePath))
+    if (createHash('sha256').update(bytes).digest('hex') !== evidence.cacheSha256) throw new Error(`official API evidence bytes changed for ${sample.assetId}`)
+    apiRecords.set(sample.assetId, JSON.parse(bytes.toString('utf8')))
+  }
   const urlChecks = options.urlChecks ? parseContentUrlReport(JSON.parse(await readFile(resolve(options.urlChecks), 'utf8'))) : null
   await client.connect()
   try {
     await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')
     const snapshot = await loadContentSnapshot(client, options.catalogue)
+    for (const sample of review?.samples ?? []) if (sample.officialApiEvidence) {
+      const asset = snapshot.assets.find((row) => row.id === sample.assetId)
+      validateOfficialApiRecord(sample, asset, snapshot.taxa.find((taxon) => taxon.id === asset?.taxonId)?.sciName, apiRecords.get(sample.assetId))
+    }
     const audit = buildContentAudit(snapshot, review, urlChecks, options.now)
     const output = resolve(options.output), artifactPath = resolve(output, 'gallery-artifact.jsonl')
     await mkdir(output, { recursive: true })

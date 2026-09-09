@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createHash } from 'node:crypto'
-import { buildContentAudit, networkReviewTemplate, parseContentAuditArgs, parseContentNetworkReview, parseContentUrlReport, requireLocalContentDatabase, type ContentAuditReport, type ContentAuditSnapshot, type ContentNetworkReview, type ContentAsset, type ContentWork, type ContentUrlCheckReport } from './catalogue-content-audit'
+import { buildContentAudit, networkReviewTemplate, parseContentAuditArgs, parseContentNetworkReview, parseContentUrlReport, requireLocalContentDatabase, validateOfficialApiRecord, type ContentAuditReport, type ContentAuditSnapshot, type ContentNetworkReview, type ContentAsset, type ContentWork, type ContentUrlCheckReport } from './catalogue-content-audit'
 import { CONTENT_WORK_VERSIONS, contentDigest, contentSnapshotDigests } from './catalogue-gallery-transfer'
 
 const at = '2026-09-09T10:00:00.000Z'
@@ -120,6 +120,68 @@ describe('German catalogue content audit', () => {
     expect(buildContentAudit(data, failed).network.status).toBe('failed')
     data.taxa[0]!.commonNames = { de: 'Changed after review' }
     expect(buildContentAudit(data, review).defects.some((f) => f.code === 'network-review-binding')).toBe(true)
+  })
+
+  it('accepts explicitly reviewed official API provenance without claiming the public page was viewed', () => {
+    const data = fixture(), review = approved(buildContentAudit(data))
+    const sample = review.samples[0]!, asset = data.assets.find((a) => a.id === sample.assetId)!
+    sample.sourcePageChecked = false
+    sample.officialApiEvidence = { provider: 'iNaturalist', photoId: Number(new URL(asset.sourceUrl).pathname.split('/').at(-1)),
+      sourcePageUrl: asset.sourceUrl, requestUrl: 'https://api.inaturalist.org/v1/taxa/123', cachePath: '/tmp/retained-official-record.json', cacheSha256: 'd'.repeat(64), retrievedAt: at,
+      licenceMappingUrl: `https://github.com/inaturalist/inaturalist/blob/${'a'.repeat(40)}/app/models/photo.rb` }
+    expect(parseContentNetworkReview(review).samples[0]!.sourcePageChecked).toBe(false)
+    expect(buildContentAudit(data, review, checkedUrls(data), clock).verdict).toBe('ready-for-transfer')
+    sample.licenceChecked = false
+    expect(buildContentAudit(data, review, checkedUrls(data), clock).verdict).toBe('blocked')
+  })
+
+  it.each(['photo-id', 'source-url', 'request-host', 'request-query', 'request-path', 'mapping-host', 'unpinned-mapping', 'stale', 'future', 'missing-digest'])(
+    'rejects mismatched or incomplete official API evidence: %s', (variant) => {
+      const data = fixture(), review = approved(buildContentAudit(data))
+      const sample = review.samples[0]!, asset = data.assets.find((a) => a.id === sample.assetId)!
+      sample.sourcePageChecked = false
+      sample.officialApiEvidence = { provider: 'iNaturalist', photoId: Number(new URL(asset.sourceUrl).pathname.split('/').at(-1)),
+        sourcePageUrl: asset.sourceUrl, requestUrl: 'https://api.inaturalist.org/v1/taxa/123', cachePath: '/tmp/retained-official-record.json', cacheSha256: 'd'.repeat(64), retrievedAt: at,
+        licenceMappingUrl: `https://github.com/inaturalist/inaturalist/blob/${'a'.repeat(40)}/app/models/photo.rb` }
+      const evidence = sample.officialApiEvidence
+      if (variant === 'photo-id') evidence.photoId++
+      if (variant === 'source-url') evidence.sourcePageUrl += '/different'
+      if (variant === 'request-host') evidence.requestUrl = 'https://example.org/v1/taxa/123'
+      if (variant === 'request-query') evidence.requestUrl += '?other=record'
+      if (variant === 'request-path') evidence.requestUrl = 'https://api.inaturalist.org/v1/observations/123'
+      if (variant === 'mapping-host') evidence.licenceMappingUrl = 'https://example.org/licences'
+      if (variant === 'unpinned-mapping') evidence.licenceMappingUrl = 'https://github.com/inaturalist/inaturalist/blob/main/app/models/photo.rb'
+      if (variant === 'stale') evidence.retrievedAt = '2026-08-10T10:00:00.000Z'
+      if (variant === 'future') evidence.retrievedAt = '2026-09-09T10:00:00.001Z'
+      if (variant === 'missing-digest') evidence.cacheSha256 = ''
+      expect(buildContentAudit(data, review, checkedUrls(data), clock).verdict).toBe('blocked')
+    },
+  )
+
+  it('binds retained API bytes to the exact taxon/photo, published URL, author and licence code', () => {
+    const data = fixture(), review = approved(buildContentAudit(data))
+    const sample = review.samples[0]!, asset = data.assets.find((a) => a.id === sample.assetId)!, scientificName = data.taxa.find((taxon) => taxon.id === asset.taxonId)!.sciName
+    sample.sourcePageChecked = false
+    sample.officialApiEvidence = { provider: 'iNaturalist', photoId: Number(new URL(asset.sourceUrl).pathname.split('/').at(-1)), sourcePageUrl: asset.sourceUrl,
+      requestUrl: 'https://api.inaturalist.org/v1/taxa/123', cachePath: '/tmp/retained-official-record.json', cacheSha256: 'd'.repeat(64), retrievedAt: at,
+      licenceMappingUrl: `https://github.com/inaturalist/inaturalist/blob/${'a'.repeat(40)}/app/models/photo.rb` }
+    const photo = { id: sample.officialApiEvidence.photoId, url: asset.url.replace('/medium.jpg', '/square.jpg'), attribution: '(c) Author, some rights reserved', license_code: 'cc-by', type: 'LocalPhoto', native_page_url: null, native_photo_id: null }
+    const record = { results: [{ id: 123, name: scientificName, default_photo: photo, taxon_photos: [{ photo }] }] }
+    expect(() => validateOfficialApiRecord(sample, asset, scientificName, record)).not.toThrow()
+    expect(sample.sourcePageChecked).toBe(false)
+    expect(() => validateOfficialApiRecord(sample, asset, scientificName, { results: [{ id: 123, name: scientificName, taxon_photos: [{ photo: { ...photo, attribution_name: 'Author' } }] }] })).not.toThrow()
+    for (const malformed of [null, {}, { results: [] }, { results: [record.results[0], record.results[0]] },
+      { results: [{ ...record.results[0], id: 124 }] }, { results: [{ ...record.results[0], name: 'Different species' }] },
+      { results: [{ ...record.results[0], taxon_photos: [null] }] }]) {
+      expect(() => validateOfficialApiRecord(sample, asset, scientificName, malformed)).toThrow('does not reproduce')
+    }
+    for (const changed of [{ id: photo.id + 1 }, { url: asset.url.replace('/medium.jpg', '/different.jpg') }, { attribution: 'Someone else' }, { license_code: 'cc-by-nc' }, { license_code: null },
+      { type: 'FlickrPhoto' }, { native_page_url: 'https://www.flickr.com/photos/example/123' }, { native_photo_id: '123' }, { type: undefined, native_page_url: undefined, native_photo_id: undefined }]) {
+      expect(() => validateOfficialApiRecord(sample, asset, scientificName, { results: [{ id: 123, name: scientificName, default_photo: { ...photo, ...changed } }] })).toThrow('does not reproduce')
+    }
+    // A duplicate photo ID with conflicting source metadata must not be hidden by a first-match lookup.
+    expect(() => validateOfficialApiRecord(sample, asset, scientificName, { results: [{ ...record.results[0], taxon_photos: [{ photo: { ...photo, license_code: null } }] }] })).toThrow('does not reproduce')
+    expect(() => validateOfficialApiRecord(sample, asset, scientificName, { results: [{ ...record.results[0], taxon_photos: [{ photo: { ...photo, type: 'FlickrPhoto' } }] }] })).toThrow('does not reproduce')
   })
 
   it('keeps deterministic content digests independent of loader row order', () => {

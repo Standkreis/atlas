@@ -100,6 +100,22 @@ describe('local content audit and gallery transfer selection', () => {
     const lines = (await readFile(join(directory, 'gallery-artifact.jsonl'), 'utf8')).trim().split('\n').map((line) => JSON.parse(line))
     expect(lines.filter((line) => line.type === 'row' && line.table === 'Asset').map((line) => line.row.id)).toEqual([`${prefix}-public`])
     expect(lines.filter((line) => line.type === 'row' && line.table === 'TaxonEnrichmentWork')).toHaveLength(2)
+    const cachePath = join(directory, 'official-api-record.json')
+    const cacheBytes = JSON.stringify({ results: [{ id: 456, name: 'Reviewus contentus', default_photo: {
+      id: 123, license_code: 'cc-by', attribution: 'Photographer', medium_url: 'https://inaturalist-open-data.s3.amazonaws.com/photos/123/medium.jpg',
+      type: 'LocalPhoto', native_page_url: null, native_photo_id: null,
+    }, taxon_photos: [] }] })
+    await writeFile(cachePath, cacheBytes)
+    const apiReview = { ...JSON.parse(await readFile(reviewPath, 'utf8')), samples: template.samples.map((sample) => ({ ...sample,
+      rendered: true, sourcePageChecked: false, attributionChecked: true, licenceChecked: true, evidence: 'Synthetic retained official API fixture, not a live public page.',
+      officialApiEvidence: { provider: 'iNaturalist', photoId: 123, sourcePageUrl: 'https://www.inaturalist.org/photos/123', requestUrl: 'https://api.inaturalist.org/v1/taxa/456', cachePath,
+        cacheSha256: createHash('sha256').update(cacheBytes).digest('hex'), retrievedAt: at.toISOString(),
+        licenceMappingUrl: `https://github.com/inaturalist/inaturalist/blob/${'a'.repeat(40)}/app/models/shared/license_module.rb` },
+    })) }
+    await writeFile(reviewPath, JSON.stringify(apiReview))
+    expect((await writeContentAuditBundle({ catalogue, output: directory, networkReview: reviewPath, urlChecks: urlChecksPath, now: () => at })).manifest.eligible).toBe(true)
+    await writeFile(cachePath, JSON.stringify({ results: [] }))
+    await expect(writeContentAuditBundle({ catalogue, output: directory, networkReview: reviewPath, urlChecks: urlChecksPath, now: () => at })).rejects.toThrow('evidence bytes changed')
     expect(await db.asset.findMany({ where: { id: { startsWith: prefix } }, orderBy: { id: 'asc' } })).toEqual(before)
   })
 })

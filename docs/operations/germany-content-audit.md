@@ -61,6 +61,21 @@ availability. Inspect actual locally populated pages on phone and desktop, inclu
 navigation, attribution for the selected image, source-page identity and matching licence.
 Decode/review the audit's representative image targets as well. Record only checks actually
 performed in a copy of the template, with reviewer identity, timestamp and concrete evidence.
+On 9 September the owner [approved retained official iNaturalist API evidence](https://github.com/Standkreis/atlas/issues/21#issuecomment-5600270992)
+when Cloudflare prevents inspecting a public photo page. Keep `sourcePageChecked: false` in
+that case and supply `officialApiEvidence`: provider `iNaturalist`, exact `photoId`,
+`sourcePageUrl` and official taxon-detail `requestUrl`, retained JSON `cachePath` and
+`cacheSha256`, original `retrievedAt`, and an
+official `licenceMappingUrl` establishing the exact family/version (pin GitHub source to a
+commit). The audit verifies retained bytes, their taxon/photo identity, render URL, author and
+licence code, and the existing 30-day source-cache
+freshness window. A reviewer must actually inspect that record and mapping; a licence-family
+code alone does not prove its version. This method does not waive attribution/licence checks,
+sample decoding or the separate complete 24-hour image-URL audit, and is not a claim that a
+blocked public page was viewed. Commons continues to use its file-specific licence evidence.
+This API alternative requires a detailed `LocalPhoto` record with explicitly null native-source
+fields. The global iNaturalist mapping does not establish an imported Flickr/Commons photo's
+original licence version; an abbreviated `default_photo` alone cannot prove native provenance.
 Source-linked photographs can depict diagnostic traces rather than an adult animal; do not
 silently claim field-identification certainty or introduce an unreviewed visual classifier.
 
