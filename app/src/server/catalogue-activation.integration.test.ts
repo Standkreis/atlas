@@ -182,6 +182,7 @@ describe('reviewed local catalogue activation', () => {
       expect(transfer.artifact.rows).toBeGreaterThan(20)
       const lines = (await readFile(join(output, 'transfer-artifact.jsonl'), 'utf8')).trim().split('\n').map((line) => JSON.parse(line))
       expect(lines.find((line) => line.type === 'row' && line.table === 'Taxon').row.commonNames).toEqual({ de: 'Auditpflanze' })
+      expect(lines.filter((line) => line.type === 'row' && line.table === 'Region').map((line) => line.row.id)).toEqual([...REGION_IDS].sort())
     } finally {
       await db.taxon.update({ where: { gbifKey: TAXON_KEY }, data: { commonNames: { de: 'Auditpflanze' } } })
       await rm(output, { recursive: true, force: true })
@@ -193,6 +194,15 @@ describe('reviewed local catalogue activation', () => {
     expect(drifted.verdict).toBe('blocked')
     await expect(activateLocalCatalogue({ catalogue: CATALOGUE_ID, review, registryContract: contract })).rejects.toThrow('non-activation defects')
     await db.plausibility.updateMany({ where: { regionId: REGION_IDS[0]! }, data: { obs: 10 } })
+
+    const missingLive = await db.plausibility.findFirstOrThrow({ where: { regionId: REGION_IDS[0]! } })
+    await db.plausibility.delete({ where: { id: missingLive.id } })
+    expect((await loadAuditSnapshot(CATALOGUE_ID)).liveState?.plausibilityMatches).toBe(false)
+    await db.plausibility.create({ data: missingLive })
+    const extraLookalike = { regionId: REGION_IDS[0]!, taxonId: missingLive.taxonId, siblingId: missingLive.taxonId }
+    await db.lookalike.create({ data: extraLookalike })
+    expect((await loadAuditSnapshot(CATALOGUE_ID)).liveState?.lookalikesMatch).toBe(false)
+    await db.lookalike.delete({ where: { taxonId_regionId_siblingId: extraLookalike } })
 
     await db.regionRegistryVersion.update({ where: { id: REGISTRY_ID }, data: { active: false } })
     const inactiveRegistry = buildCatalogueAudit(await loadAuditSnapshot(CATALOGUE_ID), review, contract)

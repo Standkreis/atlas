@@ -196,18 +196,37 @@ export async function exportLocalCatalogueArtifact(options: { catalogueId: strin
     await client.query(`SET TRANSACTION SNAPSHOT '${options.snapshotId}'`)
     const state = await client.query('SELECT status FROM "CatalogueVersion" WHERE id=$1', [options.catalogueId])
     if (state.rows[0]?.status !== 'active') throw new Error('only the active, post-audit catalogue can be exported')
+    let cursor: { name: string; table: string; nextOffset: number } | null = null
+    let cursorNumber = 0
     const result = await writeTransferJsonl({
       catalogueId: options.catalogueId,
       path: options.path,
       pageSize: options.pageSize,
       fetchPage: async (spec, limit, offset) => {
-        const page = await client.query<{ row: Record<string, unknown> }>(spec.sql, [options.catalogueId, limit, offset])
+        // One ordered scan per table. Repeating LIMIT/OFFSET rescans and eventually re-sorts the
+        // full Germany membership for every page; a forward cursor keeps the same bounded API.
+        if (offset === 0) {
+          if (cursor) throw new Error(`transfer cursor for ${cursor.table} was not exhausted`)
+          const sql = spec.sql.replace(/ LIMIT \$2 OFFSET \$3(?=\) x$)/, '')
+          if (sql === spec.sql) throw new Error(`transfer selection for ${spec.table} has no reviewed paging suffix`)
+          const name = `catalogue_transfer_${cursorNumber++}`
+          await client.query(`DECLARE "${name}" NO SCROLL CURSOR FOR ${sql}`, [options.catalogueId])
+          cursor = { name, table: spec.table, nextOffset: 0 }
+        }
+        if (!cursor || cursor.table !== spec.table || cursor.nextOffset !== offset) throw new Error('transfer cursor pages must be read sequentially')
+        const page = await client.query<{ row: Record<string, unknown> }>(`FETCH FORWARD ${limit} FROM "${cursor.name}"`)
+        cursor.nextOffset += limit
+        if (page.rows.length < limit) {
+          await client.query(`CLOSE "${cursor.name}"`)
+          cursor = null
+        }
         return page.rows.map((item) => item.row)
       },
     })
     await client.query('COMMIT')
     return result
   } catch (error) {
+    // Rollback also closes any cursor whose read or serialization failed before exhaustion.
     await client.query('ROLLBACK').catch(() => undefined)
     throw error
   } finally {

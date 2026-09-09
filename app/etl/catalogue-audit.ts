@@ -1018,8 +1018,15 @@ export async function loadAuditSnapshot(idOrRunKey: string, reader: typeof db | 
         FROM "Lookalike" l WHERE l."regionId" IN (SELECT "regionId" FROM builds)
       )
       SELECT
-        NOT EXISTS ((SELECT * FROM staged_p EXCEPT SELECT * FROM live_p) UNION ALL (SELECT * FROM live_p EXCEPT SELECT * FROM staged_p)) AS "plausibilityMatches",
-        NOT EXISTS ((SELECT * FROM staged_l EXCEPT SELECT * FROM live_l) UNION ALL (SELECT * FROM live_l EXCEPT SELECT * FROM staged_l)) AS "lookalikesMatch",
+        NOT EXISTS (
+          SELECT 1 FROM staged_p s FULL JOIN live_p l USING ("regionId", "taxonId")
+          WHERE s."taxonId" IS NULL OR l."taxonId" IS NULL
+            OR ROW(s.obs, s."monthShare", s.peak, s.words) IS DISTINCT FROM ROW(l.obs, l."monthShare", l.peak, l.words)
+        ) AS "plausibilityMatches",
+        NOT EXISTS (
+          SELECT 1 FROM staged_l s FULL JOIN live_l l USING ("regionId", "taxonId", "siblingId")
+          WHERE s."taxonId" IS NULL OR l."taxonId" IS NULL
+        ) AS "lookalikesMatch",
         NOT EXISTS (
           SELECT 1 FROM builds b JOIN "Region" r ON r.id = b."regionId"
           WHERE r."monthTotals" IS DISTINCT FROM b."monthTotals"

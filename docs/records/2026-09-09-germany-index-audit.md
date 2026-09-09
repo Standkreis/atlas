@@ -93,3 +93,41 @@ active audits verify exact staged/live membership, lookalikes, summaries and
 singleton activation. Regression tests cover concurrent content changes,
 live-row drift and registry deactivation. A production import still requires
 the separate #28 transformation/recovery plan and #29 release gates.
+
+## Local activation and checked payload
+
+Final post-activation result: **ready for transfer**, zero defects, all 21
+reviews passed, all 362 regions ready, no pending/running/failed builds and no
+region exclusions. The four machine-reported coverage categories are boundary
+approximation, missing German names, provider duplicates and the standalone
+water-query exclusion; the additional scientific caveats above remain explicit.
+
+The live local set contains 214,321 plausibilities and 151,680 lookalike links,
+equal to the staged candidate. All 11 protected-table hashes matched before and
+after activation. This generation database has no personal/asset rows, so that
+comparison is not a substitute for the nonempty preservation integration tests
+and the later representative migration rehearsal.
+
+The first export was deliberately cancelled when repeated OFFSET scans and
+spill-heavy equality queries proved slow at national scale. One cursor per
+table and exact full-join drift comparisons resolved that defect without
+weakening the gate. The partial file was removed; committed local activation
+was preserved and the export rerun successfully.
+
+The checked JSONL has **418,018 rows in 14 tables**, 156,368,718 bytes. A separate
+streaming read reproduced its byte digest, every table digest and every count.
+It contains 362 regions/builds/registry entries, 400 source units, 402 query
+units, 1,637 aliases, 3 source records, one registry, one catalogue, 6,874 Taxon
+and union rows each, 34,739 taxonomy resolutions, 214,321 staged plausibilities
+and 151,680 staged lookalikes. No personal or mixed Asset rows are included.
+
+| Checked evidence | SHA-256 |
+| --- | --- |
+| Bound review JSON | `7e57894926f0a9351d509533e93d72694549f64bb51956a0d8c713860afee7d4` |
+| Final audit | `9178ccd01a1943068b29b4f4e99ad7942ecd7ff7eb98fc708bc479d4dc4c0ac1` |
+| Transfer JSONL | `5931ef3540398ccf5eaf2779054f9d20341cc7babcb02fbe341dec2065deb008` |
+
+Operational bundle: `/private/tmp/germany-v2-reviewed-transfer`; completed review:
+`/private/tmp/germany-v2-final-review.json`. Enrichment changes in #21 require a
+new checked content/gallery artifact; this pre-enrichment payload is not the
+final production release bundle.
