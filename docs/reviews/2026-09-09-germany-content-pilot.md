@@ -192,3 +192,30 @@ The separate names retry completed all 6,874 checkpoints with 72 Wikidata reques
 zero HTTP 429 responses and zero failed/lost work. This closes the processing backlog, not the
 final scientific review of ambiguous outcomes. The iNaturalist hold remains until at least
 10 September 14:40 UTC, conditional on no intervening callers.
+
+## 🏷️ Complete names review — 16:30 UTC snapshot
+
+Independent reviewer `/root/audit19_code_review` checked all 25 final ambiguous/rank-gated
+outcomes against retained query responses and accepted GBIF records. All 18 ambiguous and seven
+rank-gated cases withheld common-name publication; all 25 query and GBIF fingerprints reproduce
+their stored evidence. The original twelve cases and their six Commons references retain the
+earlier hashes. No new confirmed naming defect was found; this is not biological or lexical
+certification of every matched label.
+
+All 6,874 checkpoints are complete: 4,533 matched, 2,316 scientific fallbacks, 18 ambiguous and
+seven rank-gated. German labels are usable for 4,436 taxa; 2,438 use scientific-name fallback.
+English labels cover 963, Japanese 1,623, and 2,341 taxa have no usable common label in any
+language. Language counts overlap. Completed coverage fallbacks are not failed requests.
+
+The thirteen newly reviewed cases have no current Commons assets or retained metadata for
+their proposed files; their eventual galleries still need the normal source and final image
+review. Salix's hybrid-marker distinction, Helvella's same-label collision and Draba's competing
+genus/species ranks cannot be resolved from the retained projections alone. Scientific
+fallbacks preserve those identities without guessing. Nothospecies rank rejection remains a
+Wikidata enrichment limitation, not grounds to remove an accepted hybrid from the catalogue.
+
+The bounded final names evidence is SHA-256
+`a81ae8bcf6b30e0fe3897f4dfd5640c5c44385df43416eba51fcd5e65286702b`;
+its Commons-cache follow-up is
+`e3956306cb2dfe26a382062c42537b69d25ee052fa3022fb3508d797a8e85979`.
+Raw public evidence remains outside Git. This review made no provider requests or data changes.
