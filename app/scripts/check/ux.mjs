@@ -106,6 +106,9 @@ try {
   await key('Enter')
   await wait(`${selector('[data-testid=region-search]')} && Object.keys(${selector('[data-testid=region-search]')}).some(k => k.startsWith('__reactProps'))`, 'hydrated region search')
   assert.equal(await evaluate('document.activeElement?.tagName'), 'H1', 'new screen heading receives focus')
+  assert.equal(await evaluate(`${selector('[data-testid=region-picker]')}.textContent.includes('⌕')`), false, 'onboarding region search has no leading search glyph')
+  assert.equal(await evaluate(`getComputedStyle(${selector('[data-testid=region-search]')}).paddingLeft`), '16px', 'onboarding search uses normal input padding')
+  assert.equal(await evaluate(`getComputedStyle(${selector('[data-testid=region-search]')}.parentElement.parentElement).backgroundColor`), 'rgba(0, 0, 0, 0)', 'onboarding search has no opaque header panel')
   await click('[data-testid=onboarding-back]')
   await wait(selector('[data-testid=onboarding-welcome]'))
   await click('[data-testid=welcome-next]')
@@ -117,8 +120,24 @@ try {
   await wait(`/location|standort/i.test(${selector('[role=alert]')}?.textContent ?? '')`, 'denied location is explained')
   await evaluate(`(() => { const input = ${selector('[data-testid=region-search]')}; const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(input, 'Mainz-Bingen'); input.dispatchEvent(new Event('input', { bubbles: true })) })()`)
   await wait(`${selector('[data-testid=region-result]')}?.textContent?.includes('Mainz-Bingen') && Object.keys(${selector('[data-testid=region-result]')}).some(k => k.startsWith('__reactProps'))`, 'exact bounded region search result')
+  assert.equal(await evaluate(`(() => { const button = ${selector('[data-testid=region-search-clear]')}; return !!button && !!button.getAttribute('aria-label') && button.classList.contains('text-ink-soft') && !button.classList.contains('text-white/75') })()`), true, 'typed search exposes an accessible ink-coloured clear control')
+  for (const [width, height, mobile] of [[390, 844, true], [1440, 900, false]]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile })
+    assert.equal(await evaluate(`document.documentElement.scrollWidth <= innerWidth && ${selector('[data-testid=region-picker]')}.getBoundingClientRect().width <= innerWidth`), true, `onboarding region search stays bounded at ${width}x${height}`)
+    if (evidenceDir) {
+      const { data } = await send('Page.captureScreenshot', { format: 'png' })
+      writeFileSync(join(evidenceDir, `${locale}-onboarding-region-search-${width}.png`), Buffer.from(data, 'base64'))
+    }
+  }
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
+  await click('[data-testid=region-search-clear]')
+  assert.equal(await evaluate(`${selector('[data-testid=region-search]')}.value`), '', 'clear control empties the typed query')
+  assert.equal(await evaluate(`document.querySelectorAll('[data-testid=region-result]').length`), 0, 'clear control resets search results')
+  await evaluate(`(() => { const input = ${selector('[data-testid=region-search]')}; const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(input, 'Mainz-Bingen'); input.dispatchEvent(new Event('input', { bubbles: true })) })()`)
+  await wait(`${selector('[data-testid=region-result]')}?.textContent?.includes('Mainz-Bingen')`, 'search works after clearing the query')
   await evaluate(`${selector('[data-testid=region-search]')}.focus()`)
   await key('Tab')
+  assert.equal(await evaluate(`document.activeElement?.getAttribute('data-testid')`), 'region-search-clear', 'clear control is keyboard reachable')
   await key('Tab')
   assert.equal(await evaluate(`document.activeElement?.getAttribute('data-testid')`), 'region-result', 'search result is keyboard reachable')
   await key('Enter')
@@ -248,6 +267,9 @@ try {
   assert.equal(await evaluate(`${selector('[data-testid=region-remove]')}.disabled`), true, 'active final region cannot be removed')
   await click('[data-testid=region-add]')
   await wait(selector('[data-testid=region-picker-panel]'))
+  assert.equal(await evaluate(`${selector('[data-testid=region-picker-panel]')}.textContent.includes('⌕')`), false, 'profile region search has no leading search glyph')
+  assert.equal(await evaluate(`getComputedStyle(${selector('[data-testid=region-search]')}).paddingLeft`), '16px', 'profile region search uses normal input padding')
+  assert.notEqual(await evaluate(`getComputedStyle(${selector('[data-testid=region-search]')}.parentElement.parentElement).backgroundColor`), 'rgba(0, 0, 0, 0)', 'profile search retains its sticky paper header')
   assert.equal(await evaluate(`document.querySelectorAll('[data-testid=region-result]').length`), 1, 'add-region picker shows only the saved region until search')
   if (fullCatalogue) {
     const searchFor = async (name) => {
