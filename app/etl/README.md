@@ -74,7 +74,8 @@ observation window, occurrence predicates, plausible-set rules, and tile mapping
 Germany run while one is `building` or `partial` is rejected; finish or explicitly resolve that run
 first.
 
-Germany habitat rule v1 also pins the WoRMS Aphia source contract. Every distinct accepted
+Germany habitat rule v1 also pins the WoRMS Aphia source contract at the working canonical
+`marinespecies.org` API hostname. Every distinct accepted
 regional-set name is matched in operational batches of 20 (below the API maximum of 50) with a
 60-second source timeout and `marine_only=false`. A timed-out multi-name request is split in half
 until its ordered names succeed or a single-name request fails; every successful half is

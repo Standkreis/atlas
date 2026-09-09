@@ -22,9 +22,9 @@ function store(dir: string, file: string, body: string) {
 }
 const BUDGET = Number(process.env.ETL_BUDGET ?? 50_000)
 /** Minimum gap between two requests to one host, ms. iNaturalist allows ~1/s; Wikidata and GloBI ~3/s. */
-const MIN_GAP: Record<string, number> = { 'api.inaturalist.org': 1100, 'query.wikidata.org': 300, 'api.globalbioticinteractions.org': 300, 'api.gbif.org': 200, 'xeno-canto.org': 1100, 'gift.uni-goettingen.de': 500, 'www.marinespecies.org': 1000 }
+const MIN_GAP: Record<string, number> = { 'api.inaturalist.org': 1100, 'query.wikidata.org': 300, 'api.globalbioticinteractions.org': 300, 'api.gbif.org': 200, 'xeno-canto.org': 1100, 'gift.uni-goettingen.de': 500, 'www.marinespecies.org': 1000, 'marinespecies.org': 1000 }
 /** GBIF publishes no fixed safe search rate. Keep requests conservative and let Retry-After extend the shared host cooldown. */
-const MAX_INFLIGHT: Record<string, number> = { 'api.gbif.org': 2, 'www.marinespecies.org': 1 }
+const MAX_INFLIGHT: Record<string, number> = { 'api.gbif.org': 2, 'www.marinespecies.org': 1, 'marinespecies.org': 1 }
 const ATTEMPTS = 5
 
 const budget: Record<string, number> = {}

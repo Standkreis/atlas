@@ -5,7 +5,7 @@ import type { RegistryRegionCalculation } from './region'
 export const MARINE_RULE_VERSION = 1
 export const WORMS_SOURCE = {
   name: 'World Register of Marine Species (WoRMS), Aphia',
-  endpoint: 'https://www.marinespecies.org/rest/AphiaRecordsByMatchNames',
+  endpoint: 'https://marinespecies.org/rest/AphiaRecordsByMatchNames',
   method: 'GET',
   namesParameter: 'scientificnames[]',
   marine_only: false,

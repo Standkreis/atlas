@@ -9,7 +9,7 @@ regions and a marine catalogue remain deferred.
 ## Evidence and decision
 
 Resolve every distinct accepted GBIF scientific name present in any calculated German
-regional set through the [WoRMS Aphia match service](https://www.marinespecies.org/rest/),
+regional set through the [WoRMS Aphia match service](https://marinespecies.org/rest/),
 `GET /AphiaRecordsByMatchNames`, using operational batches of 20 `scientificnames[]` per call
 (below the published maximum of 50), a 60-second source-specific timeout, and explicit
 `marine_only=false`. A real German-name probe established that a 20-name response can take about
@@ -20,6 +20,11 @@ A multi-name request that reaches that timeout is deterministically split into o
 retried. Each successful half is checkpointed immediately. Splitting continues down to one name;
 a singleton timeout fails the regional attempt and remains retryable rather than becoming false
 “unmatched” evidence.
+
+The pinned API endpoint uses the canonical bare `marinespecies.org` hostname. During the first
+full-scale execution on 2026-09-09, the `www` hostname repeatedly timed out with zero response
+bytes while the bare official host returned the same Aphia API contract successfully; both remain
+under the same WoRMS/VLIZ attribution and terms.
 
 Habitat rule v1 excludes a name only when its result has exactly one record, and all these
 conditions hold:

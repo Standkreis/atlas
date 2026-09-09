@@ -25,5 +25,5 @@ it('charges real WoRMS HTTP attempts to ETL_BUDGET and preserves the first opera
   expect(network).toHaveBeenCalledTimes(1)
   expect(batches).toHaveLength(1)
   expect(batches[0]!.names).toHaveLength(20)
-  expect(failedCaptureRequests(failure)).toMatchObject({ networkAttempts: 1, perHost: { 'www.marinespecies.org': 1 } })
+  expect(failedCaptureRequests(failure)).toMatchObject({ networkAttempts: 1, perHost: { 'marinespecies.org': 1 } })
 })
