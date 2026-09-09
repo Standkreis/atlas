@@ -4,6 +4,14 @@ export { normalizedRemoteUrl, commonsLicenceFamily, commonsLicenceUrlMatches } f
 
 export const GALLERY_LIMIT = 12
 
+export type InatPhotoProvenance = {
+  status: 'native-free-local-photo' | 'unverified-imported-licence' | 'unknown-provenance'
+  detailedRecords: number
+  totalRecords: number
+  conflictingMetadata: boolean
+  evidence: Array<{ detailed: boolean; type: string | null; nativePageUrl: string | null; nativePhotoId: string | number | null; missingFields: string[] }>
+}
+
 export type GalleryAsset = {
   position: number
   url: string
@@ -22,6 +30,7 @@ export type InatPhotoCandidate = {
   attributionName?: string
   renderUrl?: string
   curatedPosition: number
+  provenance?: InatPhotoProvenance
 }
 
 export type InatGallerySource = {
@@ -58,10 +67,13 @@ export type GalleryRejectionReason =
   | 'duplicate-source'
   | 'duplicate-url'
   | 'gallery-cap'
+  | 'unverified-imported-licence'
+  | 'unknown-provenance'
 
 export type GalleryRejection = {
   source: string
   reason: GalleryRejectionReason
+  provenance?: InatPhotoProvenance
 }
 
 export type GallerySelection = {
@@ -92,6 +104,11 @@ function reject(rejections: GalleryRejection[], source: string, reason: GalleryR
 function inatCandidate(photo: InatPhotoCandidate, sciName: string, rejections: GalleryRejection[]): Candidate | null {
   const source = `inat:${photo.id}`
   if (!Number.isSafeInteger(photo.id) || photo.id <= 0) return reject(rejections, source, 'invalid-source-id')
+  if (photo.provenance?.status !== 'native-free-local-photo') {
+    rejections.push({ source, reason: photo.provenance?.status === 'unverified-imported-licence' ? 'unverified-imported-licence' : 'unknown-provenance',
+      ...(photo.provenance ? { provenance: photo.provenance } : {}) })
+    return null
+  }
   const render = httpsUrl(photo.renderUrl)
   if (!clean(photo.renderUrl)) return reject(rejections, source, 'missing-render-url')
   if (!render) return reject(rejections, source, 'insecure-render-url')
@@ -166,6 +183,13 @@ export function selectGallery(input: {
   }
 
   const byId = new Map<number, InatPhotoCandidate>()
+  // Even a direct caller cannot let an earlier clean duplicate mask contrary source evidence.
+  const duplicates = Map.groupBy(photos, (photo) => photo.id)
+  photos = photos.map((photo) => {
+    const peers = duplicates.get(photo.id)!
+    const restrictive = peers.find((peer) => peer.provenance?.status === 'unverified-imported-licence') ?? peers.find((peer) => peer.provenance?.status !== 'native-free-local-photo')
+    return restrictive ? { ...photo, provenance: restrictive.provenance } : photo
+  })
   for (const photo of photos) if (!byId.has(photo.id)) byId.set(photo.id, photo)
   const defaultPhoto = input.inat?.defaultPhotoId == null ? null : byId.get(input.inat.defaultPhotoId) ?? null
   if (input.inat?.defaultPhotoId != null && !defaultPhoto && acceptedNames.has(input.inat.matchedName)) {

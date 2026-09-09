@@ -1,13 +1,13 @@
 // The per-species sources of the content job: iNaturalist photos, Commons file info, Wikipedia summaries, AnAge pages.
 // Ported from scripts/etl-probe/assets.mjs and coverage.mjs (record 0002 E7 E8).
 import { get, q } from './fetch'
-import { commonsLicenceFamily, commonsLicenceUrlMatches, type InatGallerySource, type InatPhotoCandidate } from './gallery'
+import { commonsLicenceFamily, commonsLicenceUrlMatches, normalizedRemoteUrl, type InatGallerySource, type InatPhotoCandidate, type InatPhotoProvenance } from './gallery'
 import { commonsFileOf, commonsRejected, inatLicence, inatLicenceUrl, inatLicensed, parseAnAge, wikiPage } from './prune'
 
 export type AssetDraft = { url: string; author: string; licence: string; licenceUrl: string | null; sourceUrl: string; origin: string; caption: string }
 
 // ── iNaturalist ──────────────────────────────────────────────────────────────
-type InatPhoto = { id: number; license_code: string | null; attribution?: string; attribution_name?: string; medium_url?: string; url?: string }
+type InatPhoto = { id: number; license_code: string | null; attribution?: string; attribution_name?: string; medium_url?: string; url?: string; type?: unknown; native_page_url?: unknown; native_photo_id?: unknown }
 type InatTaxon = { id: number; name: string; default_photo?: InatPhoto | null; taxon_photos?: { photo: InatPhoto }[] }
 
 const secure = (value: string | null | undefined) => {
@@ -50,14 +50,43 @@ export type InatGalleryFetchResult =
 
 type JsonFetch = <T>(url: string) => Promise<T | null>
 
-const photoCandidate = (photo: InatPhoto, curatedPosition: number): InatPhotoCandidate => ({
+const photoCandidate = (photo: InatPhoto, curatedPosition: number, provenance: InatPhotoProvenance): InatPhotoCandidate => ({
   id: photo.id,
   licenseCode: photo.license_code,
   attribution: photo.attribution,
   attributionName: photo.attribution_name,
   renderUrl: photo.medium_url ?? (photo.url ? photo.url.replace('square', 'medium') : undefined),
   curatedPosition,
+  provenance,
 })
+
+/** Only detailed same-ID records establish provenance. Raw provider responses remain cached. */
+function photoProvenance(records: Array<{ photo: InatPhoto; detailed: boolean }>): InatPhotoProvenance {
+  const clean = (value: unknown) => typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : ''
+  const signature = (photo: InatPhoto) => {
+    const author = clean(photo.attribution_name) || clean(photo.attribution).replace(/^\(c\)\s*/i, '').replace(/,.*$/, '').trim()
+    const rawUrl = photo.medium_url ?? photo.url
+    let url = rawUrl
+    try { if (url) url = normalizedRemoteUrl(url) } catch { /* Normal URL validation rejects it later. */ }
+    return JSON.stringify([photo.license_code, author, url])
+  }
+  const detailed = records.filter((record) => record.detailed)
+  const conflictingMetadata = new Set(records.map(({ photo }) => signature(photo))).size > 1
+  const imported = conflictingMetadata || records.some(({ photo }) => (photo.type != null && photo.type !== 'LocalPhoto') ||
+    (photo.native_page_url != null && photo.native_page_url !== '') || (photo.native_photo_id != null && photo.native_photo_id !== ''))
+  const proved = detailed.length > 0 && detailed.every(({ photo }) => photo.type === 'LocalPhoto' && photo.native_page_url === null && photo.native_photo_id === null)
+  return {
+    status: imported ? 'unverified-imported-licence' : proved ? 'native-free-local-photo' : 'unknown-provenance',
+    detailedRecords: detailed.length, totalRecords: records.length, conflictingMetadata,
+    // Bound checkpoint evidence; the complete original response remains in the source cache.
+    evidence: records.slice(0, 8).map(({ photo, detailed }) => ({ detailed,
+      type: typeof photo.type === 'string' ? photo.type : photo.type == null ? null : '[invalid type]',
+      nativePageUrl: typeof photo.native_page_url === 'string' ? photo.native_page_url : photo.native_page_url == null ? null : '[invalid native page]',
+      nativePhotoId: typeof photo.native_photo_id === 'string' || typeof photo.native_photo_id === 'number' ? photo.native_photo_id : photo.native_photo_id == null ? null : '[invalid native id]',
+      missingFields: ['type', 'native_page_url', 'native_photo_id'].filter((field) => (photo as unknown as Record<string, unknown>)[field] === undefined),
+    })),
+  }
+}
 
 /** Search once, then fetch the one curated photo list only after an exact or separately verified synonym match. */
 export async function fetchInatGallery(
@@ -95,8 +124,10 @@ export async function fetchInatGallery(
     if (listed.some((entry) => !entry || typeof entry !== 'object' || !entry.photo || typeof entry.photo !== 'object')) {
       return { status: 'failure', reason: 'malformed', detail: 'iNaturalist taxon_photos contains a malformed entry' }
     }
-    const raw = [...(parsed.default_photo ? [parsed.default_photo] : []), ...listed.map((entry) => entry.photo)]
-    const photos = raw.map(photoCandidate)
+    const records = [...(parsed.default_photo ? [{ photo: parsed.default_photo, detailed: false }] : []), ...listed.map((entry) => ({ photo: entry.photo, detailed: true }))]
+    const byId = Map.groupBy(records, ({ photo }) => photo.id)
+    const provenance = new Map([...byId].map(([id, entries]) => [id, photoProvenance(entries)]))
+    const photos = records.map(({ photo }, index) => photoCandidate(photo, index, provenance.get(photo.id)!))
     return {
       status: 'ok',
       source: {

@@ -110,3 +110,29 @@ final gallery count or a claim that every imported image has an incorrect licenc
 The [issue records the release-blocking finding and pending collection-policy decision](https://github.com/Standkreis/atlas/issues/21#issuecomment-5600392398).
 No source-policy change, automatic rights relabelling or production transformation is implied
 by this evidence. Final samples must be selected again and bound to the frozen content snapshot.
+
+## 🛡️ Approved conservative policy — 12:20 UTC addendum
+
+The owner subsequently [approved excluding imported candidates from new galleries unless
+their original licence is verified](https://github.com/Standkreis/atlas/issues/21#issuecomment-5601624909).
+Version `licensed-gallery-v4` requires consistent detailed same-photo-ID records with
+`LocalPhoto` type and explicitly null native provenance. Default-photo metadata can inherit
+that proof but cannot establish it. Imported or contradictory candidates are withheld with
+`unverified-imported-licence`; missing detailed proof is `unknown-provenance`. Metadata-only
+contradictions are flagged separately in the evidence: not every rejection proves an import.
+All records participate in classification, with bounded checkpoint evidence and complete raw
+responses retained in the cache. No original-source licence verifier or rights relabelling is
+introduced. Independently sourced Commons candidates remain available.
+
+The v4 cache-only 100-taxon pilot completed with 502 images (436 iNaturalist, 66 Commons), ten
+zero-image outcomes, 44 changed and 56 unchanged galleries, no failures and no network requests.
+An immediate unchanged repeat examined zero taxa and made zero network requests. The source
+preservation digest still matched all 6,924 protected Taxon records and the eleven protected
+table selections; empty local personal tables do not prove production preservation.
+
+The old v3 worker was stopped before the v4 national run. Its completed, failed and unfinished
+lease rows remain historical evidence, not current release completion. The national v4 run
+uses bounded batches with individual request reports; source responses and prior checkpoints
+survived the host crash. All 6,874 union taxa remain in scope, including honest no-image
+fallbacks. Existing production photos remain governed by the separate preservation-first
+migration plan. Final national counts, frozen samples and transfer approval are still pending.

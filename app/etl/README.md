@@ -105,10 +105,23 @@ narrows it further and rejects any key outside the selected set. `--limit` bound
 not the first N catalogue members: repeated limited runs advance through pending work. Invalid
 scope is rejected before any work row is seeded. No model or paid content API is used.
 
-The globally unique checkpoint is `(taxonId, gallery, licensed-gallery-v3)`. Version 3
+The globally unique checkpoint is `(taxonId, gallery, licensed-gallery-v4)`. Version 4
+requires matching detailed iNaturalist `taxon_photos` records to consistently identify a
+`LocalPhoto` with explicitly null `native_page_url` and `native_photo_id`. The abbreviated
+`default_photo`, LocalPhoto type alone, and an iNaturalist CDN URL cannot prove native provenance.
+Default candidates inherit proof only from the same photo ID's full detailed records. Imported,
+nonlocal or conflicting records are withheld as `unverified-imported-licence`; missing detailed
+proof is `unknown-provenance`. No original-source licence verifier is introduced: these new
+candidates remain excluded until their original grant can be independently verified. The
+independently sourced Commons path remains available under its existing licence contract.
+Bounded provenance details and reasons enter work summaries; complete original responses remain
+in the source cache. This changes gallery candidates, never species membership or existing
+production photos, whose preservation/visibility is owned by the separate migration plan.
+
+Version 4 retains version 3's correction that
 canonicalizes legacy HTTP and localized Creative Commons deed links only when their family,
 version and jurisdiction exactly match the declared licence. Credentials and nondefault ports
-remain invalid. Versions 1 and 2 are historical checkpoints, not current completion evidence.
+remain invalid. Versions 1–3 are historical checkpoints, not current completion evidence.
 Completed work,
 including a valid zero-image result, is reused across catalogue versions. Failed or expired work
 is retried once per invocation; a live lease is left to its owner. Stop/restart with the same
