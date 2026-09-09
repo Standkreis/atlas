@@ -158,6 +158,7 @@ export async function get(url: string, { headers = {}, text = false, bytes = fal
   }
   stats.misses++
   recordRequest('misses')
+  if (networkAttempts >= BUDGET) throw new Error(`total request budget exhausted (${BUDGET} network attempts)`)
   const gap = MIN_GAP[host] ?? 100
   const slot = async () => {
     while (true) {

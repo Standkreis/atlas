@@ -7,7 +7,7 @@ vi.mock('node:fs', () => ({ existsSync: () => true, mkdirSync: () => {}, readFil
 let layer: typeof import('./fetch')
 beforeAll(async () => { vi.stubEnv('VERCEL', ''); layer = await import('./fetch') })
 afterAll(() => vi.unstubAllEnvs())
-afterEach(() => { layer.resetFetchSchedulingForTest(); vi.useRealTimers(); vi.unstubAllGlobals(); disk.mtime = Date.now(); guard.dispatch.mockClear(); guard.block.mockClear() })
+afterEach(() => { layer.resetFetchSchedulingForTest(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.stubEnv('VERCEL', ''); disk.mtime = Date.now(); guard.dispatch.mockClear(); guard.block.mockClear() })
 
 const digest = (...parts: string[]) => {
   const hash = createHash('sha256')
@@ -29,6 +29,72 @@ describe('Retry-After', () => {
 })
 
 describe('ETL cache freshness', () => {
+  it('keeps zero-budget cache hits free and rejects misses before scheduling or dispatch', async () => {
+    vi.useFakeTimers()
+    vi.stubEnv('ETL_BUDGET', '0')
+    vi.resetModules()
+    const zeroBudgetLayer = await import('./fetch')
+    const network = vi.fn(async () => Response.json({ forbidden: true }))
+    vi.stubGlobal('fetch', network)
+
+    expect(await zeroBudgetLayer.get('https://api.inaturalist.org/cached-at-zero')).toEqual({ source: 'cache' })
+
+    let settled = 0
+    const urls = [1, 2, 3].map((id) => `https://api.gbif.org/zero-budget-${id}`)
+    urls.push('https://api.inaturalist.org/zero-budget-ledger')
+    const misses = urls.map((url) => zeroBudgetLayer.withFreshCache(() =>
+      zeroBudgetLayer.get(url),
+    ).then(
+      () => { settled++; throw new Error('zero-budget miss unexpectedly succeeded') },
+      (error: unknown) => { settled++; throw error },
+    ))
+    const results = Promise.allSettled(misses)
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(settled).toBe(4)
+    expect(vi.getTimerCount()).toBe(0)
+    expect(await results).toEqual(Array.from({ length: 4 }, () => expect.objectContaining({
+      status: 'rejected',
+      reason: expect.objectContaining({ message: 'total request budget exhausted (0 network attempts)' }),
+    })))
+    expect(network).not.toHaveBeenCalled()
+    expect(guard.dispatch).not.toHaveBeenCalled()
+    expect(zeroBudgetLayer.requests()).toEqual({
+      perHost: {},
+      networkAttempts: 0,
+      hits: 1,
+      misses: 4,
+      retries: 0,
+      tooMany: 0,
+    })
+  })
+
+  it('rechecks a positive process budget after a concurrent ledger wait', async () => {
+    vi.stubEnv('ETL_BUDGET', '1')
+    vi.resetModules()
+    const oneBudgetLayer = await import('./fetch')
+    let releaseLedger!: () => void
+    guard.dispatch.mockImplementationOnce(async <T>(dispatch: () => Promise<T>) => {
+      await new Promise<void>((resolve) => { releaseLedger = resolve })
+      return dispatch()
+    })
+    const network = vi.fn(async () => Response.json({ ok: true }))
+    vi.stubGlobal('fetch', network)
+
+    const waiting = oneBudgetLayer.withFreshCache(() => oneBudgetLayer.get('https://api.inaturalist.org/waiting'))
+    await vi.waitFor(() => expect(guard.dispatch).toHaveBeenCalledTimes(1))
+    await expect(oneBudgetLayer.withFreshCache(() => oneBudgetLayer.get('https://api.gbif.org/consumes-budget'))).resolves.toEqual({ ok: true })
+    releaseLedger()
+
+    await expect(waiting).rejects.toThrow('total request budget exhausted (1 network attempts)')
+    expect(network).toHaveBeenCalledTimes(1)
+    expect(oneBudgetLayer.requests()).toMatchObject({
+      perHost: { 'api.gbif.org': 1 },
+      networkAttempts: 1,
+      misses: 2,
+    })
+  })
+
   it('allows the WDQS server timeout plus margin, retains other timeouts and honors caller abort', async () => {
     vi.useFakeTimers()
     const timeout = vi.spyOn(AbortSignal, 'timeout')
