@@ -27,6 +27,11 @@ unsupported origin cannot evade review and can only remain hidden. A licence URL
 only when it validates against the unchanged licence family and version. It never rewrites the
 original `Asset.licenceUrl`.
 
+When evidence has more than one blocking finding, the hidden reason retains all findings in
+rights-then-subject order joined with `+`, for example
+`unverified-rights+confirmed-subject-conflict`. No finding is discarded merely to select a primary
+reason.
+
 The known Thalpophila matura reference under GBIF 5110213 has a custom attribution grant. It is not
 called unlicensed; it remains hidden as
 `custom-attribution-grant-outside-supported-policy`. The known iNaturalist photo 202516664 stored

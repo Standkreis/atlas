@@ -7,6 +7,8 @@ import { journalRouter } from './routers/journal'
 import { sightingRouter } from './routers/sighting'
 import type { Context } from './trpc'
 import { regionalPackUrls } from '../components/OfflinePack'
+import { contentDigest } from '../../etl/catalogue-gallery-transfer'
+import { hiddenReasonForEvidence, makeReferenceGalleryReceipt, planTargetReferenceGallery, referenceAssetFingerprint, type ReferenceAsset, type ReferenceAssetReview } from '../../etl/reference-gallery-preservation'
 
 const taxonIds = [randomUUID(), randomUUID()]
 const keys = [990037001, 990037002]
@@ -96,20 +98,38 @@ describe('public gallery read contract', () => {
   })
 
   it('uses one reviewed visibility decision for detail, every lead read and the offline pack', async () => {
+    const targetAssets = await db.asset.findMany({ where: { taxonId: taxonIds[0], kind: 'image', ownerId: null, sightingId: null, avatarOf: null }, include: { avatarOf: { select: { id: true } } }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }] }) as ReferenceAsset[]
+    const reviewedAt = '2026-09-10T20:00:00.000Z'
+    const reviews: ReferenceAssetReview[] = targetAssets.map((row) => {
+      const rightsStatus = row.licence === 'unknown' ? 'unverified' as const : 'verified-supported-licence' as const
+      const subjectStatus = row.id === leadId ? 'confirmed-conflict' as const : 'verified' as const
+      const evidence = {
+        rights: { status: rightsStatus, source: `Fixture rights review for ${row.id}` },
+        subject: { status: subjectStatus, source: `Fixture subject review for ${row.id}` },
+        renderedUrl: { url: row.url, source: `Fixture rendered URL review for ${row.id}` }, notes: `Reviewed fixture ${row.id}.`,
+      }
+      const selected = row.id === reviewedLeadId
+      return {
+        assetId: row.id, decision: selected ? 'eligible' : 'hidden',
+        hiddenReason: selected ? null : hiddenReasonForEvidence(evidence) ?? 'not-selected-fixture', correctedLicenceUrl: null,
+        sourceAssetFingerprint: referenceAssetFingerprint(row), evidence, evidenceFingerprint: contentDigest(evidence),
+        reviewer: 'Integration reviewer', reviewedAt,
+      }
+    })
+    const planInput = { catalogueVersionId: catalogueId, taxonId: taxonIds[0], existingAssets: targetAssets, incomingAssets: [], reviews }
+    const plan = planTargetReferenceGallery(planInput)
+    const receipt = makeReferenceGalleryReceipt(planInput, { evidence: { fixture: 'target review' }, reviewer: 'Integration reviewer', reviewedAt })
     await db.referenceGalleryReceipt.create({ data: {
-      catalogueVersionId: catalogueId, taxonId: taxonIds[0], sourceSnapshot: { fixture: 'before-images' }, sourceFingerprint: 'a'.repeat(64),
-      evidence: { fixture: 'target review' }, evidenceFingerprint: 'b'.repeat(64), resultSnapshot: { fixture: 'effective gallery' }, resultFingerprint: 'c'.repeat(64),
-      reviewer: 'Integration reviewer', reviewedAt: new Date('2026-09-10T20:00:00.000Z'),
+      catalogueVersionId: catalogueId, taxonId: taxonIds[0], sourceSnapshot: receipt.sourceSnapshot!, sourceFingerprint: receipt.sourceFingerprint,
+      evidence: receipt.evidence!, evidenceFingerprint: receipt.evidenceFingerprint, resultSnapshot: receipt.resultSnapshot!, resultFingerprint: receipt.resultFingerprint,
+      reviewer: receipt.reviewer, reviewedAt: new Date(receipt.reviewedAt),
     } })
     await expect(db.referenceAssetVisibility.create({ data: {
       assetId: leadId, catalogueVersionId: catalogueId, taxonId: taxonIds[0], eligible: true,
       sourceAssetFingerprint: 'd'.repeat(64), evidence: { fixture: 'missing target position' }, evidenceFingerprint: 'e'.repeat(64),
-      reviewer: 'Integration reviewer', reviewedAt: new Date('2026-09-10T20:00:00.000Z'),
+      reviewer: 'Integration reviewer', reviewedAt: new Date(reviewedAt),
     } })).rejects.toThrow()
-    await db.referenceAssetVisibility.createMany({ data: [
-      { assetId: leadId, catalogueVersionId: catalogueId, taxonId: taxonIds[0], eligible: false, hiddenReason: 'confirmed-subject-conflict', sourceAssetFingerprint: 'd'.repeat(64), evidence: { fixture: 'conflict' }, evidenceFingerprint: 'e'.repeat(64), reviewer: 'Integration reviewer', reviewedAt: new Date('2026-09-10T20:00:00.000Z') },
-      { assetId: reviewedLeadId, catalogueVersionId: catalogueId, taxonId: taxonIds[0], eligible: true, targetPosition: 0, correctedLicenceUrl: null, sourceAssetFingerprint: 'f'.repeat(64), evidence: { fixture: 'eligible' }, evidenceFingerprint: '0'.repeat(64), reviewer: 'Integration reviewer', reviewedAt: new Date('2026-09-10T20:00:00.000Z') },
-    ] })
+    await db.referenceAssetVisibility.createMany({ data: plan.visibility.map((row) => ({ ...row, reviewedAt: new Date(row.reviewedAt) })) })
     try {
       const protectedIds = (await db.asset.findMany({ where: { taxonId: taxonIds[0], OR: [{ kind: 'sound' }, { origin: 'user' }, { ownerId: { not: null } }, { sightingId: { not: null } }] }, select: { id: true }, orderBy: { id: 'asc' } })).map((row) => row.id)
       await expect(db.asset.delete({ where: { id: reviewedLeadId } })).rejects.toThrow()
@@ -122,6 +142,24 @@ describe('public gallery read contract', () => {
       expect(row.lead?.id).toBe(reviewedLeadId)
       expect(row.lead).not.toHaveProperty('referenceVisibility')
       expect(regionalPackUrls([row])).toEqual([row.leadSmall])
+      const original = targetAssets.find((asset) => asset.id === reviewedLeadId)!
+      for (const drift of [
+        { url: 'https://example.test/image/replaced/medium.jpg' },
+        { author: 'Different valid author' },
+        { licence: 'CC BY-SA 4.0', licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' },
+        { position: 7 },
+      ]) {
+        await db.asset.update({ where: { id: reviewedLeadId }, data: drift })
+        const driftPage = await taxonRouter.createCaller(context).page({ gbifKey: keys[0], regionId })
+        expect(driftPage!.assets.filter((asset) => asset.kind === 'image')).toEqual([])
+        const driftDex = await dexRouter.createCaller(context).set({ regionId, tiles: ['bird'] })
+        const driftRow = driftDex!.species.find((species) => species.taxonId === taxonIds[0])!
+        expect(driftRow.lead).toBeNull()
+        expect(regionalPackUrls([driftRow])).toEqual([])
+        await db.asset.update({ where: { id: reviewedLeadId }, data: {
+          url: original.url, author: original.author, licence: original.licence, licenceUrl: original.licenceUrl, position: original.position,
+        } })
+      }
       expect((await taxonRouter.createCaller(context).ensure({ gbifKey: keys[0] })).leadInfo?.sourceUrl).toBe(asset(taxonIds[0], 2).sourceUrl)
       expect((await journalRouter.createCaller(context).get({ id: sightingId }))?.reference?.id).toBe(reviewedLeadId)
       expect((await sightingRouter.createCaller(context).fill({ id: sightingId }))?.taxon.lead?.id).toBe(reviewedLeadId)

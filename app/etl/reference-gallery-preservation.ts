@@ -1,8 +1,12 @@
 import { canonicalContent, contentDigest } from './catalogue-gallery-transfer'
-import { normalizedRemoteUrl, validReferenceImage, type ReferenceRow } from '../src/domain/referenceImages'
+import { canonicalReferenceContent, normalizedRemoteUrl, referenceAssetBeforeImage, validReferenceImage, type ReferenceRow } from '../src/domain/referenceImages'
 
 export const REFERENCE_GALLERY_RECEIPT_VERSION = 1
 export const CUSTOM_GRANT_HIDDEN_REASON = 'custom-attribution-grant-outside-supported-policy'
+export const hiddenReasonForEvidence = (evidence: ReferenceReviewEvidence) => [
+  evidence.rights.status === 'unverified' ? 'unverified-rights' : evidence.rights.status === 'custom-attribution-grant' ? CUSTOM_GRANT_HIDDEN_REASON : null,
+  evidence.subject.status === 'unverified' ? 'unverified-subject' : evidence.subject.status === 'confirmed-conflict' ? 'confirmed-subject-conflict' : null,
+].filter((reason): reason is string => reason !== null).join('+') || null
 
 export type ReferenceAsset = ReferenceRow & {
   taxonId: string | null
@@ -89,17 +93,6 @@ const avatar = (value: unknown) => value !== null && value !== undefined && valu
 const globalReference = (asset: ReferenceAsset, taxonId: string) => asset.taxonId === taxonId && asset.kind === 'image' && asset.ownerId === null && asset.sightingId === null && !avatar(asset.avatarOf)
 const ordered = <T extends ReferenceAsset>(assets: readonly T[]) => [...assets].sort((a, b) => a.position - b.position || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() || a.id.localeCompare(b.id))
 
-/** The exact original fields whose later drift invalidates review evidence. Target position and URL overlays are absent. */
-export function referenceAssetBeforeImage(asset: ReferenceAsset) {
-  return {
-    id: asset.id, kind: asset.kind, url: asset.url, author: asset.author, licence: asset.licence,
-    licenceUrl: asset.licenceUrl, sourceUrl: asset.sourceUrl, origin: asset.origin,
-    caption: asset.caption ?? null, meta: asset.meta ?? null, position: asset.position,
-    createdAt: asset.createdAt, taxonId: asset.taxonId, sightingId: asset.sightingId,
-    ownerId: asset.ownerId, avatarOf: avatar(asset.avatarOf), byteSize: asset.byteSize ?? null,
-  }
-}
-
 export const referenceAssetFingerprint = (asset: ReferenceAsset) => contentDigest(referenceAssetBeforeImage(asset))
 
 function validateReview(asset: ReferenceAsset, review: ReferenceAssetReview) {
@@ -110,9 +103,8 @@ function validateReview(asset: ReferenceAsset, review: ReferenceAssetReview) {
     review.evidence.renderedUrl.url !== asset.url) throw new Error(`invalid reference review evidence for ${asset.id}`)
   if (review.decision === 'hidden') {
     if (!nonempty(review.hiddenReason) || review.correctedLicenceUrl !== null) throw new Error(`invalid hidden reference review for ${asset.id}`)
-    if (review.evidence.rights.status === 'unverified' && review.hiddenReason !== 'unverified-rights') throw new Error(`unverified rights need an explicit hidden reason for ${asset.id}`)
-    if (review.evidence.rights.status === 'custom-attribution-grant' && review.hiddenReason !== CUSTOM_GRANT_HIDDEN_REASON) throw new Error(`custom grant must retain its accurate hidden reason for ${asset.id}`)
-    if (review.evidence.subject.status === 'confirmed-conflict' && review.hiddenReason !== 'confirmed-subject-conflict') throw new Error(`subject conflict needs an explicit hidden reason for ${asset.id}`)
+    const evidenceReason = hiddenReasonForEvidence(review.evidence)
+    if (evidenceReason && review.hiddenReason !== evidenceReason) throw new Error(`hidden reason does not encode all evidence findings for ${asset.id}: expected ${evidenceReason}`)
     return
   }
   if (review.hiddenReason !== null || review.evidence.rights.status !== 'verified-supported-licence' || review.evidence.subject.status !== 'verified') throw new Error(`eligible reference lacks verified rights or subject evidence for ${asset.id}`)
@@ -135,7 +127,7 @@ export function planTargetReferenceGallery(input: ReferenceGalleryPlanInput): Re
   }
   for (const asset of input.incomingAssets) {
     const stored = storedById.get(asset.id)
-    if (stored && canonicalContent(referenceAssetBeforeImage(stored)) !== canonicalContent(referenceAssetBeforeImage(asset))) throw new Error(`incoming Asset id collides with retained evidence for ${asset.id}`)
+    if (stored && canonicalReferenceContent(referenceAssetBeforeImage(stored)) !== canonicalReferenceContent(referenceAssetBeforeImage(asset))) throw new Error(`incoming Asset id collides with retained evidence for ${asset.id}`)
   }
   const existingReferences = ordered(input.existingAssets.filter((asset) => globalReference(asset, input.taxonId)))
   if (input.incomingAssets.some((asset) => !globalReference(asset, input.taxonId))) throw new Error('incoming target gallery contains a non-reference or reassigned asset')
@@ -145,7 +137,7 @@ export function planTargetReferenceGallery(input: ReferenceGalleryPlanInput): Re
   for (const asset of [...existingReferences, ...incomingReferences]) {
     const prior = byId.get(asset.id)
     if (prior) {
-      if (canonicalContent(referenceAssetBeforeImage(prior)) !== canonicalContent(referenceAssetBeforeImage(asset))) throw new Error(`asset id collision changes original evidence for ${asset.id}`)
+      if (canonicalReferenceContent(referenceAssetBeforeImage(prior)) !== canonicalReferenceContent(referenceAssetBeforeImage(asset))) throw new Error(`asset id collision changes original evidence for ${asset.id}`)
       continue
     }
     byId.set(asset.id, asset); candidates.push(asset)

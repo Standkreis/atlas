@@ -6,7 +6,7 @@ import { isNow, nowRatio, perMille, tileOf } from '@/domain/rules'
 import { parseProseForRegion } from '../prose'
 import { takeSearchToken } from '../searchCap'
 import { publicProcedure, router } from '../trpc'
-import { leadAsset, leadAssetSelection, referenceAssetOrder, referenceImageWhere } from '../leadAssetSelection'
+import { leadAsset, leadAssetSelection, referenceAssetOrder, referenceImageWhere, referenceVisibilitySelection } from '../leadAssetSelection'
 import { referenceGallery, type ReferenceRow } from '@/domain/referenceImages'
 import { taxonNames } from '@/domain/taxonNames'
 
@@ -122,7 +122,7 @@ export const taxonRouter = router({
       const month = input.month ?? thisMonth()
       const t = await ctx.db.taxon.findUnique({
         where: { gbifKey: input.gbifKey },
-        include: { assets: { where: { OR: [referenceImageWhere, { kind: 'sound', ownerId: null, sightingId: null, avatarOf: null }] }, orderBy: [...referenceAssetOrder], include: { referenceVisibility: { select: { eligible: true, targetPosition: true, hiddenReason: true, correctedLicenceUrl: true } } } }, interactionsFrom: { include: { target: { select: taxonCard } } } },
+        include: { assets: { where: { OR: [referenceImageWhere, { kind: 'sound', ownerId: null, sightingId: null, avatarOf: null }] }, orderBy: [...referenceAssetOrder], include: { avatarOf: { select: { id: true } }, referenceVisibility: referenceVisibilitySelection } }, interactionsFrom: { include: { target: { select: taxonCard } } } },
       })
       if (!t) return null
       const regionId = input.regionId

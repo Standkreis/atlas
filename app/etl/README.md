@@ -11,17 +11,18 @@ TypeScript on `tsx`, the app's Prisma client, and `ffmpeg-static` (dev dependenc
 | `npm run etl -- refresh [--days 30]` | The legacy single-query job again for prepared GADM-backed regions older than `days`; #18 owns nationwide orchestration | as above per region |
 | `npm run etl -- content [--region <name>] [--purge <gbifKey>] [--limit n]` | For every set/logged taxon with `contentAt` null: GBIF → Wikidata names → complete reference gallery → Wikipedia intro → AnAge facts → GloBI edges. Completed global gallery work is preserved. Fetches precede one transaction per taxon; failures preserve prior content. `--purge` refreshes one taxon without deleting its old content first. Facts/prose follow only successful taxa | Provider calls plus GBIF matches for new interaction targets; cached and rate-limited |
 
-The gallery command above remains the source-enrichment path. It is not permission to replace a
-deployed target gallery. Target reconciliation uses the preservation planner and reviewed receipt
-contract in [reference gallery preservation](../../docs/operations/reference-gallery-preservation.md);
-the future importer must retain every old Asset row and publish visibility rows plus the exact
-target receipt atomically.
 | `npm run etl -- facts [--region <name>] [--purge] [--force] [--limit n]` | The Steckbrief keys (handoff 0021 D3, D4) for every set taxon with `factsAt` null: birds, mammals, amphibians from the bulk files in `data/` (AVONET, EltonTraits, PanTHERIA, AmphiBIO; GBIF synonyms for a binomial miss; a bird's habitat is AVONET's class plus EltonTraits' foraging stratum when it adds a word, 0025 C2) · plants from GIFT (species list and five trait tables, cached once) · fungi edibility and spore print, bird wingspan with unit from Wikidata · GBIF's most-agreed English vernacular into `names.en` where empty. Keeps AnAge and the intro; `--purge` drops only the 13 new keys; `--force` recomputes taxa with `factsAt` set. Also runs at the end of `content` for the taxa it filled | ≈ 0.7 GBIF per taxon + 1 Wikidata per 100 + 6 GIFT per process; Mainz-Bingen 889 taxa in 25 s |
 | `npm run etl -- sounds [--region <name>] [--limit n]` | One xeno-canto clip (API v3, `XENO_CANTO_API_KEY` from the shell; unset → says so and skips) per bird, frog, grasshopper and bat in the set without a sound Asset: `sp:"…" grp:… q:A len:5-30`, then without `len`; song over call, ≤ 30 s preferred, shortest, ≥ 5 s, never ND; MP3 first, else a WAV transcoded with `ffmpeg-static` to MP3 128 kbps mono (`meta.transcoded: true`, 0025 C1). The file goes through `src/server/photos.ts` to `sounds/<gbifKey>.mp3` (Blob when the token is set, else `PHOTO_DIR/sounds/`), one `Asset` row `kind: 'sound'` with recordist, licence, recording page and `meta { xcId, type, length, quality }`; served by `/api/photo/<id>.mp3`. **Every clip is NC** (`CC BY-NC-SA`, one `CC BY-NC`; accepted in 0025 C4 for this personal atlas): a sold product needs a licence filter in `clip.ts` (`usable`, one `licensed.some` clause) and a refill | 1–2 xeno-canto + 1 download per taxon at 1.1 s gap; Mainz-Bingen 89 taxa in 3 min; a WAV transcode ≈ 1 s |
 | `npm run etl -- content --region <name> --force` | Refetches GloBI edges for filled taxa, with per-study counts and F1/F2 prose exclusions. Names, galleries, intro, facts and sounds are preserved. `--force --keys k1,k2` retries selected taxa | Mainz-Bingen historical run: 929 taxa in 3 h 34 min (2026-09-07), approximately 6,000 GloBI pages and 34,000 GBIF target matches; cached retries are faster |
 | `npm run etl -- prose --region <name> [--driver files\|api] [--run <name>]` · `prose --load --run <name>` · `prose --purge [--region <name>]` | The Steckbrief and Ökologie texts (handoff 0028, §✍️ below). No network, no model call from the ETL | 0 |
 | `npm run etl -- recode` | The AnAge cells written as English before handoff 0024 (`21.8 years (wild)`, `clutch size 4.5 · …`) → the codes the page translates (`21.8 wild`, `clutch 4.5 · perYear 2 · maturity 365`), in place, idempotent | 0; dev 851 taxa in 2 s |
 | `npm run db:seed` | The dev identity and the two fixtures (`fixtures/`, plausibility only, no content), idempotent | 0 |
+
+The gallery command above remains the source-enrichment path. It is not permission to replace a
+deployed target gallery. Target reconciliation uses the preservation planner and reviewed receipt
+contract in [reference gallery preservation](../../docs/operations/reference-gallery-preservation.md);
+the future importer must retain every old Asset row and publish visibility rows plus the exact
+target receipt atomically.
 
 | File | Holds |
 | --- | --- |

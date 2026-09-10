@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { contentDigest } from './catalogue-gallery-transfer'
 import {
   CUSTOM_GRANT_HIDDEN_REASON, assertReferenceGalleryReceipt, makeReferenceGalleryReceipt,
-  planTargetReferenceGallery, referenceAssetFingerprint,
+  hiddenReasonForEvidence, planTargetReferenceGallery, referenceAssetFingerprint,
   type ReferenceAsset, type ReferenceAssetReview,
 } from './reference-gallery-preservation'
 
@@ -83,6 +83,33 @@ describe('preservation-first target gallery planning', () => {
     ] })
     expect(() => planTargetReferenceGallery(input([], [unknown], []))).toThrow('exactly one explicit review')
     expect(() => planTargetReferenceGallery(input([], [unknown], [review(unknown, { evidence: unknownEvidence, evidenceFingerprint: contentDigest(unknownEvidence) })]))).toThrow('verified rights')
+  })
+
+  it('retains every simultaneous rights and subject finding in one deterministic compound reason', () => {
+    const unknownConflict = asset('unknown-conflict', 0, { licence: 'unknown', licenceUrl: null })
+    const customConflict = asset('custom-conflict', 1, { licence: 'custom attribution grant', licenceUrl: null })
+    const unknownProof = evidence(unknownConflict, {
+      rights: { status: 'unverified', source: 'No original rights grant.' },
+      subject: { status: 'confirmed-conflict', source: 'Reviewed as a different subject.' },
+    })
+    const customProof = evidence(customConflict, {
+      rights: { status: 'custom-attribution-grant', source: 'A custom grant outside supported policy.' },
+      subject: { status: 'confirmed-conflict', source: 'Reviewed as a different subject.' },
+    })
+    const unknownReason = hiddenReasonForEvidence(unknownProof)!
+    const customReason = hiddenReasonForEvidence(customProof)!
+    expect(unknownReason).toBe('unverified-rights+confirmed-subject-conflict')
+    expect(customReason).toBe(`${CUSTOM_GRANT_HIDDEN_REASON}+confirmed-subject-conflict`)
+    const plan = planTargetReferenceGallery(input([], [unknownConflict, customConflict], [
+      review(unknownConflict, { decision: 'hidden', hiddenReason: unknownReason, evidence: unknownProof, evidenceFingerprint: contentDigest(unknownProof) }),
+      review(customConflict, { decision: 'hidden', hiddenReason: customReason, evidence: customProof, evidenceFingerprint: contentDigest(customProof) }),
+    ]))
+    expect(plan.visibility.map(({ assetId, hiddenReason }) => [assetId, hiddenReason])).toEqual([
+      ['unknown-conflict', unknownReason], ['custom-conflict', customReason],
+    ])
+    expect(() => planTargetReferenceGallery(input([], [unknownConflict], [
+      review(unknownConflict, { decision: 'hidden', hiddenReason: 'unverified-rights', evidence: unknownProof, evidenceFingerprint: contentDigest(unknownProof) }),
+    ]))).toThrow(`expected ${unknownReason}`)
   })
 
   it('allows only a same-rights licence URL overlay and keeps the original before-image', () => {
