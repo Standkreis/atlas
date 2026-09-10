@@ -94,7 +94,7 @@ describe('public gallery read contract', () => {
     const fill = await sightingRouter.createCaller(context).fill({ id: sightingId })
     expect(fill?.taxon.lead?.id).toBe(leadId)
     const outside = await sightingRouter.createCaller(context).outside({ regionId: randomUUID() })
-    expect(outside[0].lead?.id).toBe(leadId)
+    expect(outside.taxa[0].lead?.id).toBe(leadId)
   })
 
   it('uses one reviewed visibility decision for detail, every lead read and the offline pack', async () => {

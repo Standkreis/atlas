@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server'
 import { createContext } from '@/server/trpc'
 import { photoUrl, writePhoto, queuePhotoDeletes, retryPendingPhotoDeletes } from '@/server/photos'
 import { dailyAllowance, limits, lock } from '@/server/quotas'
+import { admitCatalogueWrite, releaseCatalogueWrite } from '@/server/catalogueCutoverGate'
 
 const MAX = 8 * 1024 * 1024
 async function boundedForm(req: Request) {
@@ -29,9 +30,18 @@ export async function POST(req: Request) {
   let ctx: Awaited<ReturnType<typeof createContext>>
   try { ctx = await createContext({ req }) } catch (error) {
     if (error instanceof TRPCError && error.code === 'UNAUTHORIZED') return bad(error.message, 401)
+    if (error instanceof TRPCError && error.code === 'SERVICE_UNAVAILABLE') { headers.set('retry-after', '30'); return bad(error.message, 503) }
     throw error
   }
-  for (const c of ctx.outCookies) headers.append('set-cookie', c)
+  // If bootstrap was admitted just before maintenance closed, keep its new identity reachable
+  // even when the separate photo admission below is refused.
+  for (const cookie of ctx.outCookies) headers.append('set-cookie', cookie)
+  let admission: Awaited<ReturnType<typeof admitCatalogueWrite>>
+  try { admission = await admitCatalogueWrite(ctx.db, 'photo-upload', { identityId: ctx.identity.id }) } catch (error) {
+    if (error instanceof TRPCError && error.code === 'SERVICE_UNAVAILABLE') { headers.set('retry-after', '30'); return bad(error.message, 503) }
+    throw error
+  }
+  try {
   // Reserve requests before reading multipart data; the counter survives malformed uploads and identity resets.
   try {
     await ctx.db.$transaction(async (tx) => { await lock(tx, 'upload-admission'); await dailyAllowance(tx, 'upload', ctx.identity.id, ctx.networkKey) })
@@ -82,5 +92,8 @@ export async function POST(req: Request) {
     }
     if (error instanceof TRPCError) return bad(error.message, error.code === 'UNAUTHORIZED' ? 401 : 429)
     return bad('Photo storage unavailable. Try again.', 503)
+  }
+  } finally {
+    await releaseCatalogueWrite(ctx.db, admission.id)
   }
 }

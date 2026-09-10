@@ -7,6 +7,7 @@ import { legacyRegions } from '../regionCompatibility'
 import { locateRegion, regionSearchInput, searchRegions } from '../regionSearch'
 import { leadAsset, leadAssetSelection } from '../leadAssetSelection'
 import { taxonNames } from '@/domain/taxonNames'
+import { resolveRegionIds } from '../regionCompatibility'
 
 const tile = z.enum(Object.values(Tile) as [Tile, ...Tile[]])
 
@@ -38,7 +39,10 @@ export const dexRouter = router({
     .input(z.object({ regionId: z.string().uuid(), tiles: z.array(tile).min(1), nowOnly: z.boolean().default(false), month: z.number().int().min(1).max(12).optional() }))
     .query(async ({ ctx, input }) => {
       const month = input.month ?? thisMonth()
-      const region = await ctx.db.region.findUnique({ where: { id: input.regionId }, select: { id: true, name: true, higher: true, status: true, refreshedAt: true, monthTotals: true } })
+      const resolution = await resolveRegionIds(ctx.db, [input.regionId])
+      const regionId = resolution.resolutions[0]?.regionId ?? null
+      if (!regionId) return null
+      const region = await ctx.db.region.findUnique({ where: { id: regionId }, select: { id: true, name: true, higher: true, status: true, refreshedAt: true, monthTotals: true } })
       if (!region) return null
       const counts = await ctx.db.plausibility.groupBy({ by: ['taxonId'], where: { regionId: region.id }, _count: true })
       const tilesPresent = await ctx.db.taxon.groupBy({ by: ['tile'], where: { plausibility: { some: { regionId: region.id } } }, _count: { _all: true } })
@@ -71,7 +75,7 @@ export const dexRouter = router({
         .filter((s) => !input.nowOnly || s.now)
         .sort((a, b) => b.nowRatio - a.nowRatio || b.obs - a.obs)
       return {
-        region,
+        region, catalogueVersion: resolution.catalogueVersion, registryVersion: resolution.registryVersion,
         month,
         setSize: counts.length,
         tiles: (Object.values(Tile) as Tile[]).filter((t) => t !== 'fish' || (present.get('fish') ?? 0) > 0).map((t) => ({ tile: t, count: present.get(t) ?? 0 })),
@@ -90,7 +94,10 @@ export const dexRouter = router({
   setCounts: publicProcedure
     .input(z.object({ regionId: z.string().uuid(), tiles: z.array(tile).min(1) }))
     .query(async ({ ctx, input }) => {
-      const region = await ctx.db.region.findUnique({ where: { id: input.regionId }, select: { id: true, status: true } })
+      const resolution = await resolveRegionIds(ctx.db, [input.regionId])
+      const regionId = resolution.resolutions[0]?.regionId ?? null
+      if (!regionId) return null
+      const region = await ctx.db.region.findUnique({ where: { id: regionId }, select: { id: true, status: true } })
       if (!region) return null
       const [rows, studies, sightings] = await Promise.all([
         ctx.db.plausibility.findMany({ where: { regionId: region.id, taxon: { tile: { in: input.tiles } } }, select: { taxonId: true, taxon: { select: { tile: true } } } }),
@@ -109,7 +116,7 @@ export const dexRouter = router({
         seen[t] = (seen[t] ?? 0) + (seenIds.has(r.taxonId) ? 1 : 0)
         studied[t] = (studied[t] ?? 0) + (studiedIds.has(r.taxonId) ? 1 : 0)
       }
-      return { region, total: rows.length, byTile, seen, studied }
+      return { region, catalogueVersion: resolution.catalogueVersion, registryVersion: resolution.registryVersion, total: rows.length, byTile, seen, studied }
     }),
 
   /** Compatibility alias. `gadmGid` now holds the canonical public key; use regions.search/locate for new clients. */

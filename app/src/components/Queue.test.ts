@@ -4,12 +4,13 @@ const harness = vi.hoisted(() => ({
   disk: new Map<string, unknown>(), commits: [] as { puts: string[]; drops: string[] }[],
   hangRead: false, failCommit: false,
   create: vi.fn(async () => ({ id: 'saved' })), identify: vi.fn(async () => ({ answer: null })),
+  compatibility: vi.fn(async ({ regionIds }: { regionIds: string[] }): Promise<{ catalogueVersion: string | null; registryVersion: string | null; resolutions: { inputId: string; regionId: string | null; canonicalKey: string | null; reason: string }[] }> => ({ catalogueVersion: null, registryVersion: null, resolutions: regionIds.map(inputId => ({ inputId, regionId: inputId, canonicalKey: null, reason: 'active' })) })),
   serverOwner: 'owner', me: vi.fn(),
 }))
 vi.mock('@trpc/client', () => ({
   createTRPCClient: () => ({ identity: { me: { query: async () => { harness.me(); return { id: harness.serverOwner } } } },
     sighting: { create: { mutate: harness.create }, identify: { mutate: harness.identify } },
-    study: { mark: { mutate: harness.create } } }),
+    study: { mark: { mutate: harness.create } }, regions: { compatibility: { query: harness.compatibility } } }),
   httpBatchLink: () => ({}), TRPCClientError: class extends Error {},
 }))
 vi.mock('idb-keyval', () => ({
@@ -52,6 +53,7 @@ describe('durable, identity-owned outbox', () => {
     storage.clear(); storage.set('dex.persist.identity', 'owner')
     harness.disk.clear(); harness.commits = []; harness.hangRead = false; harness.failCommit = false; harness.serverOwner = 'owner'
     harness.create.mockClear(); harness.identify.mockClear(); harness.me.mockClear()
+    harness.compatibility.mockClear()
   })
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
@@ -147,6 +149,40 @@ describe('durable, identity-owned outbox', () => {
     storage.set('dex.persist.identity', 'owner')
     await q.flush()
     expect(harness.me).not.toHaveBeenCalled()
+  })
+
+  it('durably maps a queued scan through its approved successor before identification', async () => {
+    harness.compatibility.mockResolvedValueOnce({ catalogueVersion: 'v2', registryVersion: 'registry-v2', resolutions: [{ inputId: 'legacy', regionId: 'canonical', canonicalKey: 'de-krg-07339000', reason: 'successor' }] })
+    const q = await import('./Queue')
+    await q.enqueue({ id: 'scan', kind: 'scan', payload: { at: new Date().toISOString(), place: 'Mainz-Bingen', regionId: 'legacy', photoId: 'photo', idPending: true } })
+    await q.flush()
+    expect(harness.identify).toHaveBeenCalledWith(expect.objectContaining({ regionId: 'canonical' }), expect.anything())
+    expect((q.rowOf('scan') as { payload: object }).payload).toMatchObject({ regionId: 'canonical', idPending: false })
+  })
+
+  it('retains a no-successor scan until the user explicitly rebinds its region', async () => {
+    harness.compatibility.mockResolvedValueOnce({ catalogueVersion: 'v2', registryVersion: 'registry-v2', resolutions: [{ inputId: 'retired', regionId: null, canonicalKey: null, reason: 'retired' }] })
+    const q = await import('./Queue')
+    await q.enqueue({ id: 'scan', kind: 'scan', payload: { at: new Date().toISOString(), place: 'Kyoto', regionId: 'retired', photoId: 'photo', idPending: true } })
+    await q.flush()
+    expect(harness.identify).not.toHaveBeenCalled()
+    expect((q.rowOf('scan') as { payload: { requiresRegion?: boolean } }).payload.requiresRegion).toBe(true)
+    harness.compatibility.mockResolvedValueOnce({ catalogueVersion: 'v2', registryVersion: 'registry-v2', resolutions: [{ inputId: 'current', regionId: 'current', canonicalKey: 'de-krg-current', reason: 'active' }] })
+    await q.rebindScanRegion('scan', { id: 'current', name: 'Current region' })
+    await vi.waitFor(() => expect(harness.identify).toHaveBeenCalledWith(expect.objectContaining({ regionId: 'current' }), expect.anything()))
+    expect((q.rowOf('scan') as { payload: object }).payload).toMatchObject({ regionId: 'current', place: 'Current region', requiresRegion: false, idPending: false })
+  })
+
+  it('retains a queued scan and photo on retryable catalogue maintenance', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'maintenance' }), { status: 503 })))
+    const q = await import('./Queue')
+    const blob = new Blob(['jpeg'])
+    await q.enqueue({ id: 'photo', kind: 'photo', payload: {}, blob })
+    await q.enqueue({ id: 'scan', kind: 'scan', payload: { at: new Date().toISOString(), place: 'Mainz-Bingen', regionId: 'region', photoRow: 'photo', idPending: true } })
+    await q.flush()
+    expect(q.rowOf('photo')?.blob).toBe(blob)
+    expect((q.rowOf('scan') as { dead?: boolean; payload: object })).toMatchObject({ dead: false, payload: { photoRow: 'photo', idPending: true, waitingReason: 'maintenance' } })
+    expect(harness.identify).not.toHaveBeenCalled()
   })
 
 })

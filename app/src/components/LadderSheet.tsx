@@ -10,7 +10,7 @@ import { useOutbox } from './Queue'
 import { enqueueScan, confidenceWord, rememberScan, scanOf, scanRowFor, type ScanRegion, type ScanResult } from './Scan'
 import { Sheet, useSheetClose } from './Sheet'
 
-export type ScanState = { status: 'busy' | 'offline' | 'error' | 'done'; result: ScanResult | null; code: string | null }
+export type ScanState = { status: 'busy' | 'offline' | 'maintenance' | 'region' | 'error' | 'done'; result: ScanResult | null; code: string | null }
 
 /**
  * The scan behind `/log?photo=<id>&scan=1` (handoff 0016 B3–B5). One `identify` per photo: the answer is kept in
@@ -35,14 +35,20 @@ export function useScan(photoId: string | null, region: ScanRegion | null, enabl
       (r) => { rememberScan(photoId, r); setAsked({ id: photoId, status: 'done', result: r, code: null }) },
       (e: unknown) => {
         const data = e instanceof TRPCClientError ? (e.data as { httpStatus?: number; code?: string } | undefined) : undefined
-        if (data?.httpStatus === undefined) void enqueueScan(queuedPhoto(photoId) ? { photoRow: photoId, region } : { photoId, region }) // no answer at all: the signal went; the row shows up as "offline"
+        if (data?.httpStatus === undefined || data.httpStatus === 503) void enqueueScan(queuedPhoto(photoId)
+          ? { photoRow: photoId, region, waitingReason: data?.httpStatus === 503 ? 'maintenance' : 'offline' }
+          : { photoId, region, waitingReason: data?.httpStatus === 503 ? 'maintenance' : 'offline' })
         else setAsked({ id: photoId, status: 'error', result: null, code: data.code ?? null })
       },
     )
   }, [enabled, photoId, region, known, row, identify, outbox])
   if (!enabled || !photoId) return null
   if (known) return { status: 'done', result: known, code: null }
-  if (row) return row.dead ? { status: 'error', result: null, code: row.lastError?.includes('415') ? 'UNSUPPORTED_MEDIA_TYPE' : null } : { status: 'offline', result: null, code: null }
+  if (row) return row.payload.requiresRegion
+    ? { status: 'region', result: null, code: 'REGION_RETIRED' }
+    : row.dead
+      ? { status: 'error', result: null, code: row.lastError?.includes('415') ? 'UNSUPPORTED_MEDIA_TYPE' : null }
+      : { status: row.payload.waitingReason === 'maintenance' ? 'maintenance' : 'offline', result: null, code: null }
   if (asked?.id === photoId) return asked
   return region ? { status: 'busy', result: null, code: null } : null
 }
@@ -57,7 +63,7 @@ const STEP_MS = 220
  * an answer with a key, "Nein, suchen" always (prefilled with the genus or the outside name), "Noch ein Foto" with the
  * close-up hint (record I2) whenever the answer stopped short of the species. Offline: the one sentence and "Zum Tagebuch".
  */
-export function LadderSheet({ state, photoUrl, region, commonName, onTake, onSearch, onAgain, onJournal, onClose }: {
+export function LadderSheet({ state, photoUrl, region, commonName, onTake, onSearch, onAgain, onJournal, onRegionRetry, onClose }: {
   state: ScanState
   photoUrl: string | null
   region: string | null
@@ -67,6 +73,7 @@ export function LadderSheet({ state, photoUrl, region, commonName, onTake, onSea
   onSearch: (q: string) => void
   onAgain?: () => void
   onJournal?: () => void
+  onRegionRetry?: () => void
   onClose: () => void
 }) {
   const t = useTranslations('scan')
@@ -84,13 +91,13 @@ export function LadderSheet({ state, photoUrl, region, commonName, onTake, onSea
           // eslint-disable-next-line @next/next/no-img-element -- the identity's own upload, or its local blob
           <img src={photoUrl} alt="" className="mb-3 aspect-[16/10] w-full rounded-2xl object-cover" data-testid="ladder-photo" />
         )}
-        <Body state={state} region={region} commonName={commonName} onTake={onTake} onSearch={onSearch} onAgain={onAgain} onJournal={onJournal} />
+        <Body state={state} region={region} commonName={commonName} onTake={onTake} onSearch={onSearch} onAgain={onAgain} onJournal={onJournal} onRegionRetry={onRegionRetry} />
       </div>
     </Sheet>
   )
 }
 
-function Body({ state, region, commonName, onTake, onSearch, onAgain, onJournal }: { state: ScanState; region: string | null; commonName?: string | null; onTake: (k: number) => void; onSearch: (q: string) => void; onAgain?: () => void; onJournal?: () => void }) {
+function Body({ state, region, commonName, onTake, onSearch, onAgain, onJournal, onRegionRetry }: { state: ScanState; region: string | null; commonName?: string | null; onTake: (k: number) => void; onSearch: (q: string) => void; onAgain?: () => void; onJournal?: () => void; onRegionRetry?: () => void }) {
   const t = useTranslations('scan')
   const locale = useLocale() as 'de' | 'en'
   const close = useSheetClose()
@@ -108,6 +115,26 @@ function Body({ state, region, commonName, onTake, onSearch, onAgain, onJournal 
         <p className="mt-1 text-[13px] leading-snug text-ink-soft">{t('offlineSub')}</p>
         <div className="mt-4 flex gap-2">
           <button type="button" onClick={onJournal ?? close} className={primary} data-testid="ladder-journal">{t('toJournal')}</button>
+        </div>
+      </>
+    )
+  }
+  if (state.status === 'maintenance') {
+    return (
+      <>
+        <p className="pt-1 text-[17px] leading-snug font-semibold text-amber-deep" data-testid="ladder-sentence">{t('maintenance')}</p>
+        <p className="mt-1 text-[13px] leading-snug text-ink-soft">{t('maintenanceSub')}</p>
+        {onJournal && <button type="button" onClick={onJournal} className={`${secondary} mt-4`} data-testid="ladder-journal">{t('toJournal')}</button>}
+      </>
+    )
+  }
+  if (state.status === 'region') {
+    return (
+      <>
+        <p className="pt-1 text-[17px] leading-snug font-semibold text-amber-deep" data-testid="ladder-sentence">{t('regionRetired')}</p>
+        <p className="mt-1 text-[13px] leading-snug text-ink-soft">{t('regionRetiredSub')}</p>
+        <div className="mt-4 flex gap-2">
+          {region && onRegionRetry && <button type="button" onClick={onRegionRetry} className={primary} data-testid="ladder-region-retry">{t('useRegion', { region })}</button>}
         </div>
       </>
     )

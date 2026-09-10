@@ -53,6 +53,10 @@ export type ScanPayload = {
   /** The Asset on the server (uploaded online, or by the flush). */
   photoId?: string
   idPending: boolean
+  /** A retired region with no reviewed successor waits for an explicit user choice. */
+  requiresRegion?: boolean
+  /** Why an unanswered row is waiting; maintenance is retryable, not a dead scan. */
+  waitingReason?: 'offline' | 'maintenance'
   ladder?: inferRouterOutputs<AppRouter>['sighting']['identify']
   /** The diary's badge shows until the row was opened once. */
   opened?: boolean
@@ -244,8 +248,9 @@ export async function retry(id: string) {
 // ── The flush ──
 /** A response that came back: 4xx other than 401 and 429 means the row is wrong and falls out; everything else waits. */
 class HttpError extends Error { constructor(public status: number, message: string) { super(message) } }
+const httpStatus = (e: unknown) => e instanceof TRPCClientError ? (e.data as { httpStatus?: number } | undefined)?.httpStatus : e instanceof HttpError ? e.status : undefined
 function verdict(e: unknown): 'dead' | 'wait' {
-  const status = e instanceof TRPCClientError ? (e.data as { httpStatus?: number } | undefined)?.httpStatus : e instanceof HttpError ? e.status : undefined
+  const status = httpStatus(e)
   if (status === undefined) return 'wait' // no answer: offline, a timeout, a dead server
   return status >= 400 && status < 500 && status !== 401 && status !== 429 ? 'dead' : 'wait'
 }
@@ -307,6 +312,41 @@ async function send(row: Row): Promise<unknown> {
   return null
 }
 
+/**
+ * Fold queued scan regions through the server-owned reviewed map. Approved successors are
+ * deterministic; no-successor rows remain byte-backed in the outbox until the user chooses.
+ */
+async function transitionScanRegions() {
+  const scans = rowsNow().filter((row): row is Row & { kind: 'scan' } => row.kind === 'scan' && row.payload.idPending)
+  const ids = [...new Set(scans.map((row) => row.payload.regionId))]
+  if (!ids.length) return
+  const result = await client.regions.compatibility.query({ regionIds: ids }, { signal: controller.signal })
+  if (!result.catalogueVersion) return
+  const byInput = new Map(result.resolutions.map((resolution) => [resolution.inputId, resolution]))
+  for (const scan of scans) {
+    const resolution = byInput.get(scan.payload.regionId)
+    if (!resolution || resolution.regionId === scan.payload.regionId) continue
+    await update(scan.id, current => current.kind === 'scan' ? {
+      ...current,
+      dead: false,
+      lastError: resolution.regionId ? null : 'region-retired',
+      payload: { ...current.payload, regionId: resolution.regionId ?? current.payload.regionId, requiresRegion: !resolution.regionId },
+    } : current)
+  }
+}
+
+/** Explicit recovery action for a no-successor scan; the photo/draft is not recreated or discarded. */
+export async function rebindScanRegion(id: string, region: { id: string; name: string }) {
+  await update(id, current => current.kind === 'scan' ? {
+    ...current,
+    dead: false,
+    attempts: 0,
+    lastError: null,
+    payload: { ...current.payload, regionId: region.id, place: region.name, requiresRegion: false, waitingReason: undefined, idPending: true },
+  } : current)
+  void flush()
+}
+
 const ORPHAN_AGE = 24 * 3_600_000
 let running: Promise<void> | null = null
 /**
@@ -331,11 +371,13 @@ async function run() {
   const identity = await client.identity.me.query(undefined, { signal: controller.signal })
   if (paused || start !== epoch || identity.id !== owner()) return
   activeOwner = identity.id
+  await transitionScanRegions()
   for (const snapshot of [...rows]) {
     if (paused || start !== epoch) return
     const row = rowOf(snapshot.id)
     if (!row || row.identityId !== activeOwner) continue
     if (row.dead) continue
+    if (row.kind === 'scan' && row.payload.requiresRegion) continue
     if (row.kind === 'photo' && !row.payload.forSighting) {
       // Waits for its sighting; if none ever comes (chooser → back), it goes after a day, like the server's abandoned Assets.
       if (Date.now() - row.createdAt > ORPHAN_AGE && !rows.some((r) => (r.kind === 'sighting' || r.kind === 'scan') && r.payload.photoRow === row.id)) await remove(row.id)
@@ -353,7 +395,12 @@ async function run() {
       const current = rowOf(row.id)
       if (!current) continue
       const dead = verdict(e) === 'dead'
-      await update(current.id, saved => ({ ...saved, attempts: saved.attempts + 1, lastError: message(e), dead }))
+      await update(current.id, saved => {
+        const failed = { ...saved, attempts: saved.attempts + 1, lastError: message(e), dead }
+        return failed.kind === 'scan' && httpStatus(e) === 503
+          ? { ...failed, payload: { ...failed.payload, waitingReason: 'maintenance' } }
+          : failed
+      })
       if (!dead) return
     }
   }

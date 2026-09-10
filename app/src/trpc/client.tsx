@@ -11,6 +11,8 @@ import type { AppRouter } from '@/server/routers/_app'
 import { clearPrivateData, PRIVATE_RESET_KEY, PRIVATE_PAUSE_KEY, purgePrivatePhotos } from '@/components/PrivateData'
 import { acceptIdentity, expectedIdentity, identityFetch, invalidateIdentity } from '@/components/ClientIdentity'
 import { IDENTITY_KEY, pauseOutbox, resumeOutbox, load, flush } from '@/components/Queue'
+import { invalidateRegionalPacks } from '@/components/OfflinePack'
+import { CATALOGUE_VERSION_KEY, catalogueVersionOf, catalogueVersionToAdopt, isCatalogueScopedQuery, keepForCatalogue } from '@/components/CatalogueCache'
 
 export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>()
 
@@ -42,6 +44,7 @@ let lastWritten = ''
 let lastStamp = 0 // timestamp of the store this page wrote last; a different one on disk means another page wrote
 const trace = (msg: string) => { try { localStorage.setItem('dex.persist.error', `${new Date().toISOString()} ${msg}`) } catch { /* private mode */ } }
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+const currentCatalogueVersion = () => { try { return localStorage.getItem(CATALOGUE_VERSION_KEY) } catch { return null } }
 const read = (): PersistedClient | undefined => {
   const raw = localStorage.getItem(PERSIST_KEY)
   if (!raw) return undefined
@@ -93,6 +96,8 @@ const withoutPages = (client: PersistedClient): PersistedClient => ({ ...client,
 function sanitize(client: PersistedClient): PersistedClient {
   let pages = 0, sightings = 0
   const queries = [...client.clientState.queries].sort((a, b) => b.state.dataUpdatedAt - a.state.dataUpdatedAt).flatMap((q) => {
+    const catalogueVersion = currentCatalogueVersion()
+    if (!keepForCatalogue(q.queryKey, q.state.data, catalogueVersion)) return []
     if (isPath(q.queryKey, ['taxon', 'page']) && ++pages > PAGE_CAP) return []
     if (isPath(q.queryKey, ['journal', 'get']) && ++sightings > SIGHTING_CAP) return []
     let state = { ...q.state, error: null, fetchFailureReason: null, fetchMeta: null }
@@ -122,7 +127,16 @@ function makeQueryClient() {
 // persisted progress: when `identity.me` answers with a new id, every other query is dropped and persisted again.
 function watchIdentity(qc: QueryClient) {
   return qc.getQueryCache().subscribe((e) => {
-    if (e.type !== 'updated' || e.action.type !== 'success' || !isPath(e.query.queryKey, ['identity', 'me'])) return
+    if (e.type !== 'updated' || e.action.type !== 'success') return
+    const observedVersion = catalogueVersionOf(e.query.state.data)
+    const previous = currentCatalogueVersion()
+    const catalogueVersion = catalogueVersionToAdopt(previous, observedVersion, isPath(e.query.queryKey, ['identity', 'me']))
+    if (catalogueVersion && catalogueVersion !== previous) {
+      try { localStorage.setItem(CATALOGUE_VERSION_KEY, catalogueVersion) } catch { /* private mode */ }
+      qc.removeQueries({ predicate: (query) => isCatalogueScopedQuery(query.queryKey) && catalogueVersionOf(query.state.data) !== catalogueVersion })
+      void invalidateRegionalPacks(catalogueVersion).catch(() => {})
+    }
+    if (!isPath(e.query.queryKey, ['identity', 'me'])) return
     const id = (e.query.state.data as { id?: string } | undefined)?.id
     if (!id) return
     acceptIdentity(id)
@@ -142,6 +156,11 @@ export function TRPCReactProvider({ children }: { children: ReactNode }) {
     void purgePrivatePhotos().catch(() => {})
     const reset = (event: StorageEvent) => {
       if (event.key === PRIVATE_PAUSE_KEY) { if (event.newValue) pauseOutbox(); else resumeOutbox(); return }
+      if (event.key === CATALOGUE_VERSION_KEY && event.newValue) {
+        queryClient.removeQueries({ predicate: (query) => isCatalogueScopedQuery(query.queryKey) && catalogueVersionOf(query.state.data) !== event.newValue })
+        void invalidateRegionalPacks(event.newValue).catch(() => {})
+        return
+      }
       if (event.key !== PRIVATE_RESET_KEY && event.key !== IDENTITY_KEY) return
       invalidateIdentity()
       void queryClient.cancelQueries().then(() => queryClient.resetQueries())

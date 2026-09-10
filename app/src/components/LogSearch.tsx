@@ -11,6 +11,8 @@ import { useAtlasSet } from './AtlasCounters'
 import { search } from './AtlasSearch'
 import { LadderSheet, useScan } from './LadderSheet'
 import { PhotoInput, photoSrc, queuedPhoto, type PhotoState } from './LogPhoto'
+import { rebindScanRegion } from './Queue'
+import { scanRowFor } from './Scan'
 import { Icon } from './Marks'
 import { Thumb, tileIcon, type DexState } from './SpeciesCard'
 
@@ -108,6 +110,7 @@ export function LogSearch({ photoId, scan = false, initialQuery = '' }: { photoI
           onSearch={(query) => { setQ(query); router.replace(`/log?photo=${photoId}${query ? `&q=${encodeURIComponent(query)}` : ''}`) }}
           onAgain={() => camera.current?.click()}
           onJournal={() => router.replace('/journal')}
+          onRegionRetry={region && scanRowFor(photoId) ? () => { void rebindScanRegion(scanRowFor(photoId)!.id, region) } : undefined}
           onClose={() => router.replace(`/log?photo=${photoId}`)} />
       )}
 

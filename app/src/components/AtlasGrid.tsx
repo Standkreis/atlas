@@ -50,7 +50,7 @@ export function AtlasGrid({ title }: { title: string }) {
   const { ready, set, progress: progressRaw, tiles, loading, error: atlasError, retry: retryAtlas, paused: atlasPaused } = useAtlasSet(region)
   // Own photos per taxon (spec §🎨 2: own photo first) and the species seen outside the set, polled while their content kick runs.
   const photos = useQuery(trpc.sighting.photos.queryOptions(undefined, { enabled: ready }))
-  const outside = useQuery(trpc.sighting.outside.queryOptions({ regionId: region?.id ?? '' }, { enabled: ready, refetchInterval: (q) => (q.state.data?.some((x) => !x.hasContent) ? 10_000 : false) }))
+  const outside = useQuery(trpc.sighting.outside.queryOptions({ regionId: region?.id ?? '' }, { enabled: ready, refetchInterval: (q) => (q.state.data?.taxa.some((x) => !x.hasContent) ? 10_000 : false) }))
 
   // ── URL state: ?show ?sort ?group ?now ?q, plus ?fill / ?again from the save screen ──
   const params = useSearchParams()
@@ -146,7 +146,7 @@ export function AtlasGrid({ title }: { title: string }) {
       const at = (s: Species) => progress.seenAt[s.taxonId] ?? ''
       list = [...list].sort((a, b) => (at(b) > at(a) ? 1 : at(b) < at(a) ? -1 : 0)) // the server's "jetzt" order breaks ties
     }
-    const extras: Row[] = nowOnly || show === 'new' ? [] : (outside.data ?? []).filter((x) => tilesOn.has(x.tile) && (show !== 'studied' || studied.has(x.taxonId))).map((x) => ({ ...x, outside: true }))
+    const extras: Row[] = nowOnly || show === 'new' ? [] : (outside.data?.taxa ?? []).filter((x) => tilesOn.has(x.tile) && (show !== 'studied' || studied.has(x.taxonId))).map((x) => ({ ...x, outside: true }))
     return [...search(list, query, name).map((s) => ({ ...s, outside: false })), ...search(extras, query, name)]
   }, [set, progress, outside.data, tilesOn, nowOnly, show, sort, query, studied, seen, name, locale])
 

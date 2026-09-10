@@ -16,6 +16,7 @@ import type { Prisma } from '../../generated/prisma/client'
 import { photoUrl, queuePhotoDeletes, retryPendingPhotoDeletes } from '../photos'
 import { expectedOrigin, issueChallenge, rpID, rpName, takeChallenge } from '../webauthn'
 import { germanyProgress } from '../germanyProgress'
+import { activeGermanyCatalogue, resolveRegionIds, resolveRegionSelection } from '../regionCompatibility'
 
 // The WebAuthn response shapes come from the browser library; zod only checks the envelope, simplewebauthn checks the rest.
 const registrationResponse = z.custom<RegistrationResponseJSON>((v) => typeof v === 'object' && v !== null && 'id' in v && 'response' in v)
@@ -103,14 +104,16 @@ export const identityRouter = router({
   // Who am I. The cookie is set by the route handler when the identity was minted on this request.
   // Anonymous = no passkey attached yet (handoff 0006 step 0).
   me: publicProcedure.query(async ({ ctx }) => {
-    const [devices, filter] = await Promise.all([
+    const [devices, filter, catalogue] = await Promise.all([
       ctx.db.passkey.count({ where: { identityId: ctx.identity.id } }),
       ctx.db.filter.findUnique({ where: { identityId: ctx.identity.id }, include: { region: { select: { id: true, name: true, higher: true, status: true } } } }),
+      activeGermanyCatalogue(ctx.db),
     ])
+    const selection = await resolveRegionSelection(ctx.db, filter?.regionIds ?? [], filter?.regionId ?? null, catalogue)
     // The identity's regions (handoff 0018 R2) in the order they were added; the active one is `region`.
-    const rows = filter?.regionIds.length ? await ctx.db.region.findMany({ where: { id: { in: filter.regionIds } }, select: { id: true, name: true, higher: true, status: true } }) : []
+    const rows = selection.regionIds.length ? await ctx.db.region.findMany({ where: { id: { in: selection.regionIds } }, select: { id: true, name: true, higher: true, status: true } }) : []
     const byId = new Map(rows.map((r) => [r.id, r]))
-    const regions = (filter?.regionIds ?? []).flatMap((id) => byId.get(id) ?? [])
+    const regions = selection.regionIds.flatMap((id) => byId.get(id) ?? [])
     // The verified address only (handoff 0020 E7): `email` is set together with `emailVerifiedAt` and cleared together.
     const email = ctx.identity.emailVerifiedAt ? ctx.identity.email : null
     return {
@@ -121,7 +124,10 @@ export const identityRouter = router({
       email,
       displayName: ctx.identity.displayName,
       avatarUrl: ctx.identity.avatarAssetId ? photoUrl(ctx.identity.avatarAssetId) : null,
-      region: filter?.region ?? null,
+      catalogueVersion: selection.catalogueVersion,
+      registryVersion: selection.registryVersion,
+      regionTransitions: selection.resolutions.filter((row) => row.regionId !== row.inputId),
+      region: selection.activeRegionId ? byId.get(selection.activeRegionId) ?? null : null,
       regionIds: regions.map((r) => r.id),
       regions,
     }
@@ -186,25 +192,35 @@ export const identityRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       // No list given (the grid's tile write): the list stays as it is; a first filter starts with the one region.
-      const existing = input.regionIds ? null : await ctx.db.filter.findUnique({ where: { identityId: ctx.identity.id }, select: { regionIds: true } })
-      const regionIds = [...new Set(input.regionIds ?? (existing?.regionIds.length ? existing.regionIds : [input.regionId]))]
-      if (!regionIds.includes(input.regionId)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'the active region must be in the list' })
+      const existing = input.regionIds ? null : await ctx.db.filter.findUnique({ where: { identityId: ctx.identity.id }, select: { regionIds: true, regionId: true } })
+      const requested = input.regionIds ?? (existing?.regionIds.length ? existing.regionIds : [input.regionId])
+      const selection = await resolveRegionSelection(ctx.db, requested, input.regionId)
+      const regionIds = selection.regionIds
+      const regionId = selection.activeRegionId
+      if (!regionId || !regionIds.length) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'choose a current German region' })
+      if (!regionIds.includes(regionId)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'the active region must be in the list' })
       const ready = await ctx.db.region.count({ where: { id: { in: regionIds }, status: 'ready' } })
       if (ready !== regionIds.length) throw new TRPCError({ code: 'BAD_REQUEST', message: 'only ready regions' })
       return ctx.db.filter.upsert({
         where: { identityId: ctx.identity.id },
-        create: { identityId: ctx.identity.id, regionId: input.regionId, regionIds, tiles: input.tiles ?? [], nowOnly: input.nowOnly ?? false },
-        update: { regionId: input.regionId, regionIds, ...(input.tiles ? { tiles: input.tiles } : {}), ...(input.nowOnly !== undefined ? { nowOnly: input.nowOnly } : {}) },
+        create: { identityId: ctx.identity.id, regionId, regionIds, tiles: input.tiles ?? [], nowOnly: input.nowOnly ?? false },
+        update: { regionId, regionIds, ...(input.tiles ? { tiles: input.tiles } : {}), ...(input.nowOnly !== undefined ? { nowOnly: input.nowOnly } : {}) },
         select: { regionId: true, regionIds: true, tiles: true, nowOnly: true },
       })
     }),
 
   // The one-tap switch (handoff 0018 R2): the active region becomes another one of the list. Nothing else changes.
   setRegion: publicProcedure.input(z.object({ regionId: z.string().uuid() })).mutation(async ({ ctx, input }) => {
-    const filter = await ctx.db.filter.findUnique({ where: { identityId: ctx.identity.id }, select: { id: true, regionIds: true } })
+    const filter = await ctx.db.filter.findUnique({ where: { identityId: ctx.identity.id }, select: { id: true, regionId: true, regionIds: true } })
     if (!filter) throw new TRPCError({ code: 'NOT_FOUND', message: 'no filter yet' })
-    if (!filter.regionIds.includes(input.regionId)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'not one of your regions' })
-    return ctx.db.filter.update({ where: { id: filter.id }, data: { regionId: input.regionId }, select: { regionId: true, regionIds: true } })
+    const [selection, requested] = await Promise.all([
+      resolveRegionSelection(ctx.db, filter.regionIds, filter.regionId),
+      resolveRegionIds(ctx.db, [input.regionId]),
+    ])
+    const regionId = requested.resolutions[0]?.regionId ?? null
+    if (!regionId || !selection.regionIds.includes(regionId)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'not one of your current regions' })
+    // This user-requested write also folds the stored list through the reviewed successor map.
+    return ctx.db.filter.update({ where: { id: filter.id }, data: { regionId, regionIds: selection.regionIds }, select: { regionId: true, regionIds: true } })
   }),
 
   // ── Passkeys ────────────────────────────────────────────────────────────────

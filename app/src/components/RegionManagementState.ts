@@ -21,3 +21,8 @@ export function uniqueRegionIds(regionIds: string[], addId: string) {
 export function pendingRegionAfterCompletion(pendingId: string | null, completedId: string) {
   return pendingId === completedId ? null : pendingId
 }
+
+/** Network failures and cutover maintenance retain a queued switch for a later replay. */
+export function pendingRegionWriteIsRetryable(networkError: boolean, httpStatus?: number) {
+  return networkError || httpStatus === 503
+}

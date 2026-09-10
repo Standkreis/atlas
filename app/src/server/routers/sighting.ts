@@ -11,6 +11,7 @@ import { publicProcedure, router, type Context } from '../trpc'
 import { backboneSearch } from './taxon'
 import { leadAsset, leadAssetSelection } from '../leadAssetSelection'
 import { taxonNames } from '@/domain/taxonNames'
+import { resolveRegionIds } from '../regionCompatibility'
 
 // The sighting is the atom (record Q1, spec §🧬). This router creates one and reads one back for the fill moment
 // (handoff 0008 Track A). Lists and edits are the Tagebuch's (`journal.ts`, Track B).
@@ -125,10 +126,13 @@ export const sightingRouter = router({
   identify: publicProcedure
     .input(z.object({ photoId: z.string().uuid(), regionId: z.string().uuid(), locale: z.enum(['de', 'en']).optional() }))
     .mutation(async ({ ctx, input }) => {
+      const resolution = await resolveRegionIds(ctx.db, [input.regionId])
+      const regionId = resolution.resolutions[0]?.regionId ?? null
+      if (!regionId) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'choose a current German region before identifying this photo' })
       const photo = await ctx.db.asset.findFirst({ where: { id: input.photoId, ownerId: ctx.identity.id, origin: 'user' }, select: { id: true } })
       if (!photo) throw new TRPCError({ code: 'NOT_FOUND', message: 'unknown photo' })
-      const set = await regionSet(input.regionId, async () => {
-        const region = await ctx.db.region.findUnique({ where: { id: input.regionId }, select: { id: true, name: true, higher: true } })
+      const set = await regionSet(`${resolution.catalogueVersion ?? 'legacy'}:${regionId}`, async () => {
+        const region = await ctx.db.region.findUnique({ where: { id: regionId }, select: { id: true, name: true, higher: true } })
         if (!region) return null
         const rows = await ctx.db.plausibility.findMany({ where: { regionId: region.id }, select: { taxon: { select: { gbifKey: true, sciName: true, commonNames: true } } } })
         return { region, rows: rows.map((r) => ({ gbifKey: r.taxon.gbifKey, sciName: r.taxon.sciName, de: (r.taxon.commonNames as Record<string, string>).de ?? null, en: (r.taxon.commonNames as Record<string, string>).en ?? null })) }
@@ -139,7 +143,7 @@ export const sightingRouter = router({
       const jpeg = file.body instanceof Uint8Array ? file.body : new Uint8Array(await new Response(file.body).arrayBuffer())
       if (!isJpeg(jpeg)) throw new TRPCError({ code: 'UNSUPPORTED_MEDIA_TYPE', message: 'not a JPEG' })
       const locale = input.locale ?? ctx.locale
-      const version = createHash('sha256').update(JSON.stringify({ model: MODEL, prompt: 2, locale, region: set.region, rows: set.rows })).digest('hex')
+      const version = createHash('sha256').update(JSON.stringify({ model: MODEL, prompt: 2, locale, catalogueVersion: resolution.catalogueVersion, region: set.region, rows: set.rows })).digest('hex')
       return boundedScan({ photoId: photo.id, version, identity: ctx.identity.id, network: ctx.networkKey, reserveCents: scanReservation(set, locale), run: async () => {
         const normalized = await sharp(jpeg, { limitInputPixels: 40000000 }).rotate().resize(1600, 1600, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer()
         return identify({ jpeg: normalized, set, locale, search: backboneSearch })
@@ -188,14 +192,20 @@ export const sightingRouter = router({
    * bottom with the tile icon until the content kick lands a lead image. The set itself never changes.
    */
   outside: publicProcedure.input(z.object({ regionId: z.string().uuid() })).query(async ({ ctx, input }) => {
+    const resolution = await resolveRegionIds(ctx.db, [input.regionId])
+    const regionId = resolution.resolutions[0]?.regionId
+    if (!regionId) return { catalogueVersion: resolution.catalogueVersion, taxa: [] }
     const seen = await ctx.db.sighting.findMany({ where: { identityId: ctx.identity.id, wildness: 'wild' }, select: { taxonId: true }, distinct: ['taxonId'] })
-    if (!seen.length) return []
+    if (!seen.length) return { catalogueVersion: resolution.catalogueVersion, taxa: [] }
     const taxa = await ctx.db.taxon.findMany({
-      where: { id: { in: seen.map((s) => s.taxonId) }, plausibility: { none: { regionId: input.regionId } } },
+      where: { id: { in: seen.map((s) => s.taxonId) }, plausibility: { none: { regionId } } },
       select: { ...taxonSelect, contentAt: true },
       orderBy: { sciName: 'asc' },
     })
-    return taxa.map((t) => ({ taxonId: t.id, gbifKey: t.gbifKey, sciName: t.sciName, names: taxonNames(t.commonNames), tile: t.tile, lead: leadAsset(t.assets), hasContent: t.contentAt !== null }))
+    return {
+      catalogueVersion: resolution.catalogueVersion,
+      taxa: taxa.map((t) => ({ taxonId: t.id, gbifKey: t.gbifKey, sciName: t.sciName, names: taxonNames(t.commonNames), tile: t.tile, lead: leadAsset(t.assets), hasContent: t.contentAt !== null })),
+    }
   }),
 
   /**

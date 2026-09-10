@@ -10,6 +10,7 @@ const entry = (n: number, status = 'ready') => ({
 function fixture(count = 2) {
   const db = {
     regionRegistryVersion: { findFirst: vi.fn().mockResolvedValue({ id: 'registry-v1', version: '2024' }) },
+    catalogueVersion: { findFirst: vi.fn().mockResolvedValue(null) },
     regionRegistryEntry: { findMany: vi.fn().mockResolvedValue(Array.from({ length: count }, (_, i) => entry(i))), findFirst: vi.fn().mockResolvedValue(entry(0)) },
     catalogueRegionBuild: { findMany: vi.fn().mockResolvedValue([{ registryEntryId: 'entry-0', catalogueVersionId: 'catalogue-v1', regionSize: 42, nowCounts: Array(12).fill(12), perTile: { bird: 42 }, completedAt: new Date('2026-09-08') }]) },
     filter: { findUnique: vi.fn().mockResolvedValue({ regionId: 'region-0', regionIds: ['region-0'] }) },

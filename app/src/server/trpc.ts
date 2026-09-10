@@ -3,6 +3,7 @@ import superjson from 'superjson'
 import { db } from './db'
 import { localeOf } from './locale'
 import { networkKey } from './quotas'
+import { withCatalogueWriteAdmission } from './catalogueCutoverGate'
 
 export const IDENTITY_COOKIE = 'dex_id'
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -38,7 +39,7 @@ export async function createContext({ req }: { req: Request }) {
   const existing = claimed && uuid.test(claimed) ? await db.identity.findUnique({ where: { id: claimed } }) : null
   const expected = req.headers.get('x-dex-identity')
   if (expected && expected !== existing?.id) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'identity changed' })
-  const identity = existing ?? (await db.identity.create({ data: {} }))
+  const identity = existing ?? (await withCatalogueWriteAdmission(db, 'identity-bootstrap', {}, () => db.identity.create({ data: {} })))
   const outCookies: string[] = []
   const secure = isHttps(req) ? '; Secure' : ''
   const setCookie = (name: string, value: string, { maxAge, path = '/' }: CookieOptions) =>
@@ -50,4 +51,9 @@ export type Context = Awaited<ReturnType<typeof createContext>>
 
 const t = initTRPC.context<Context>().create({ transformer: superjson })
 export const router = t.router
-export const publicProcedure = t.procedure
+// All application mutations share the durable cutover admission boundary. Queries stay available
+// during maintenance; anonymous identity bootstrap above is separately admitted before it writes.
+export const publicProcedure = t.procedure.use(async ({ ctx, next, path, type }) => {
+  if (type !== 'mutation') return next()
+  return withCatalogueWriteAdmission(ctx.db, `trpc:${path}`, { identityId: ctx.identity.id }, () => next())
+})

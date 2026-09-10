@@ -55,8 +55,8 @@ export const scanRow = (id: string): ScanRow | null => { const r = rowOf(id); re
  * row; the diary shows the row as "unbestimmt" with a badge until the user takes or rejects the answer on the save
  * screen, which removes the row. The point is taken silently when the browser already granted it, as the save screen does.
  */
-export async function enqueueScan({ photoRow, photoId, region }: { photoRow?: string; photoId?: string; region: ScanRegion }): Promise<ScanRow> {
-  const row = (await enqueue({ id: crypto.randomUUID(), kind: 'scan', payload: { at: new Date().toISOString(), place: region.name, regionId: region.id, photoRow, photoId, idPending: true } })) as ScanRow
+export async function enqueueScan({ photoRow, photoId, region, waitingReason = 'offline' }: { photoRow?: string; photoId?: string; region: ScanRegion; waitingReason?: 'offline' | 'maintenance' }): Promise<ScanRow> {
+  const row = (await enqueue({ id: crypto.randomUUID(), kind: 'scan', payload: { at: new Date().toISOString(), place: region.name, regionId: region.id, photoRow, photoId, idPending: true, waitingReason } })) as ScanRow
   try {
     const p = await navigator.permissions?.query({ name: 'geolocation' })
     if (p?.state === 'granted') navigator.geolocation.getCurrentPosition((pos) => void update(row.id, (r) => (r.kind === 'scan' ? { ...r, payload: { ...r.payload, lat: pos.coords.latitude, lng: pos.coords.longitude } } : r)), () => {}, { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 })
