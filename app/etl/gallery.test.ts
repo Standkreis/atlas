@@ -8,7 +8,10 @@ const photo = (id: number, extra: Partial<InatPhotoCandidate> = {}): InatPhotoCa
   attributionName: `Author ${id}`,
   renderUrl: `https://inaturalist-open-data.s3.amazonaws.com/photos/${id}/medium.jpg`,
   curatedPosition: id,
-  provenance: { status: 'native-free-local-photo', detailedRecords: 1, totalRecords: 1, conflictingMetadata: false, evidence: [] },
+  provenance: { status: 'native-free-local-photo', detailedRecords: 1, totalRecords: 1, conflictingMetadata: false, evidence: [{
+    photoId: id, detailed: true, type: 'LocalPhoto', nativePageUrl: null, nativePhotoId: null, missingFields: [], licenseCode: 'cc-by',
+    attribution: null, attributionName: `Author ${id}`, mediumUrl: `https://inaturalist-open-data.s3.amazonaws.com/photos/${id}/medium.jpg`, url: null,
+  }] },
   ...extra,
 })
 const inat = (photos: InatPhotoCandidate[], defaultPhotoId: number | null = photos[0]?.id ?? null, matchedName = 'Turdus merula'): InatGallerySource => ({ taxonId: 42, matchedName, defaultPhotoId, photos })
@@ -64,6 +67,11 @@ describe('licensed gallery selection', () => {
       [0, 'inat', 'https://www.inaturalist.org/photos/2'],
       [1, 'commons', 'https://commons.wikimedia.org/wiki/File:Turdus_merula.jpg'],
       [2, 'inat', 'https://www.inaturalist.org/photos/1'],
+    ])
+    expect(selected.acceptedEvidence).toMatchObject([
+      { position: 0, origin: 'inat', sourceId: 'inat:2', taxonId: 42, matchedName: 'Turdus merula', photoId: 2, provenance: { status: 'native-free-local-photo' } },
+      { position: 1, origin: 'commons', sourceId: 'commons:File:Turdus merula.jpg' },
+      { position: 2, origin: 'inat', sourceId: 'inat:1', taxonId: 42, matchedName: 'Turdus merula', photoId: 1, provenance: { status: 'native-free-local-photo' } },
     ])
   })
 
@@ -186,6 +194,10 @@ describe('iNaturalist curated gallery fetch', () => {
       detailedPhoto(2),
     ])
     expect(source.photos[0]!.provenance).toMatchObject({ status: 'native-free-local-photo', detailedRecords: 1, totalRecords: 2, conflictingMetadata: false })
+    expect(source.photos[0]!.provenance!.evidence).toEqual([
+      { photoId: 1, detailed: false, type: null, nativePageUrl: null, nativePhotoId: null, missingFields: ['type', 'native_page_url', 'native_photo_id'], licenseCode: 'cc-by', attribution: '(c) Author 1, some rights reserved', attributionName: null, mediumUrl: null, url: 'https://inaturalist-open-data.s3.amazonaws.com/photos/1/square.jpg' },
+      { photoId: 1, detailed: true, type: 'LocalPhoto', nativePageUrl: null, nativePhotoId: null, missingFields: [], licenseCode: 'cc-by', attribution: '(c) Author 1, some rights reserved', attributionName: '  Author   1  ', mediumUrl: 'https://inaturalist-open-data.s3.amazonaws.com/photos/1/medium.jpg', url: 'https://inaturalist-open-data.s3.amazonaws.com/photos/1/square.jpg' },
+    ])
     expect(selected.assets.map((a) => a.sourceUrl)).toEqual(['https://www.inaturalist.org/photos/1', 'https://www.inaturalist.org/photos/2'])
     expect(selected.assets.map((a) => a.position)).toEqual([0, 1])
   })

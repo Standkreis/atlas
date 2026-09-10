@@ -5,20 +5,24 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { buildContentAudit, type ContentAuditSnapshot, type ContentNetworkReview, type ContentUrlCheckReport } from './catalogue-content-audit'
 import { ASSET_TRANSFER_COLUMNS, CONTENT_WORK_VERSIONS, WORK_TRANSFER_COLUMNS, contentDigest, contentSnapshotDigests, writeGalleryArtifact } from './catalogue-gallery-transfer'
+import { responseEvidenceFingerprint } from './fetch'
 
 const paths: string[] = []
 afterEach(async () => { for (const path of paths.splice(0)) await rm(path, { recursive: true, force: true }) })
 async function output() { const path = await mkdtemp(join(tmpdir(), 'atlas-gallery-transfer-')); paths.push(path); return join(path, 'gallery.jsonl') }
 function fixture(): ContentAuditSnapshot {
   const at = '2026-09-09T10:00:00.000Z'
+  const sourceResponses = [{ url: 'https://api.inaturalist.org/v1/taxa/123', responseFingerprint: 'd'.repeat(64) }]
+  const acceptedEvidence = [{ position: 0, url: 'https://inaturalist-open-data.s3.amazonaws.com/photos/1/medium.jpg', author: 'Photographer', licence: 'CC BY 4.0', licenceUrl: 'https://creativecommons.org/licenses/by/4.0/', sourceUrl: 'https://www.inaturalist.org/photos/1', origin: 'inat', caption: 'Amsel', sourceId: 'inat:1', taxonId: 123, matchedName: 'Turdus merula', photoId: 1,
+    provenance: { status: 'native-free-local-photo', detailedRecords: 1, totalRecords: 1, conflictingMetadata: false, evidence: [{ photoId: 1, detailed: true, type: 'LocalPhoto', nativePageUrl: null, nativePhotoId: null, missingFields: [], licenseCode: 'cc-by', attribution: null, attributionName: 'Photographer', mediumUrl: 'https://inaturalist-open-data.s3.amazonaws.com/photos/1/medium.jpg', url: null }] } }]
   return {
     catalogue: { id: 'cat', runKey: 'v2', countryCode: 'DE', status: 'active', registryVersionId: 'registry', unionFingerprint: contentDigest([1]), unionTaxa: 1, expectedRegions: 1, completedRegions: 1, inputFingerprint: 'b'.repeat(64), responseFingerprint: 'c'.repeat(64) },
     taxa: [{ id: 'taxon', gbifKey: 1, sciName: 'Turdus merula', tile: 'bird', rank: 'species', commonNames: { de: 'Amsel' }, intro: null, facts: null, prose: null, contentAt: null }],
     assets: [{ id: 'photo', kind: 'image', url: 'https://inaturalist-open-data.s3.amazonaws.com/photos/1/medium.jpg', author: 'Photographer', licence: 'CC BY 4.0', licenceUrl: 'https://creativecommons.org/licenses/by/4.0/', sourceUrl: 'https://www.inaturalist.org/photos/1', origin: 'inat', caption: 'Amsel', meta: null, position: 0, createdAt: at, taxonId: 'taxon', sightingId: null, ownerId: null, byteSize: 0, avatarOf: false }],
     work: Object.entries(CONTENT_WORK_VERSIONS).map(([kind, version]) => ({ taxonId: 'taxon', kind, version, status: 'complete', attempts: 1, leaseOwner: null, leaseExpiresAt: null, startedAt: at, completedAt: at, error: null,
-      resultSummary: kind === 'gallery' ? { images: 1, zero: false, changed: false, coverage: { inat: true, commons: false }, rejections: [], inatImages: 1, commonsImages: 0 }
+      resultSummary: kind === 'gallery' ? { images: 1, zero: false, changed: false, coverage: { inat: true, commons: false }, rejections: [], acceptedEvidence, sourceResponses, inatImages: 1, commonsImages: 0 }
         : { outcome: 'matched', reason: null, selected: { de: 'Amsel' }, added: {}, changed: false, source: { qid: 'Q25345', path: 'P846', labels: { de: 'Amsel', en: null, ja: null }, sitelinks: { de: null, en: null }, note: null } },
-      sourceFingerprint: 'a'.repeat(64), createdAt: at, updatedAt: at })),
+      sourceFingerprint: kind === 'gallery' ? responseEvidenceFingerprint(sourceResponses) : 'a'.repeat(64), createdAt: at, updatedAt: at })),
     taxonomyQuarantine: {}, optional: { soundTaxa: 0, interactionTaxa: 0 },
   }
 }
@@ -45,6 +49,8 @@ describe('filtered catalogue gallery artifact', () => {
     const row = lines.find((line) => line.type === 'row' && line.table === 'Asset').row
     const expected = Object.fromEntries(Object.entries(snapshot.assets[0]!).filter(([key]) => key !== 'avatarOf'))
     expect(row).toEqual(expected)
+    const galleryWork = lines.find((line) => line.type === 'row' && line.table === 'TaxonEnrichmentWork' && line.row.kind === 'gallery').row
+    expect(galleryWork.resultSummary).toEqual(snapshot.work.find((work) => work.kind === 'gallery')!.resultSummary)
     expect(first.tables.map((table) => [table.table, table.rows])).toEqual([['Asset', 1], ['TaxonEnrichmentWork', 2]])
     expect((await writeGalleryArtifact({ snapshot, audit, path })).artifact.sha256).toBe(first.artifact.sha256)
   })

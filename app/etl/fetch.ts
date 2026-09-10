@@ -104,12 +104,20 @@ export const failedCaptureRequests = (error: unknown): RequestStats | null => (
 const cachePolicy = new AsyncLocalStorage<{ refresh: boolean }>()
 export const withFreshCache = <T>(fn: () => Promise<T>): Promise<T> => cachePolicy.run({ refresh: true }, fn)
 type ResponseCapture = { entries: { url: string; response: string }[]; requests: RequestStats }
+export type ResponseEvidence = { url: string; responseFingerprint: string }
+export function responseEvidenceFingerprint(entries: readonly ResponseEvidence[]) {
+  const fingerprint = createHash('sha256')
+  for (const entry of [...entries].sort((a, b) => a.url.localeCompare(b.url) || a.responseFingerprint.localeCompare(b.responseFingerprint))) {
+    fingerprint.update(entry.url).update('\0').update(entry.responseFingerprint).update('\n')
+  }
+  return fingerprint.digest('hex')
+}
 /**
  * Capture the effective responses read by an ETL operation without retaining their bodies.
  * The returned digest is stable for the same URL/response pairs, regardless of completion order.
  * Each async context owns its entries, so concurrent runs cannot contaminate one another.
  */
-export async function withResponseCapture<T>(fn: () => Promise<T>): Promise<{ value: T; fingerprint: string; requests: RequestStats }> {
+export async function withResponseCapture<T>(fn: () => Promise<T>): Promise<{ value: T; fingerprint: string; responses: ResponseEvidence[]; requests: RequestStats }> {
   const capture: ResponseCapture = { entries: [], requests: emptyRequestStats() }
   let value: T
   try {
@@ -117,11 +125,9 @@ export async function withResponseCapture<T>(fn: () => Promise<T>): Promise<{ va
   } catch (error) {
     throw new ResponseCaptureFailure(error, capture.requests)
   }
-  const fingerprint = createHash('sha256')
-  for (const entry of [...capture.entries].sort((a, b) => a.url.localeCompare(b.url) || a.response.localeCompare(b.response))) {
-    fingerprint.update(entry.url).update('\0').update(entry.response).update('\n')
-  }
-  return { value, fingerprint: fingerprint.digest('hex'), requests: capture.requests }
+  const responses = capture.entries.map(({ url, response }) => ({ url, responseFingerprint: response }))
+    .sort((a, b) => a.url.localeCompare(b.url) || a.responseFingerprint.localeCompare(b.responseFingerprint))
+  return { value, fingerprint: responseEvidenceFingerprint(responses), responses, requests: capture.requests }
 }
 const responseCapture = new AsyncLocalStorage<ResponseCapture>()
 const recordResponse = (url: string, response: string) => responseCapture.getStore()?.entries.push({ url, response })

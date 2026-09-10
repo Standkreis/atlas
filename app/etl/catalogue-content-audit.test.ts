@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { buildContentAudit, networkReviewTemplate, parseContentAuditArgs, parseContentNetworkReview, parseContentUrlReport, requireLocalContentDatabase, validateOfficialApiRecord, type ContentAuditReport, type ContentAuditSnapshot, type ContentNetworkReview, type ContentAsset, type ContentWork, type ContentUrlCheckReport } from './catalogue-content-audit'
 import { CONTENT_WORK_VERSIONS, contentDigest, contentSnapshotDigests } from './catalogue-gallery-transfer'
 import { scientificGalleryExclusion } from './gallery'
+import { responseEvidenceFingerprint } from './fetch'
 
 const at = '2026-09-09T10:00:00.000Z'
 const clock = () => new Date(at)
@@ -14,11 +15,21 @@ function fixture(): ContentAuditSnapshot {
     url: `https://inaturalist-open-data.s3.amazonaws.com/photos/${i * 100 + position}/medium.jpg`, author: 'Author', licence: 'CC BY 4.0', licenceUrl: 'https://creativecommons.org/licenses/by/4.0/', sourceUrl: `https://www.inaturalist.org/photos/${i * 100 + position}`,
     origin: 'inat', caption: 'Organism', ownerId: null, sightingId: null, avatarOf: false,
   })))
-  const work: ContentWork[] = taxa.flatMap((taxon, i) => Object.entries(CONTENT_WORK_VERSIONS).map(([kind, version]) => ({
-    taxonId: taxon.id, kind, version, status: 'complete', attempts: 1, completedAt: at, error: null, leaseOwner: null, leaseExpiresAt: null, sourceFingerprint: 'a'.repeat(64),
-    resultSummary: kind === 'gallery' ? { images: sizes[i], zero: sizes[i] === 0, changed: true, coverage: { inat: i > 0, commons: false }, rejections: [], inatImages: sizes[i], commonsImages: 0 }
-      : { outcome: 'scientific-fallback', reason: 'No source name', selected: {}, added: {}, changed: false, source: { qid: null, path: 'none', labels: { de: null, en: null, ja: null }, sitelinks: { de: null, en: null }, note: null } },
-  })))
+  const work: ContentWork[] = taxa.flatMap((taxon, i) => Object.entries(CONTENT_WORK_VERSIONS).map(([kind, version]) => {
+    const selected = assets.filter((asset) => asset.taxonId === taxon.id)
+    const sourceResponses = [{ url: `https://api.inaturalist.org/v1/taxa/${taxon.gbifKey}`, responseFingerprint: `${i + 1}`.repeat(64) }]
+    const acceptedEvidence = selected.map((asset) => {
+      const photoId = Number(new URL(asset.sourceUrl).pathname.split('/').at(-1))
+      return { position: asset.position, url: asset.url, author: asset.author, licence: asset.licence, licenceUrl: asset.licenceUrl, sourceUrl: asset.sourceUrl, origin: 'inat', caption: asset.caption,
+        sourceId: `inat:${photoId}`, taxonId: taxon.gbifKey, matchedName: taxon.sciName, photoId,
+        provenance: { status: 'native-free-local-photo', detailedRecords: 1, totalRecords: 1, conflictingMetadata: false, evidence: [{ photoId, detailed: true, type: 'LocalPhoto', nativePageUrl: null, nativePhotoId: null,
+          missingFields: [], licenseCode: 'cc-by', attribution: null, attributionName: asset.author, mediumUrl: asset.url, url: null }] } }
+    })
+    return { taxonId: taxon.id, kind, version, status: 'complete', attempts: 1, completedAt: at, error: null, leaseOwner: null, leaseExpiresAt: null,
+      sourceFingerprint: kind === 'gallery' ? responseEvidenceFingerprint(sourceResponses) : 'a'.repeat(64),
+      resultSummary: kind === 'gallery' ? { images: sizes[i], zero: sizes[i] === 0, changed: true, coverage: { inat: i > 0, commons: false }, rejections: [], acceptedEvidence, sourceResponses, inatImages: sizes[i], commonsImages: 0 }
+        : { outcome: 'scientific-fallback', reason: 'No source name', selected: {}, added: {}, changed: false, source: { qid: null, path: 'none', labels: { de: null, en: null, ja: null }, sitelinks: { de: null, en: null }, note: null } } }
+  }))
   return { catalogue: { id: 'cat', runKey: 'germany-v2', countryCode: 'DE', status: 'active', registryVersionId: 'registry', unionFingerprint: contentDigest([1, 2, 3, 4]), unionTaxa: 4, expectedRegions: 362, completedRegions: 362, inputFingerprint: 'b'.repeat(64), responseFingerprint: 'c'.repeat(64) }, taxa, assets, work, taxonomyQuarantine: { nonSpecies: 2 }, optional: { soundTaxa: 1, interactionTaxa: 2 } }
 }
 function approved(audit: ContentAuditReport): ContentNetworkReview {
@@ -35,23 +46,26 @@ function checkedUrls(data: ContentAuditSnapshot, generatedAt = at): ContentUrlCh
 const codes = (snapshot: ContentAuditSnapshot) => buildContentAudit(snapshot).defects.map((defect) => defect.code)
 
 describe('German catalogue content audit', () => {
-  it('independently blocks the reviewed excluded photo despite complete v5 work and passing network evidence', () => {
+  it('independently blocks the reviewed excluded photo despite complete v6 work and passing network evidence', () => {
     const data = fixture(), asset = data.assets[0]!
     Object.assign(asset, { origin: 'commons', sourceUrl: 'https://commons.wikimedia.org/wiki/File:Red%20bartsia%20800.jpg',
       url: 'https://upload.wikimedia.org/wikipedia/commons/d/db/Red_bartsia_800.jpg?utm_source=commons',
       licence: 'CC BY-SA 3.0', licenceUrl: 'https://creativecommons.org/licenses/by-sa/3.0/' })
     const summary = data.work.find((row) => row.taxonId === asset.taxonId && row.kind === 'gallery')!.resultSummary as Record<string, unknown>
-    Object.assign(summary, { inatImages: 0, commonsImages: 1, coverage: { inat: false, commons: true } })
+    const { position, url, author, licence, licenceUrl, sourceUrl, origin, caption } = asset
+    const sourceResponses = [{ url: 'https://commons.wikimedia.org/w/api.php?action=query&titles=File%3ARed_bartsia_800.jpg', responseFingerprint: 'e'.repeat(64) }]
+    Object.assign(summary, { inatImages: 0, commonsImages: 1, coverage: { inat: false, commons: true }, acceptedEvidence: [{ position, url, author, licence, licenceUrl, sourceUrl, origin, caption, sourceId: 'commons:File:Red bartsia 800.jpg' }], sourceResponses })
+    data.work.find((row) => row.taxonId === asset.taxonId && row.kind === 'gallery')!.sourceFingerprint = responseEvidenceFingerprint(sourceResponses)
     const audit = buildContentAudit(data, approved(buildContentAudit(data)), checkedUrls(data), clock)
-    expect(audit.versions.gallery).toBe('licensed-gallery-v5')
+    expect(audit.versions.gallery).toBe('licensed-gallery-v6')
     expect(audit.work.gallery.complete).toBe(4)
     expect(audit.defects.map((finding) => finding.code)).toEqual(['gallery-scientific-exclusion'])
     expect(audit.verdict).toBe('blocked')
   })
 
-  it('requires current v5 checkpoints and retains scientific exclusion evidence separately from licence rejection', () => {
+  it('requires current v6 checkpoints and retains scientific exclusion evidence separately from licence rejection', () => {
     const data = fixture()
-    for (const row of data.work.filter((work) => work.kind === 'gallery')) row.version = 'licensed-gallery-v4'
+    for (const row of data.work.filter((work) => work.kind === 'gallery')) row.version = 'licensed-gallery-v5'
     expect(buildContentAudit(data).work.gallery).toMatchObject({ missing: 4, complete: 0 })
     for (const row of data.work.filter((work) => work.kind === 'gallery')) row.version = CONTENT_WORK_VERSIONS.gallery
     const summary = data.work.find((row) => row.kind === 'gallery')!.resultSummary as Record<string, unknown>
@@ -121,6 +135,35 @@ describe('German catalogue content audit', () => {
     data.taxa[0]!.sciName = ''
     data.work.find((w) => w.kind === 'gallery')!.resultSummary = { images: 4 }
     expect(codes(data)).toEqual(expect.arrayContaining(['taxon-identity', 'gallery-work-summary']))
+  })
+
+  it('requires complete accepted native provenance and binds captured responses to the checkpoint fingerprint', () => {
+    type GallerySummary = { acceptedEvidence: Array<{ author: string; photoId: number; provenance: { status: string; totalRecords: number; conflictingMetadata: boolean; evidence: Array<{ photoId: number }> } }>; sourceResponses: Array<{ url: string; responseFingerprint: string }> }
+    const data = fixture()
+    expect(codes(data)).toEqual([])
+    const row = data.work.find((work) => work.kind === 'gallery' && (work.resultSummary as { images: number }).images > 0)!
+    const missing = structuredClone(data)
+    ;(missing.work.find((work) => work.taxonId === row.taxonId && work.kind === 'gallery')!.resultSummary as GallerySummary).acceptedEvidence = []
+    expect(codes(missing)).toContain('gallery-source-evidence')
+    const drifted = structuredClone(data)
+    ;(drifted.work.find((work) => work.taxonId === row.taxonId && work.kind === 'gallery')!.resultSummary as GallerySummary).acceptedEvidence[0]!.author = 'Different author'
+    expect(codes(drifted)).toContain('gallery-accepted-evidence')
+    const mismatched = structuredClone(data)
+    ;(mismatched.work.find((work) => work.taxonId === row.taxonId && work.kind === 'gallery')!.resultSummary as GallerySummary).acceptedEvidence[0]!.photoId++
+    expect(codes(mismatched)).toContain('gallery-accepted-provenance')
+    const contradictory = structuredClone(data)
+    ;(contradictory.work.find((work) => work.taxonId === row.taxonId && work.kind === 'gallery')!.resultSummary as GallerySummary).acceptedEvidence[0]!.provenance.conflictingMetadata = true
+    expect(codes(contradictory)).toContain('gallery-accepted-provenance')
+    const imported = structuredClone(data)
+    ;(imported.work.find((work) => work.taxonId === row.taxonId && work.kind === 'gallery')!.resultSummary as GallerySummary).acceptedEvidence[0]!.provenance.status = 'unverified-imported-licence'
+    expect(codes(imported)).toContain('gallery-accepted-provenance')
+    const truncated = structuredClone(data)
+    const truncatedEvidence = (truncated.work.find((work) => work.taxonId === row.taxonId && work.kind === 'gallery')!.resultSummary as GallerySummary).acceptedEvidence[0]!.provenance
+    truncatedEvidence.totalRecords++
+    expect(codes(truncated)).toContain('gallery-accepted-provenance')
+    const changedResponse = structuredClone(data)
+    ;(changedResponse.work.find((work) => work.taxonId === row.taxonId && work.kind === 'gallery')!.resultSummary as GallerySummary).sourceResponses[0]!.responseFingerprint = 'f'.repeat(64)
+    expect(codes(changedResponse)).toContain('gallery-source-evidence')
   })
 
   it('validates added name publication against the stored common names', () => {
@@ -265,7 +308,10 @@ describe('German catalogue content audit', () => {
   it('treats a catalogue with no reference assets as vacuously URL-complete', () => {
     const data = fixture()
     data.assets = []
-    for (const row of data.work.filter((work) => work.kind === 'gallery')) row.resultSummary = { images: 0, zero: true, changed: false, coverage: { inat: false, commons: false }, rejections: [], inatImages: 0, commonsImages: 0 }
+    for (const row of data.work.filter((work) => work.kind === 'gallery')) {
+      row.resultSummary = { images: 0, zero: true, changed: false, coverage: { inat: false, commons: false }, rejections: [], acceptedEvidence: [], sourceResponses: [], inatImages: 0, commonsImages: 0 }
+      row.sourceFingerprint = responseEvidenceFingerprint([])
+    }
     const audit = buildContentAudit(data, null, null, clock)
     expect(audit.network.urlChecks).toMatchObject({ supplied: false, urls: 0, passed: 0, failed: 0, pending: 0 })
     expect(audit.verdict).toBe('ready-for-transfer')

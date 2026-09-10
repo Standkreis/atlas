@@ -12,7 +12,7 @@ const ids = Array.from({ length: 6 }, randomUUID)
 const keys = ids.map((_, i) => 990036001 + i)
 let regionId: string
 const image = (n: number, position = 0) => ({ position, url: `https://example.test/${n}.jpg`, author: 'Author', licence: 'CC BY 4.0', licenceUrl: 'https://creativecommons.org/licenses/by/4.0/', sourceUrl: `https://example.test/file/${n}`, origin: 'commons' as const, caption: 'Bird' })
-const fetched = (n: number): GalleryFetch => ({ status: 'ok', assets: [image(n)], rejections: [], coverage: { inat: false, commons: true } })
+const fetched = (n: number): GalleryFetch => ({ status: 'ok', assets: [image(n)], acceptedEvidence: [{ ...image(n), sourceId: `commons:Fixture-${n}` }], rejections: [], coverage: { inat: false, commons: true } })
 const run = (options: Partial<Parameters<typeof runGallery>[0]> = {}) => runGallery({ catalogueVersionId: catalogueId, log: () => {}, fetchGallery: async () => fetched(1), ...options })
 
 beforeAll(async () => {
@@ -69,7 +69,7 @@ describe('resumable gallery work', () => {
     expect(await db.asset.findMany({ where: referenceImages(ids[1]) })).toEqual(before)
     expect(await run({ keys: [keys[1]], fetchGallery: async () => ({ ...fetched(20), assets: [{ ...image(21), author: '' }] }) })).toMatchObject({ failed: 1, changed: 0 })
     expect(await db.asset.findMany({ where: referenceImages(ids[1]) })).toEqual(before)
-    expect(await run({ keys: [keys[1]], fetchGallery: async () => ({ ...fetched(20), assets: [], coverage: { inat: false, commons: false } }) })).toMatchObject({ failed: 0, changed: 1, zero: 1, images: 0 })
+    expect(await run({ keys: [keys[1]], fetchGallery: async () => ({ ...fetched(20), assets: [], acceptedEvidence: [], coverage: { inat: false, commons: false } }) })).toMatchObject({ failed: 0, changed: 1, zero: 1, images: 0 })
     expect(await db.asset.count({ where: referenceImages(ids[1]) })).toBe(0)
     expect(await run({ keys: [keys[1]] })).toMatchObject({ examined: 0, failed: 0 })
   })
@@ -86,10 +86,13 @@ describe('resumable gallery work', () => {
       db.asset.create({ data: { ...base, avatarOf: { connect: { id: identity.id } } } }),
     ])
     await db.$transaction((tx) => replaceReferenceGallery(tx, ids[2], [image(31), image(32, 1)]))
+    await db.taxonEnrichmentWork.create({ data: { taxonId: ids[2], kind: 'gallery', version: 'licensed-gallery-v5', status: 'complete', completedAt: new Date(), sourceFingerprint: '5'.repeat(64), resultSummary: { historical: true } } })
     const before = await db.asset.findMany({ where: referenceImages(ids[2]), orderBy: { position: 'asc' } })
-    const report = await run({ keys: [keys[2]], fetchGallery: async () => ({ ...fetched(31), assets: [image(31), image(32, 1)], rejections: [{ source: 'commons:cap', reason: 'gallery-cap' }, { source: 'commons:bad', reason: 'missing-author' }] }) })
+    const replayAssets = [image(31), image(32, 1)]
+    const report = await run({ keys: [keys[2]], fetchGallery: async () => ({ ...fetched(31), assets: replayAssets, acceptedEvidence: replayAssets.map((asset) => ({ ...asset, sourceId: `commons:Fixture-${asset.position}` })), rejections: [{ source: 'commons:cap', reason: 'gallery-cap' }, { source: 'commons:bad', reason: 'missing-author' }] }) })
     expect(report).toMatchObject({ changed: 0, unchanged: 1, images: 2, capped: 1, rejected: 1 })
     expect(await db.asset.findMany({ where: referenceImages(ids[2]), orderBy: { position: 'asc' } })).toEqual(before)
+    expect(await db.taxonEnrichmentWork.findUnique({ where: { taxonId_kind_version: { taxonId: ids[2], kind: 'gallery', version: 'licensed-gallery-v5' } } })).toMatchObject({ status: 'complete', resultSummary: { historical: true } })
     expect(await db.asset.count({ where: { id: { in: protectedRows.map((a) => a.id) } } })).toBe(5)
     await db.asset.deleteMany({ where: { id: { in: protectedRows.map((a) => a.id) } } })
     await db.identity.delete({ where: { id: identity.id } })

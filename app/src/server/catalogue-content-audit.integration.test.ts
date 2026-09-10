@@ -7,11 +7,15 @@ import { Client } from 'pg'
 import { db } from '../../etl/db'
 import { CONTENT_WORK_VERSIONS, contentDigest } from '../../etl/catalogue-gallery-transfer'
 import { buildContentAudit, loadContentSnapshot, networkReviewTemplate, writeContentAuditBundle, type ContentNetworkReview } from '../../etl/catalogue-content-audit'
+import { responseEvidenceFingerprint } from '../../etl/fetch'
 
 const prefix = 'issue21-content-audit'
 const registry = `${prefix}-registry`, catalogue = `${prefix}-catalogue`, member = `${prefix}-member`, outside = `${prefix}-outside`, owner = `${prefix}-owner`, sighting = `${prefix}-sighting`
 const names = { outcome: 'scientific-fallback', reason: 'no source names', selected: {}, added: {}, changed: false, source: { qid: null, path: 'none', labels: { de: null, en: null, ja: null }, sitelinks: { de: null, en: null }, note: null } }
-const gallery = { images: 1, zero: false, changed: false, coverage: { inat: true, commons: false }, rejections: [], inatImages: 1, commonsImages: 0 }
+const sourceResponses = [{ url: 'https://api.inaturalist.org/v1/taxa/456', responseFingerprint: 'f'.repeat(64) }]
+const gallery = { images: 1, zero: false, changed: false, coverage: { inat: true, commons: false }, rejections: [], inatImages: 1, commonsImages: 0, sourceResponses,
+  acceptedEvidence: [{ position: 0, url: 'https://inaturalist-open-data.s3.amazonaws.com/photos/123/medium.jpg', author: 'Photographer', licence: 'CC BY 4.0', licenceUrl: 'https://creativecommons.org/licenses/by/4.0/', sourceUrl: 'https://www.inaturalist.org/photos/123', origin: 'inat', caption: 'Reference organism', sourceId: 'inat:123', taxonId: 456, matchedName: 'Reviewus contentus', photoId: 123,
+    provenance: { status: 'native-free-local-photo', detailedRecords: 1, totalRecords: 1, conflictingMetadata: false, evidence: [{ photoId: 123, detailed: true, type: 'LocalPhoto', nativePageUrl: null, nativePhotoId: null, missingFields: [], licenseCode: 'cc-by', attribution: null, attributionName: 'Photographer', mediumUrl: 'https://inaturalist-open-data.s3.amazonaws.com/photos/123/medium.jpg', url: null }] } }] }
 const at = new Date('2026-09-09T10:00:00.000Z')
 const directories: string[] = []
 let priorRegistry: string | undefined
@@ -52,7 +56,7 @@ beforeAll(async () => {
   ] })
   await db.identity.update({ where: { id: owner }, data: { avatarAssetId: `${prefix}-avatar` } })
   for (const [kind, version] of [...Object.entries(CONTENT_WORK_VERSIONS), ['gallery', 'old-version'], ['prose', 'optional']]) {
-    await db.taxonEnrichmentWork.create({ data: { taxonId: member, kind, version, status: 'complete', completedAt: at, sourceFingerprint: 'e'.repeat(64), resultSummary: kind === 'names' ? names : gallery } })
+    await db.taxonEnrichmentWork.create({ data: { taxonId: member, kind, version, status: 'complete', completedAt: at, sourceFingerprint: kind === 'names' ? 'e'.repeat(64) : responseEvidenceFingerprint(sourceResponses), resultSummary: kind === 'names' ? names : gallery } })
   }
   await db.taxonEnrichmentWork.create({ data: { taxonId: outside, kind: 'gallery', version: CONTENT_WORK_VERSIONS.gallery, status: 'complete', completedAt: at, sourceFingerprint: 'e'.repeat(64), resultSummary: gallery } })
 })

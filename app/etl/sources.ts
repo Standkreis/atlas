@@ -78,12 +78,18 @@ function photoProvenance(records: Array<{ photo: InatPhoto; detailed: boolean }>
   return {
     status: imported ? 'unverified-imported-licence' : proved ? 'native-free-local-photo' : 'unknown-provenance',
     detailedRecords: detailed.length, totalRecords: records.length, conflictingMetadata,
-    // Bound checkpoint evidence; the complete original response remains in the source cache.
-    evidence: records.slice(0, 8).map(({ photo, detailed }) => ({ detailed,
+    // Keep rejection summaries bounded; the final audit requires totalRecords === evidence.length
+    // for accepted assets, so an unusually repeated accepted photo fails closed instead of truncating proof.
+    evidence: records.slice(0, 8).map(({ photo, detailed }) => ({ photoId: photo.id, detailed,
       type: typeof photo.type === 'string' ? photo.type : photo.type == null ? null : '[invalid type]',
       nativePageUrl: typeof photo.native_page_url === 'string' ? photo.native_page_url : photo.native_page_url == null ? null : '[invalid native page]',
       nativePhotoId: typeof photo.native_photo_id === 'string' || typeof photo.native_photo_id === 'number' ? photo.native_photo_id : photo.native_photo_id == null ? null : '[invalid native id]',
       missingFields: ['type', 'native_page_url', 'native_photo_id'].filter((field) => (photo as unknown as Record<string, unknown>)[field] === undefined),
+      licenseCode: typeof photo.license_code === 'string' ? photo.license_code : null,
+      attribution: typeof photo.attribution === 'string' ? photo.attribution : null,
+      attributionName: typeof photo.attribution_name === 'string' ? photo.attribution_name : null,
+      mediumUrl: typeof photo.medium_url === 'string' ? photo.medium_url : null,
+      url: typeof photo.url === 'string' ? photo.url : null,
     })),
   }
 }

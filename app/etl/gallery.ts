@@ -36,7 +36,7 @@ export type InatPhotoProvenance = {
   detailedRecords: number
   totalRecords: number
   conflictingMetadata: boolean
-  evidence: Array<{ detailed: boolean; type: string | null; nativePageUrl: string | null; nativePhotoId: string | number | null; missingFields: string[] }>
+  evidence: Array<{ photoId: number; detailed: boolean; type: string | null; nativePageUrl: string | null; nativePhotoId: string | number | null; missingFields: string[]; licenseCode: string | null; attribution: string | null; attributionName: string | null; mediumUrl: string | null; url: string | null }>
 }
 
 export type GalleryAsset = {
@@ -108,10 +108,27 @@ export type GalleryRejection = {
 export type GallerySelection = {
   status: 'ok'
   assets: GalleryAsset[]
+  acceptedEvidence: GalleryAcceptedEvidence[]
   rejections: GalleryRejection[]
 }
 
-type Candidate = Omit<GalleryAsset, 'position'> & { sourceId: string; order: number }
+export type GalleryAcceptedEvidence = GalleryAsset & ({
+  origin: 'inat'
+  sourceId: string
+  taxonId: number
+  matchedName: string
+  photoId: number
+  provenance: InatPhotoProvenance
+} | {
+  origin: 'commons'
+  sourceId: string
+})
+
+type Candidate = Omit<GalleryAsset, 'position'> & {
+  sourceId: string
+  order: number
+  inat?: { taxonId: number; matchedName: string; photoId: number; provenance: InatPhotoProvenance }
+}
 
 const clean = (value: string | null | undefined) => value?.replace(/\s+/g, ' ').trim() ?? ''
 
@@ -130,7 +147,7 @@ function reject(rejections: GalleryRejection[], source: string, reason: GalleryR
   return null
 }
 
-function inatCandidate(photo: InatPhotoCandidate, sciName: string, rejections: GalleryRejection[]): Candidate | null {
+function inatCandidate(photo: InatPhotoCandidate, sourceTaxon: InatGallerySource, sciName: string, rejections: GalleryRejection[]): Candidate | null {
   const source = `inat:${photo.id}`
   if (!Number.isSafeInteger(photo.id) || photo.id <= 0) return reject(rejections, source, 'invalid-source-id')
   if (photo.provenance?.status !== 'native-free-local-photo') {
@@ -155,6 +172,7 @@ function inatCandidate(photo: InatPhotoCandidate, sciName: string, rejections: G
     sourceUrl: `https://www.inaturalist.org/photos/${photo.id}`,
     origin: 'inat',
     caption: sciName,
+    inat: { taxonId: sourceTaxon.taxonId, matchedName: sourceTaxon.matchedName, photoId: photo.id, provenance: photo.provenance },
   }
 }
 
@@ -229,11 +247,11 @@ export function selectGallery(input: {
   if (input.inat?.defaultPhotoId != null && !defaultPhoto && acceptedNames.has(input.inat.matchedName)) {
     reject(rejections, `inat:${input.inat.defaultPhotoId}`, 'invalid-source-id')
   }
-  const defaultAsset = defaultPhoto ? inatCandidate(defaultPhoto, input.scientificName, rejections) : null
+  const defaultAsset = defaultPhoto ? inatCandidate(defaultPhoto, input.inat!, input.scientificName, rejections) : null
   const commonsAsset = input.commons ? commonsCandidate(input.commons, input.scientificName, rejections) : null
   const alternates = photos
     .filter((photo) => photo.id !== input.inat?.defaultPhotoId)
-    .map((photo) => inatCandidate(photo, input.scientificName, rejections))
+    .map((photo) => inatCandidate(photo, input.inat!, input.scientificName, rejections))
     .filter((candidate): candidate is Candidate => candidate !== null)
 
   const ordered = defaultAsset ? [defaultAsset, ...(commonsAsset ? [commonsAsset] : []), ...alternates] : commonsAsset ? [commonsAsset, ...alternates] : alternates
@@ -242,6 +260,7 @@ export function selectGallery(input: {
   const pages = new Set<string>()
   const urls = new Set<string>()
   const assets: GalleryAsset[] = []
+  const acceptedEvidence: GalleryAcceptedEvidence[] = []
   for (const candidate of ordered) {
     const page = normalizedRemoteUrl(candidate.sourceUrl)
     const url = normalizedRemoteUrl(candidate.url)
@@ -260,7 +279,7 @@ export function selectGallery(input: {
     sourceIds.add(candidate.sourceId)
     pages.add(page)
     urls.add(url)
-    assets.push({
+    const asset: GalleryAsset = {
       position: assets.length,
       url: candidate.url,
       author: candidate.author,
@@ -269,7 +288,11 @@ export function selectGallery(input: {
       sourceUrl: candidate.sourceUrl,
       origin: candidate.origin,
       caption: candidate.caption,
-    })
+    }
+    assets.push(asset)
+    acceptedEvidence.push(candidate.origin === 'inat'
+      ? { ...asset, origin: 'inat', sourceId: candidate.sourceId, ...candidate.inat! }
+      : { ...asset, origin: 'commons', sourceId: candidate.sourceId })
   }
-  return { status: 'ok', assets, rejections }
+  return { status: 'ok', assets, acceptedEvidence, rejections }
 }

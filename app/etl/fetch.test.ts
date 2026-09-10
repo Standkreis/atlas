@@ -302,6 +302,12 @@ describe('response capture', () => {
     ))
     expect(result.fingerprint).not.toContain('answer')
     expect(result.fingerprint).not.toContain('hello')
+    expect(result.responses).toEqual([
+      { url: 'https://api.gbif.org/cached', responseFingerprint: digest(disk.body) },
+      { url: 'https://api.gbif.org/json', responseFingerprint: digest('{"answer":42}') },
+      { url: 'https://api.gbif.org/missing', responseFingerprint: '404' },
+      { url: 'https://api.gbif.org/text', responseFingerprint: digest('hello') },
+    ])
     expect(result.requests).toEqual({
       perHost: { 'api.gbif.org': 3 },
       networkAttempts: 3,

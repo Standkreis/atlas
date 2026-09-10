@@ -9,6 +9,7 @@ import { TILES } from '../src/domain/rules'
 import { inatLicence, inatLicenceUrl, inatLicensed, normalizedRemoteUrl, validReferenceImage } from '../src/domain/referenceImages'
 import { safeReferenceUrl, type NetworkCheck } from './gallery-network-audit'
 import { scientificGalleryExclusion } from './gallery'
+import { responseEvidenceFingerprint } from './fetch'
 import { CONTENT_WORK_VERSIONS, canonicalContent, contentDigest, contentSnapshotDigests, qualifiedReference, relevantWork, writeGalleryArtifact } from './catalogue-gallery-transfer'
 
 export type ContentTaxon = Record<string, unknown> & { id: string; gbifKey: number; sciName: string; rank: string; tile: string; commonNames: unknown; intro: unknown; facts: unknown; prose: unknown; contentAt: unknown }
@@ -228,6 +229,79 @@ export function buildContentAudit(snapshot: ContentAuditSnapshot, review: Conten
       const coverage = object(summary.coverage)
       if (assets.length === 0 && summary.images === 0 && summary.zero === true) galleries.completedZero++
       if (summary.images !== assets.length || summary.zero !== (assets.length === 0) || summary.inatImages !== assets.filter((a) => a.origin === 'inat').length || summary.commonsImages !== assets.filter((a) => a.origin === 'commons').length || typeof coverage?.inat !== 'boolean' || typeof coverage?.commons !== 'boolean' || !Array.isArray(summary.rejections)) fail('gallery-work-summary', taxon.id, 'completed gallery checkpoint differs from live image counts or lacks source/rejection evidence')
+      const accepted = Array.isArray(summary.acceptedEvidence) ? summary.acceptedEvidence.map(object) : []
+      const responses = Array.isArray(summary.sourceResponses) ? summary.sourceResponses.map(object) : []
+      const responseEvidence = responses.flatMap((entry) => entry && typeof entry.url === 'string' && typeof entry.responseFingerprint === 'string' &&
+        (/^[0-9a-f]{64}$/.test(entry.responseFingerprint) || entry.responseFingerprint === '404')
+        ? [{ url: entry.url, responseFingerprint: entry.responseFingerprint }] : [])
+      if (!Array.isArray(summary.acceptedEvidence) || accepted.some((entry) => !entry) || accepted.length !== assets.length ||
+        !Array.isArray(summary.sourceResponses) || responseEvidence.length !== responses.length || responseEvidenceFingerprint(responseEvidence) !== row.sourceFingerprint) {
+        fail('gallery-source-evidence', taxon.id, 'completed gallery checkpoint does not bind every accepted asset and exact captured source response')
+      }
+      const evidenceAt = new Map<number, Record<string, unknown>>()
+      for (const item of accepted) {
+        if (!item || !Number.isSafeInteger(item.position) || evidenceAt.has(item.position as number)) continue
+        evidenceAt.set(item.position as number, item)
+      }
+      for (const asset of assets) {
+        const item = evidenceAt.get(asset.position)
+        const sameAsset = item && ['origin', 'url', 'author', 'licence', 'licenceUrl', 'sourceUrl', 'caption'].every((field) => item[field] === asset[field])
+        if (!sameAsset || typeof item!.sourceId !== 'string') {
+          fail('gallery-accepted-evidence', asset.id, 'accepted source evidence does not reproduce the live ordered asset')
+          continue
+        }
+        if (asset.origin === 'commons') {
+          const normalizeTitle = (value: string) => {
+            try { return decodeURIComponent(value).replace(/_/g, ' ').replace(/\s+/g, ' ').trim() } catch { return '' }
+          }
+          const sourceId = String(item!.sourceId)
+          const title = sourceId.startsWith('commons:') ? normalizeTitle(sourceId.slice('commons:'.length)) : ''
+          let pageTitle = ''
+          try {
+            const page = new URL(asset.sourceUrl)
+            if (page.hostname === 'commons.wikimedia.org' && page.pathname.startsWith('/wiki/')) pageTitle = normalizeTitle(page.pathname.slice('/wiki/'.length))
+            if (page.hostname === 'commons.wikimedia.org' && page.pathname === '/w/index.php') pageTitle = normalizeTitle(page.searchParams.get('title') ?? '')
+          } catch { /* The separate asset metadata checks report malformed URLs. */ }
+          const captured = responseEvidence.some((entry) => {
+            if (entry.responseFingerprint === '404') return false
+            try {
+              const request = new URL(entry.url)
+              return request.hostname === 'commons.wikimedia.org' && request.pathname === '/w/api.php' &&
+                (request.searchParams.get('titles') ?? '').split('|').some((candidate) => normalizeTitle(candidate) === title)
+            } catch { return false }
+          })
+          if (!title || title !== pageTitle || !captured) {
+            fail('gallery-accepted-evidence', asset.id, 'Commons accepted evidence lacks its exact source identity or captured provider response')
+          }
+          continue
+        }
+        const photoId = item!.photoId
+        const provenance = object(item!.provenance)
+        const records = Array.isArray(provenance?.evidence) ? provenance.evidence.map(object) : []
+        const detailed = records.filter((record) => record?.detailed === true)
+        let metadataMatches = records.length > 0
+        for (const record of records) {
+          const author = typeof record?.attributionName === 'string' && record.attributionName.trim()
+            ? record.attributionName.replace(/\s+/g, ' ').trim()
+            : typeof record?.attribution === 'string' ? record.attribution.replace(/\s+/g, ' ').trim().replace(/^\(c\)\s*/i, '').replace(/,.*$/, '').trim() : ''
+          const renderUrl = typeof record?.mediumUrl === 'string' && record.mediumUrl ? record.mediumUrl
+            : typeof record?.url === 'string' ? record.url.replace('square', 'medium') : null
+          if (!record || record.photoId !== photoId || !renderUrl ||
+            !inatLicensed(typeof record.licenseCode === 'string' ? record.licenseCode : null) || author !== asset.author ||
+            inatLicence(record.licenseCode as string) !== asset.licence || inatLicenceUrl(record.licenseCode as string) !== asset.licenceUrl) { metadataMatches = false; continue }
+          try { if (normalizedRemoteUrl(renderUrl) !== normalizedRemoteUrl(asset.url)) metadataMatches = false } catch { metadataMatches = false }
+        }
+        const native = provenance?.status === 'native-free-local-photo' && provenance.conflictingMetadata === false &&
+          provenance.totalRecords === records.length && provenance.detailedRecords === detailed.length && detailed.length > 0 &&
+          records.every((record) => record && (record.type === null || record.type === 'LocalPhoto') &&
+            (record.nativePageUrl === null || record.nativePageUrl === '') && (record.nativePhotoId === null || record.nativePhotoId === '') &&
+            Array.isArray(record.missingFields)) && detailed.every((record) => record?.type === 'LocalPhoto' && record.nativePageUrl === null && record.nativePhotoId === null && (record.missingFields as unknown[]).length === 0)
+        const detailUrl = Number.isSafeInteger(item!.taxonId) && Number(item!.taxonId) > 0 ? `https://api.inaturalist.org/v1/taxa/${item!.taxonId}` : null
+        if (!Number.isSafeInteger(photoId) || Number(photoId) <= 0 || item!.sourceId !== `inat:${photoId}` || item!.sourceUrl !== `https://www.inaturalist.org/photos/${photoId}` ||
+          item!.matchedName !== taxon.sciName || !native || !metadataMatches || !detailUrl || !responseEvidence.some((entry) => entry.url === detailUrl && entry.responseFingerprint !== '404')) {
+          fail('gallery-accepted-provenance', asset.id, 'accepted iNaturalist asset lacks complete, consistent native LocalPhoto proof bound to its detail response')
+        }
+      }
       let capped = false
       for (const rejection of Array.isArray(summary.rejections) ? summary.rejections : []) {
         const item = object(rejection)
