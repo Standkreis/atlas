@@ -87,9 +87,10 @@ describe('local content audit and gallery transfer selection', () => {
     expect(initial.network.status).toBe('pending')
 
     const directory = await mkdtemp(join(tmpdir(), 'atlas-content-audit-integration-')); directories.push(directory)
-    const pending = await writeContentAuditBundle({ catalogue, output: directory })
+    const pendingDirectory = join(directory, 'pending')
+    const pending = await writeContentAuditBundle({ catalogue, output: pendingDirectory })
     expect(pending.manifest.eligible).toBe(false)
-    await expect(readFile(join(directory, 'gallery-artifact.jsonl'))).rejects.toThrow()
+    await expect(readFile(join(pendingDirectory, 'gallery-artifact.jsonl'))).rejects.toThrow()
     const template = networkReviewTemplate(initial)
     const reviewPath = join(directory, 'review.json')
     await writeFile(reviewPath, JSON.stringify({ ...template, reviewer: 'Integration reviewer', reviewedAt: at.toISOString(), notes: 'Fixture review supplied by the test; no network claim about real source images.', samples: template.samples.map((sample) => ({ ...sample, rendered: true, sourcePageChecked: true, attributionChecked: true, licenceChecked: true, evidence: 'synthetic integration fixture' })) }))
@@ -99,9 +100,13 @@ describe('local content audit and gallery transfer selection', () => {
     await writeFile(urlChecksPath, JSON.stringify({ schemaVersion: 1, catalogueId: catalogue, unionFingerprint: snapshot.catalogue.unionFingerprint, generatedAt: at.toISOString(),
       targetsFingerprint: createHash('sha256').update(JSON.stringify(assets)).digest('hex'), assets: assets.length, urls: urls.length, passed: urls.length, failed: 0, pending: 0,
       checks: urls.map((url) => ({ url, checkedAt: at.toISOString(), ok: true, status: 200, method: 'HEAD', contentType: 'image/jpeg', finalUrl: url, reason: null })) }))
-    const checked = await writeContentAuditBundle({ catalogue, output: directory, networkReview: reviewPath, urlChecks: urlChecksPath, now: () => at })
+    const checkedDirectory = join(directory, 'checked')
+    const checked = await writeContentAuditBundle({ catalogue, output: checkedDirectory, networkReview: reviewPath, urlChecks: urlChecksPath, now: () => at })
     expect(checked.manifest.eligible).toBe(true)
-    const lines = (await readFile(join(directory, 'gallery-artifact.jsonl'), 'utf8')).trim().split('\n').map((line) => JSON.parse(line))
+    const published = await readFile(join(checkedDirectory, 'gallery-artifact.jsonl'), 'utf8')
+    const lines = published.trim().split('\n').map((line) => JSON.parse(line))
+    await expect(writeContentAuditBundle({ catalogue, output: checkedDirectory })).rejects.toThrow('already exists')
+    expect(await readFile(join(checkedDirectory, 'gallery-artifact.jsonl'), 'utf8')).toBe(published)
     expect(lines.filter((line) => line.type === 'row' && line.table === 'Asset').map((line) => line.row.id)).toEqual([`${prefix}-public`])
     expect(lines.filter((line) => line.type === 'row' && line.table === 'TaxonEnrichmentWork')).toHaveLength(2)
     const cachePath = join(directory, 'official-api-record.json')
@@ -119,7 +124,7 @@ describe('local content audit and gallery transfer selection', () => {
         licenceMappingUrl: `https://github.com/inaturalist/inaturalist/blob/${'a'.repeat(40)}/app/models/shared/license_module.rb` },
     })) }
     await writeFile(reviewPath, JSON.stringify(apiReview))
-    expect((await writeContentAuditBundle({ catalogue, output: directory, networkReview: reviewPath, urlChecks: urlChecksPath, now: () => at })).manifest.eligible).toBe(true)
+    expect((await writeContentAuditBundle({ catalogue, output: join(directory, 'api-checked'), networkReview: reviewPath, urlChecks: urlChecksPath, now: () => at })).manifest.eligible).toBe(true)
     // Correctly hashed bytes are still rejected when actual detailed provenance is absent
     // or a complete matching peer masks another matching entry with missing native fields.
     for (const invalidTaxon of [

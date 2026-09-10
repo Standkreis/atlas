@@ -1,10 +1,11 @@
 /** Local-only global-content audit; URL metadata checks never imply successful network rendering. */
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Client } from 'pg'
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
+import { publishAuditBundle } from './audit-bundle'
 import { TILES } from '../src/domain/rules'
 import { inatLicence, inatLicenceUrl, inatLicensed, normalizedRemoteUrl, validReferenceImage } from '../src/domain/referenceImages'
 import { safeReferenceUrl, type NetworkCheck } from './gallery-network-audit'
@@ -430,17 +431,17 @@ export async function writeContentAuditBundle(options: { catalogue: string; outp
       validateOfficialApiRecord(sample, asset, snapshot.taxa.find((taxon) => taxon.id === asset?.taxonId)?.sciName, apiRecords.get(sample.assetId))
     }
     const audit = buildContentAudit(snapshot, review, urlChecks, options.now)
-    const output = resolve(options.output), artifactPath = resolve(output, 'gallery-artifact.jsonl')
-    await mkdir(output, { recursive: true })
-    const transfer = audit.verdict === 'ready-for-transfer' ? await writeGalleryArtifact({ snapshot, audit, path: artifactPath }) : null
-    if (!transfer) await unlink(artifactPath).catch(() => undefined)
-    const manifest = { schemaVersion: 1, catalogue: snapshot.catalogue, contentFingerprint: audit.contentFingerprint, taxonFingerprint: audit.taxonFingerprint,
-      auditFingerprint: contentDigest(audit), eligible: audit.verdict === 'ready-for-transfer' && Boolean(transfer), blockers: audit.blockers, payload: transfer,
-      excludes: ['Identity', 'Filter', 'Sighting', 'Study', 'Passkey', 'EmailCode', 'personal/owned/avatar Asset', 'sound Asset', 'outside-union Asset', 'unrelated/incomplete enrichment work'],
-      networkClaim: 'Eligibility requires current full-catalogue HTTP/image-MIME evidence and separately reviewed representative image decoding; neither guarantees future availability or scientific identification.' }
-    await client.query('COMMIT')
-    await Promise.all([writeFile(resolve(output, 'content-audit.json'), `${canonicalContent(audit)}\n`), writeFile(resolve(output, 'gallery-transfer-manifest.json'), `${canonicalContent(manifest)}\n`), writeFile(resolve(output, 'network-review-template.json'), `${canonicalContent(networkReviewTemplate(audit))}\n`)])
-    return { audit, manifest }
+    return await publishAuditBundle(options.output, async (staging) => {
+      const transfer = audit.verdict === 'ready-for-transfer'
+        ? await writeGalleryArtifact({ snapshot, audit, path: resolve(staging, 'gallery-artifact.jsonl') }) : null
+      const manifest = { schemaVersion: 1, catalogue: snapshot.catalogue, contentFingerprint: audit.contentFingerprint, taxonFingerprint: audit.taxonFingerprint,
+        auditFingerprint: contentDigest(audit), eligible: audit.verdict === 'ready-for-transfer' && Boolean(transfer), blockers: audit.blockers, payload: transfer,
+        excludes: ['Identity', 'Filter', 'Sighting', 'Study', 'Passkey', 'EmailCode', 'personal/owned/avatar Asset', 'sound Asset', 'outside-union Asset', 'unrelated/incomplete enrichment work'],
+        networkClaim: 'Eligibility requires current full-catalogue HTTP/image-MIME evidence and separately reviewed representative image decoding; neither guarantees future availability or scientific identification.' }
+      await Promise.all([writeFile(resolve(staging, 'content-audit.json'), `${canonicalContent(audit)}\n`), writeFile(resolve(staging, 'gallery-transfer-manifest.json'), `${canonicalContent(manifest)}\n`), writeFile(resolve(staging, 'network-review-template.json'), `${canonicalContent(networkReviewTemplate(audit))}\n`)])
+      await client.query('COMMIT')
+      return { audit, manifest }
+    })
   } catch (error) { await client.query('ROLLBACK').catch(() => undefined); throw error }
   finally { await client.end() }
 }

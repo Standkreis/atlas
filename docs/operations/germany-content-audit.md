@@ -40,6 +40,12 @@ The output includes `content-audit.json`, `gallery-transfer-manifest.json` and a
 unapproved `network-review-template.json`. Every sample flag starts false. Deterministic samples
 cover available tiles, origins, gallery-size buckets and lead/non-lead images.
 
+Use a **new, nonexistent output directory for each invocation**. The command stages the whole
+bundle in a same-parent private directory and publishes it with one rename only after all files
+and the read transaction finish successfully. Existing bundles are never overwritten, including
+by a blocked re-audit. Interrupted attempts retain private `.pending-` evidence (and may leave a
+`.publishing` lock); choose a new output path rather than treating those files as a release.
+
 ## 🖼️ External availability and rendered review
 
 ```sh
