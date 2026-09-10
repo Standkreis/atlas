@@ -295,6 +295,16 @@ describe('German catalogue content audit', () => {
     expect(() => parseContentUrlReport(null)).toThrow()
   })
 
+  it('rejects bodyless 2xx URL checks while accepting a bounded partial GET', () => {
+    const data = fixture(), audit = buildContentAudit(data), report = checkedUrls(data)
+    report.checks[0]!.status = 204
+    report.passed = report.checks.length
+    expect(buildContentAudit(data, approved(audit), report, clock).defects.map((finding) => finding.code)).toContain('url-report-incomplete')
+    report.checks[0]!.status = 206
+    report.checks[0]!.method = 'GET'
+    expect(buildContentAudit(data, approved(audit), report, clock).verdict).toBe('ready-for-transfer')
+  })
+
   it('rejects URL reports and checks outside the absolute freshness window', () => {
     const data = fixture(), audit = buildContentAudit(data)
     const stale = checkedUrls(data, '2026-09-08T09:59:59.999Z')

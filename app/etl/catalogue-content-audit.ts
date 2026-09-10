@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { publishAuditBundle } from './audit-bundle'
 import { TILES } from '../src/domain/rules'
 import { inatLicence, inatLicenceUrl, inatLicensed, normalizedRemoteUrl, validReferenceImage } from '../src/domain/referenceImages'
-import { safeReferenceUrl, type NetworkCheck } from './gallery-network-audit'
+import { safeReferenceUrl, successfulReferenceStatus, type NetworkCheck } from './gallery-network-audit'
 import { scientificGalleryExclusion } from './gallery'
 import { responseEvidenceFingerprint } from './fetch'
 import { CONTENT_WORK_VERSIONS, canonicalContent, contentDigest, contentSnapshotDigests, qualifiedReference, relevantWork, writeGalleryArtifact } from './catalogue-gallery-transfer'
@@ -364,9 +364,10 @@ export function buildContentAudit(snapshot: ContentAuditSnapshot, review: Conten
       if (!check || typeof check.url !== 'string' || !urls.has(check.url) || seen.has(check.url)) { fail('url-report-check', 'review', 'URL checks contain a malformed, duplicate or unknown target'); continue }
       seen.add(check.url)
       const checked = typeof check.checkedAt === 'string' ? Date.parse(check.checkedAt) : NaN
-      const passed = check.ok === true && Number.isInteger(check.status) && Number(check.status) >= 200 && Number(check.status) < 300 &&
+      const method = check.method === 'HEAD' || check.method === 'GET' ? check.method : null
+      const passed = check.ok === true && method !== null && Number.isInteger(check.status) && successfulReferenceStatus(method, Number(check.status)) &&
         typeof check.contentType === 'string' && check.contentType.startsWith('image/') && typeof check.finalUrl === 'string' && safeReferenceUrl(check.finalUrl) &&
-        ['HEAD', 'GET'].includes(String(check.method)) && check.reason === null && Number.isFinite(checked) && checked <= generated && checked <= auditNow && auditNow - checked < URL_CHECK_MAX_AGE_MS
+        check.reason === null && Number.isFinite(checked) && checked <= generated && checked <= auditNow && auditNow - checked < URL_CHECK_MAX_AGE_MS
       urlChecks[passed ? 'passed' : 'failed']++
     }
     urlChecks.pending = urls.size - seen.size

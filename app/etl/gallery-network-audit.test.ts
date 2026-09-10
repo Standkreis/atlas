@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { checkReferenceUrl, nextUrlChecks, parseNetworkArgs, recordedCheck, reusableCheck, safeReferenceUrl, type NetworkCheck } from './gallery-network-audit'
+import { checkReferenceUrl, nextUrlChecks, parseNetworkArgs, recordedCheck, reusableCheck, safeReferenceUrl, successfulReferenceStatus, type NetworkCheck } from './gallery-network-audit'
 
 const url = 'https://upload.wikimedia.org/example.jpg'
 const now = () => new Date('2026-09-09T08:00:00Z')
@@ -25,6 +25,16 @@ describe('bounded external reference checks', () => {
   it('rejects successful HTML responses and broken URLs', async () => {
     expect(await checkReferenceUrl(url, { fetch: vi.fn().mockResolvedValue(new Response(null, { headers: { 'content-type': 'text/html' } })), now })).toMatchObject({ ok: false, reason: 'not-image-mime' })
     expect(await checkReferenceUrl(url, { fetch: vi.fn().mockResolvedValue(new Response(null, { status: 404 })), now })).toMatchObject({ ok: false, reason: 'http-404' })
+  })
+  it('rejects bodyless 2xx statuses instead of treating them as reusable image evidence', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(null, { status: 204, headers: { 'content-type': 'image/jpeg' } }))
+    const result = await checkReferenceUrl(url, { fetch: request, now })
+    expect(result).toMatchObject({ ok: false, status: 204, reason: 'http-204' })
+    expect(reusableCheck({ ...result, ok: true, reason: null }, now().getTime())).toBe(false)
+    expect(successfulReferenceStatus('HEAD', 200)).toBe(true)
+    expect(successfulReferenceStatus('GET', 206)).toBe(true)
+    expect(successfulReferenceStatus('HEAD', 204)).toBe(false)
+    expect(successfulReferenceStatus('GET', 205)).toBe(false)
   })
   it('refuses redirects to an unreviewed/private host before fetching it', async () => {
     const request = vi.fn().mockResolvedValue(new Response(null, { status: 302, headers: { location: 'https://127.0.0.1/private' } }))

@@ -16,6 +16,11 @@ export type NetworkCheck = {
   method: 'HEAD' | 'GET'; contentType: string | null; finalUrl: string | null; reason: string | null
 }
 
+/** HEAD must describe a normal representation; a bounded range GET may also return Partial Content. */
+export function successfulReferenceStatus(method: NetworkCheck['method'], status: number) {
+  return method === 'HEAD' ? status === 200 : status === 200 || status === 206
+}
+
 export function safeReferenceUrl(value: string) {
   try {
     const url = new URL(value)
@@ -56,7 +61,7 @@ export async function checkReferenceUrl(url: string, options: {
       }
       // Some CDNs disallow HEAD despite serving the same public URL to browsers.
       if (method === 'HEAD' && [403, 405, 501].includes(response.status)) { method = 'GET'; continue }
-      if (!response.ok) return result(false, response.status, type, `http-${response.status}`)
+      if (!successfulReferenceStatus(method, response.status)) return result(false, response.status, type, `http-${response.status}`)
       if (!type?.startsWith('image/')) return result(false, response.status, type, 'not-image-mime')
       return result(true, response.status, type, null)
     } catch (error) {
@@ -71,10 +76,10 @@ export function reusableCheck(value: unknown, now = Date.now()): value is Networ
   const row = value as Partial<NetworkCheck>
   const at = typeof row.checkedAt === 'string' ? Date.parse(row.checkedAt) : NaN
   return typeof row.url === 'string' && safeReferenceUrl(row.url) && row.ok === true &&
-    Number.isInteger(row.status) && row.status! >= 200 && row.status! < 300 &&
+    Number.isInteger(row.status) && (row.method === 'HEAD' || row.method === 'GET') && successfulReferenceStatus(row.method, row.status!) &&
     typeof row.contentType === 'string' && row.contentType.startsWith('image/') &&
     typeof row.finalUrl === 'string' && safeReferenceUrl(row.finalUrl) &&
-    (row.method === 'HEAD' || row.method === 'GET') && row.reason === null && at <= now && now - at < MAX_AGE_MS
+    row.reason === null && at <= now && now - at < MAX_AGE_MS
 }
 
 /** Keep failed/expired attempt history for scheduling, never as successful availability evidence. */
