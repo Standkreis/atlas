@@ -61,7 +61,10 @@ selection writes canonical IDs; there is no preparatory bulk transform.
 Queued scan rows ask the server for this exact mapping before replay. A unique reviewed successor is
 written back to that outbox row. A no-successor row remains in IndexedDB with its draft and photo and
 is skipped until the person explicitly chooses a current region. Retryable maintenance errors do not
-mark queued work dead.
+mark queued work dead. Automatic compatibility requests include only live pending scans, validate
+region UUIDs locally, and are chunked to the server's 50-region limit. Malformed rows move to the same
+explicit region-recovery state, while retained dead rows and a failed compatibility batch cannot stop
+unrelated outbox work.
 
 ## Versioned browser state
 
@@ -70,6 +73,16 @@ reconnect, and focus. Every successful version-bearing regional response can als
 client handshake. The persister rejects stale or unversioned regional results once a current
 version is known. Personal journal, sighting, study, identity ownership, and outbox stores are not
 cleared by a catalogue transition.
+
+The original array-shaped `sighting.outside` procedure remains stable for already-open clients.
+Catalogue-aware clients use the distinct `sighting.outsideVersioned` query and cache key. This avoids
+serving an object to an older bundle that calls array methods while still attaching catalogue metadata
+to every newly persisted out-of-set result.
+
+An authoritative `identity.me.catalogueVersion: null` is a rollback to legacy mode, not a missing
+observation. The client persists a legacy sentinel, evicts active-version regional queries and v2
+offline packs, and refuses to re-adopt a late response from the rolled-back catalogue. A removed
+version key from an older same-origin tab is interpreted the same way and upgraded to the sentinel.
 
 Explicit offline region packs use catalogue-versioned cache and marker names. A transition removes
 only older regional pack caches and markers; it does not touch private photos, the outbox, or other

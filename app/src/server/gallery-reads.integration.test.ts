@@ -94,7 +94,10 @@ describe('public gallery read contract', () => {
     const fill = await sightingRouter.createCaller(context).fill({ id: sightingId })
     expect(fill?.taxon.lead?.id).toBe(leadId)
     const outside = await sightingRouter.createCaller(context).outside({ regionId: randomUUID() })
-    expect(outside.taxa[0].lead?.id).toBe(leadId)
+    expect(Array.isArray(outside)).toBe(true)
+    expect(outside.filter((taxon) => taxon.hasContent).some((taxon) => taxon.lead?.id === leadId)).toBe(true)
+    const versionedOutside = await sightingRouter.createCaller(context).outsideVersioned({ regionId: randomUUID() })
+    expect(versionedOutside).toEqual({ catalogueVersion: null, taxa: outside })
   })
 
   it('uses one reviewed visibility decision for detail, every lead read and the offline pack', async () => {

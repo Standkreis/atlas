@@ -50,7 +50,7 @@ export function AtlasGrid({ title }: { title: string }) {
   const { ready, set, progress: progressRaw, tiles, loading, error: atlasError, retry: retryAtlas, paused: atlasPaused } = useAtlasSet(region)
   // Own photos per taxon (spec §🎨 2: own photo first) and the species seen outside the set, polled while their content kick runs.
   const photos = useQuery(trpc.sighting.photos.queryOptions(undefined, { enabled: ready }))
-  const outside = useQuery(trpc.sighting.outside.queryOptions({ regionId: region?.id ?? '' }, { enabled: ready, refetchInterval: (q) => (q.state.data?.taxa.some((x) => !x.hasContent) ? 10_000 : false) }))
+  const outside = useQuery(trpc.sighting.outsideVersioned.queryOptions({ regionId: region?.id ?? '' }, { enabled: ready, refetchInterval: (q) => (q.state.data?.taxa.some((x) => !x.hasContent) ? 10_000 : false) }))
 
   // ── URL state: ?show ?sort ?group ?now ?q, plus ?fill / ?again from the save screen ──
   const params = useSearchParams()

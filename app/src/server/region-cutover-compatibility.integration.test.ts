@@ -9,12 +9,13 @@ import type { Context } from './trpc'
 const registryId = `cutover-registry-${randomUUID()}`
 const catalogueId = `cutover-catalogue-${randomUUID()}`
 const sourceId = randomUUID()
-const ids = {
+const ids: Record<'mainz' | 'southWest' | 'oldMainz' | 'oldSouthWest' | 'kyoto' | 'schagen', string> = {
   mainz: randomUUID(), southWest: randomUUID(), oldMainz: randomUUID(), oldSouthWest: randomUUID(), kyoto: randomUUID(), schagen: randomUUID(),
 }
 const identityA = randomUUID(), identityB = randomUUID(), taxonId = randomUUID()
 let previousRegistry: string[] = []
 let previousCatalogues: { id: string; updatedAt: Date }[] = []
+const createdRegionIds: string[] = []
 
 const context = async (id: string): Promise<Context> => ({
   db, identity: await db.identity.findUniqueOrThrow({ where: { id } }), networkKey: randomUUID(), minted: false,
@@ -28,14 +29,19 @@ beforeAll(async () => {
   await db.catalogueVersion.updateMany({ where: { id: { in: previousCatalogues.map((row) => row.id) } }, data: { status: 'retired' } })
   await db.regionRegistryVersion.create({ data: { id: registryId, countryCode: 'DE', version: registryId, artifactSha256: 'a'.repeat(64), expectedRegions: 2, expectedSourceUnits: 2, active: true } })
   await db.regionRegistrySource.create({ data: { id: sourceId, registryVersionId: registryId, role: 'regions', name: 'Cutover fixture', url: 'https://example.test', topicDate: new Date('2024-12-31'), downloadedAt: new Date(), sha256: 'b'.repeat(64), licenceId: 'dl-de/by-2-0', attribution: 'Fixture' } })
-  await db.region.createMany({ data: [
-    { id: ids.mainz, canonicalKey: 'de-krg-07339000', countryCode: 'DE', name: 'Mainz-Bingen', higher: 'Deutschland › Rheinland-Pfalz', status: 'ready', pickerSummary: { version: 1, setSize: 1, content: 0, introEn: 0, noGermanName: 0, nowCounts: Array(12).fill(1), refreshedAt: new Date().toISOString() } },
-    { id: ids.southWest, canonicalKey: 'de-krg-07340000', countryCode: 'DE', name: 'Südwestpfalz', higher: 'Deutschland › Rheinland-Pfalz', status: 'ready', pickerSummary: { version: 1, setSize: 0, content: 0, introEn: 0, noGermanName: 0, nowCounts: Array(12).fill(0), refreshedAt: new Date().toISOString() } },
-    { id: ids.oldMainz, gadmGid: 'DEU.11.19_1', name: 'Mainz-Bingen', higher: 'Deutschland', status: 'ready' },
-    { id: ids.oldSouthWest, gadmGid: 'DEU.11.30_1', name: 'Südwestpfalz', higher: 'Deutschland', status: 'ready' },
-    { id: ids.kyoto, gadmGid: 'JPN.22.13_1', name: 'Kyoto', higher: 'Japan', status: 'ready' },
-    { id: ids.schagen, gadmGid: 'NLD.9.73_1', name: 'Schagen', higher: 'Nederland', status: 'ready' },
-  ] })
+  for (const [key, unique, data] of [
+    ['mainz', { canonicalKey: 'de-krg-07339000' }, { canonicalKey: 'de-krg-07339000', countryCode: 'DE', name: 'Mainz-Bingen', higher: 'Deutschland › Rheinland-Pfalz', status: 'ready' as const, pickerSummary: { version: 1, setSize: 1, content: 0, introEn: 0, noGermanName: 0, nowCounts: Array(12).fill(1), refreshedAt: new Date().toISOString() } }],
+    ['southWest', { canonicalKey: 'de-krg-07340000' }, { canonicalKey: 'de-krg-07340000', countryCode: 'DE', name: 'Südwestpfalz', higher: 'Deutschland › Rheinland-Pfalz', status: 'ready' as const, pickerSummary: { version: 1, setSize: 0, content: 0, introEn: 0, noGermanName: 0, nowCounts: Array(12).fill(0), refreshedAt: new Date().toISOString() } }],
+    ['oldMainz', { gadmGid: 'DEU.11.19_1' }, { gadmGid: 'DEU.11.19_1', name: 'Mainz-Bingen', higher: 'Deutschland', status: 'ready' as const }],
+    ['oldSouthWest', { gadmGid: 'DEU.11.30_1' }, { gadmGid: 'DEU.11.30_1', name: 'Südwestpfalz', higher: 'Deutschland', status: 'ready' as const }],
+    ['kyoto', { gadmGid: 'JPN.22.13_1' }, { gadmGid: 'JPN.22.13_1', name: 'Kyoto', higher: 'Japan', status: 'ready' as const }],
+    ['schagen', { gadmGid: 'NLD.9.73_1' }, { gadmGid: 'NLD.9.73_1', name: 'Schagen', higher: 'Nederland', status: 'ready' as const }],
+  ] as const) {
+    const proposedId = ids[key]
+    const region = await db.region.upsert({ where: unique, create: { id: proposedId, ...data }, update: {}, select: { id: true } })
+    ids[key] = region.id
+    if (region.id === proposedId) createdRegionIds.push(region.id)
+  }
   await db.regionRegistryEntry.createMany({ data: [
     { id: randomUUID(), registryVersionId: registryId, sourceId, regionId: ids.mainz, sourceCode: '07339000', sourceName: 'Mainz-Bingen', displayName: 'Mainz-Bingen', stateCode: '07', stateName: 'Rheinland-Pfalz' },
     { id: randomUUID(), registryVersionId: registryId, sourceId, regionId: ids.southWest, sourceCode: '07340000', sourceName: 'Südwestpfalz/Pirmasens/Zweibrücken', displayName: 'Südwestpfalz', stateCode: '07', stateName: 'Rheinland-Pfalz' },
@@ -57,7 +63,7 @@ afterAll(async () => {
   await db.regionRegistryEntry.deleteMany({ where: { registryVersionId: registryId } })
   await db.regionRegistrySource.deleteMany({ where: { registryVersionId: registryId } })
   await db.regionRegistryVersion.deleteMany({ where: { id: registryId } })
-  await db.region.deleteMany({ where: { id: { in: Object.values(ids) } } })
+  await db.region.deleteMany({ where: { id: { in: createdRegionIds } } })
   await db.regionRegistryVersion.updateMany({ where: { id: { in: previousRegistry } }, data: { active: true } })
   for (const row of previousCatalogues) await db.catalogueVersion.update({ where: { id: row.id }, data: { status: 'active', updatedAt: row.updatedAt } })
   await db.$disconnect()

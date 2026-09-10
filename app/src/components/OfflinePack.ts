@@ -29,18 +29,22 @@ export async function verifiedAt(regionId: string, catalogueVersion: string | nu
   return pack.at
 }
 
-/** Remove only obsolete regional packs/markers after an online catalogue transition. */
-export async function invalidateRegionalPacks(catalogueVersion: string) {
-  const keep = versionedPackPrefix(catalogueVersion)
+/** Remove only incompatible regional packs/markers after an online catalogue transition. */
+export async function invalidateRegionalPacks(catalogueVersion: string | null) {
+  const keep = catalogueVersion === null ? null : versionedPackPrefix(catalogueVersion)
   if (typeof caches !== 'undefined') {
     const names = await caches.keys()
-    await Promise.all(names.filter((name) => name.startsWith('dex-pack-') && !name.startsWith(keep)).map((name) => caches.delete(name)))
+    await Promise.all(names.filter((name) => catalogueVersion === null
+      ? name.startsWith('dex-pack-v2-')
+      : name.startsWith('dex-pack-') && !name.startsWith(keep!)).map((name) => caches.delete(name)))
   }
   try {
-    const markerPrefix = `dex.offline.ready.v2.${segment(catalogueVersion)}.`
+    const markerPrefix = catalogueVersion === null ? null : `dex.offline.ready.v2.${segment(catalogueVersion)}.`
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i)
-      if (key?.startsWith('dex.offline.ready.') && !key.startsWith(markerPrefix)) localStorage.removeItem(key)
+      if (key && (catalogueVersion === null
+        ? key.startsWith('dex.offline.ready.v2.')
+        : key.startsWith('dex.offline.ready.') && !key.startsWith(markerPrefix!))) localStorage.removeItem(key)
     }
   } catch { /* private mode */ }
 }

@@ -46,7 +46,7 @@ export function SightingDetail({ id, mode, origin, onGone }: { id: string; mode:
   const qc = useQueryClient()
 
   const s = useQuery(trpc.journal.get.queryOptions({ id }))
-  const invalidate = () => Promise.all([qc.invalidateQueries({ queryKey: trpc.journal.pathKey() }), qc.invalidateQueries({ queryKey: trpc.identity.progress.queryKey() }), qc.invalidateQueries({ queryKey: trpc.sighting.photos.queryKey() }), qc.invalidateQueries({ queryKey: trpc.sighting.outside.pathKey() }), qc.invalidateQueries({ queryKey: trpc.sighting.fill.queryKey({ id }) })])
+  const invalidate = () => Promise.all([qc.invalidateQueries({ queryKey: trpc.journal.pathKey() }), qc.invalidateQueries({ queryKey: trpc.identity.progress.queryKey() }), qc.invalidateQueries({ queryKey: trpc.sighting.photos.queryKey() }), qc.invalidateQueries({ queryKey: trpc.sighting.outsideVersioned.pathKey() }), qc.invalidateQueries({ queryKey: trpc.sighting.fill.queryKey({ id }) })])
   const update = useMutation(trpc.journal.update.mutationOptions({ onSuccess: () => invalidate() }))
   const remove = useMutation(trpc.journal.remove.mutationOptions({ onSuccess: async () => { await invalidate(); onGone() } }))
   const attach = useMutation(trpc.sighting.attachPhoto.mutationOptions())

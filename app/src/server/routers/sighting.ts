@@ -37,6 +37,23 @@ export async function gemeinde(lat: number, lng: number): Promise<string | null>
 
 const taxonSelect = { id: true, gbifKey: true, sciName: true, commonNames: true, tile: true, assets: leadAssetSelection } as const
 
+async function outsideForRegion(ctx: Context, inputRegionId: string) {
+  const resolution = await resolveRegionIds(ctx.db, [inputRegionId])
+  const regionId = resolution.resolutions[0]?.regionId
+  if (!regionId) return { catalogueVersion: resolution.catalogueVersion, taxa: [] }
+  const seen = await ctx.db.sighting.findMany({ where: { identityId: ctx.identity.id, wildness: 'wild' }, select: { taxonId: true }, distinct: ['taxonId'] })
+  if (!seen.length) return { catalogueVersion: resolution.catalogueVersion, taxa: [] }
+  const taxa = await ctx.db.taxon.findMany({
+    where: { id: { in: seen.map((s) => s.taxonId) }, plausibility: { none: { regionId } } },
+    select: { ...taxonSelect, contentAt: true },
+    orderBy: { sciName: 'asc' },
+  })
+  return {
+    catalogueVersion: resolution.catalogueVersion,
+    taxa: taxa.map((t) => ({ taxonId: t.id, gbifKey: t.gbifKey, sciName: t.sciName, names: taxonNames(t.commonNames), tile: t.tile, lead: leadAsset(t.assets), hasContent: t.contentAt !== null })),
+  }
+}
+
 /**
  * "First" (one rule for both tracks, handoff 0008 §🔀): the earliest WILD sighting of a taxon for an identity, ties by
  * `createdAt`. Captive and cultivated rows never count (spec §⚖️ wild only).
@@ -190,23 +207,14 @@ export const sightingRouter = router({
   /**
    * Species the identity has seen wild that are not in the region's set (record 0002 E13): the grid shows them at the
    * bottom with the tile icon until the content kick lands a lead image. The set itself never changes.
+   * This original procedure deliberately remains array-shaped for already-open pre-cutover clients.
    */
-  outside: publicProcedure.input(z.object({ regionId: z.string().uuid() })).query(async ({ ctx, input }) => {
-    const resolution = await resolveRegionIds(ctx.db, [input.regionId])
-    const regionId = resolution.resolutions[0]?.regionId
-    if (!regionId) return { catalogueVersion: resolution.catalogueVersion, taxa: [] }
-    const seen = await ctx.db.sighting.findMany({ where: { identityId: ctx.identity.id, wildness: 'wild' }, select: { taxonId: true }, distinct: ['taxonId'] })
-    if (!seen.length) return { catalogueVersion: resolution.catalogueVersion, taxa: [] }
-    const taxa = await ctx.db.taxon.findMany({
-      where: { id: { in: seen.map((s) => s.taxonId) }, plausibility: { none: { regionId } } },
-      select: { ...taxonSelect, contentAt: true },
-      orderBy: { sciName: 'asc' },
-    })
-    return {
-      catalogueVersion: resolution.catalogueVersion,
-      taxa: taxa.map((t) => ({ taxonId: t.id, gbifKey: t.gbifKey, sciName: t.sciName, names: taxonNames(t.commonNames), tile: t.tile, lead: leadAsset(t.assets), hasContent: t.contentAt !== null })),
-    }
-  }),
+  outside: publicProcedure.input(z.object({ regionId: z.string().uuid() })).query(async ({ ctx, input }) =>
+    (await outsideForRegion(ctx, input.regionId)).taxa),
+
+  /** Version-bearing successor used by catalogue-aware clients; its distinct query key cannot poison legacy caches. */
+  outsideVersioned: publicProcedure.input(z.object({ regionId: z.string().uuid() })).query(({ ctx, input }) =>
+    outsideForRegion(ctx, input.regionId)),
 
   /**
    * What the fill sheet and the toast show (spec §🎨 5): the species card with the reference image and its attribution,

@@ -316,23 +316,47 @@ async function send(row: Row): Promise<unknown> {
  * Fold queued scan regions through the server-owned reviewed map. Approved successors are
  * deterministic; no-successor rows remain byte-backed in the outbox until the user chooses.
  */
-async function transitionScanRegions() {
-  const scans = rowsNow().filter((row): row is Row & { kind: 'scan' } => row.kind === 'scan' && row.payload.idPending)
-  const ids = [...new Set(scans.map((row) => row.payload.regionId))]
-  if (!ids.length) return
-  const result = await client.regions.compatibility.query({ regionIds: ids }, { signal: controller.signal })
-  if (!result.catalogueVersion) return
-  const byInput = new Map(result.resolutions.map((resolution) => [resolution.inputId, resolution]))
-  for (const scan of scans) {
-    const resolution = byInput.get(scan.payload.regionId)
-    if (!resolution || resolution.regionId === scan.payload.regionId) continue
+async function transitionScanRegions(): Promise<Set<string>> {
+  const blocked = new Set<string>()
+  const scans = rowsNow().filter((row): row is Row & { kind: 'scan' } => row.kind === 'scan' && !row.dead && row.payload.idPending && !row.payload.requiresRegion)
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  const invalid = scans.filter((scan) => !uuid.test(scan.payload.regionId))
+  for (const scan of invalid) {
+    blocked.add(scan.id)
     await update(scan.id, current => current.kind === 'scan' ? {
       ...current,
       dead: false,
-      lastError: resolution.regionId ? null : 'region-retired',
-      payload: { ...current.payload, regionId: resolution.regionId ?? current.payload.regionId, requiresRegion: !resolution.regionId },
+      lastError: 'region-invalid',
+      payload: { ...current.payload, requiresRegion: true },
     } : current)
   }
+
+  const valid = scans.filter((scan) => uuid.test(scan.payload.regionId))
+  const ids = [...new Set(valid.map((row) => row.payload.regionId))]
+  for (let offset = 0; offset < ids.length; offset += 50) {
+    const batch = ids.slice(offset, offset + 50)
+    let result: Awaited<ReturnType<typeof client.regions.compatibility.query>>
+    try {
+      result = await client.regions.compatibility.query({ regionIds: batch }, { signal: controller.signal })
+    } catch {
+      // Compatibility being unavailable must not block unrelated outbox work. Pending scans wait unchanged.
+      for (const scan of valid) if (batch.includes(scan.payload.regionId)) blocked.add(scan.id)
+      continue
+    }
+    if (!result.catalogueVersion) continue
+    const byInput = new Map(result.resolutions.map((resolution) => [resolution.inputId, resolution]))
+    for (const scan of valid.filter((row) => batch.includes(row.payload.regionId))) {
+      const resolution = byInput.get(scan.payload.regionId)
+      if (!resolution || resolution.regionId === scan.payload.regionId) continue
+      await update(scan.id, current => current.kind === 'scan' ? {
+        ...current,
+        dead: false,
+        lastError: resolution.regionId ? null : 'region-retired',
+        payload: { ...current.payload, regionId: resolution.regionId ?? current.payload.regionId, requiresRegion: !resolution.regionId },
+      } : current)
+    }
+  }
+  return blocked
 }
 
 /** Explicit recovery action for a no-successor scan; the photo/draft is not recreated or discarded. */
@@ -371,12 +395,13 @@ async function run() {
   const identity = await client.identity.me.query(undefined, { signal: controller.signal })
   if (paused || start !== epoch || identity.id !== owner()) return
   activeOwner = identity.id
-  await transitionScanRegions()
+  const transitionBlocked = await transitionScanRegions()
   for (const snapshot of [...rows]) {
     if (paused || start !== epoch) return
     const row = rowOf(snapshot.id)
     if (!row || row.identityId !== activeOwner) continue
     if (row.dead) continue
+    if (transitionBlocked.has(row.id)) continue
     if (row.kind === 'scan' && row.payload.requiresRegion) continue
     if (row.kind === 'photo' && !row.payload.forSighting) {
       // Waits for its sighting; if none ever comes (chooser → back), it goes after a day, like the server's abandoned Assets.

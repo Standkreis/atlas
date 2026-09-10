@@ -12,7 +12,7 @@ import { clearPrivateData, PRIVATE_RESET_KEY, PRIVATE_PAUSE_KEY, purgePrivatePho
 import { acceptIdentity, expectedIdentity, identityFetch, invalidateIdentity } from '@/components/ClientIdentity'
 import { IDENTITY_KEY, pauseOutbox, resumeOutbox, load, flush } from '@/components/Queue'
 import { invalidateRegionalPacks } from '@/components/OfflinePack'
-import { CATALOGUE_VERSION_KEY, catalogueVersionOf, catalogueVersionToAdopt, isCatalogueScopedQuery, keepForCatalogue } from '@/components/CatalogueCache'
+import { CATALOGUE_VERSION_KEY, catalogueVersionForStorage, catalogueVersionFromStorage, catalogueVersionFromStorageEvent, catalogueVersionOf, catalogueVersionToAdopt, keepForCatalogue, type CatalogueVersionState } from '@/components/CatalogueCache'
 
 export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>()
 
@@ -35,7 +35,7 @@ const PERSIST_MAX_AGE = 30 * 24 * 60 * 60 * 1000
 // (2^31-1 ms, 24.8 days); past that the timer overflows and fires at once, and every query nobody looks at is gone
 // within the second (seen in C2: the prefetched `journal.get` and every hydrated query vanished from the store).
 const PERSIST_GC_TIME = Math.min(PERSIST_MAX_AGE, 2 ** 31 - 1)
-const PERSISTED: [string, string][] = [['dex', 'set'], ['dex', 'setCounts'], ['dex', 'regions'], ['regions', 'personal'], ['identity', 'progress'], ['identity', 'germanyProgress'], ['identity', 'me'], ['sighting', 'photos'], ['sighting', 'outside'], ['journal', 'days'], ['journal', 'get'], ['taxon', 'page'], ['taxon', 'mapCentre']]
+const PERSISTED: [string, string][] = [['dex', 'set'], ['dex', 'setCounts'], ['dex', 'regions'], ['regions', 'personal'], ['identity', 'progress'], ['identity', 'germanyProgress'], ['identity', 'me'], ['sighting', 'photos'], ['sighting', 'outsideVersioned'], ['journal', 'days'], ['journal', 'get'], ['taxon', 'page'], ['taxon', 'mapCentre']]
 const PAGE_CAP = 10 // `taxon.page` entries kept, newest first: ~59 KB each
 const SIGHTING_CAP = 30 // `journal.get` entries kept, newest first (handoff 0012 F2): the walk's sightings open offline; ~1 KB each
 const isPath = (key: readonly unknown[], path: [string, string]) => Array.isArray(key[0]) && key[0][0] === path[0] && key[0][1] === path[1]
@@ -44,7 +44,7 @@ let lastWritten = ''
 let lastStamp = 0 // timestamp of the store this page wrote last; a different one on disk means another page wrote
 const trace = (msg: string) => { try { localStorage.setItem('dex.persist.error', `${new Date().toISOString()} ${msg}`) } catch { /* private mode */ } }
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
-const currentCatalogueVersion = () => { try { return localStorage.getItem(CATALOGUE_VERSION_KEY) } catch { return null } }
+const currentCatalogueVersion = (): CatalogueVersionState => { try { return catalogueVersionFromStorage(localStorage.getItem(CATALOGUE_VERSION_KEY)) } catch { return undefined } }
 const read = (): PersistedClient | undefined => {
   const raw = localStorage.getItem(PERSIST_KEY)
   if (!raw) return undefined
@@ -131,9 +131,9 @@ function watchIdentity(qc: QueryClient) {
     const observedVersion = catalogueVersionOf(e.query.state.data)
     const previous = currentCatalogueVersion()
     const catalogueVersion = catalogueVersionToAdopt(previous, observedVersion, isPath(e.query.queryKey, ['identity', 'me']))
-    if (catalogueVersion && catalogueVersion !== previous) {
-      try { localStorage.setItem(CATALOGUE_VERSION_KEY, catalogueVersion) } catch { /* private mode */ }
-      qc.removeQueries({ predicate: (query) => isCatalogueScopedQuery(query.queryKey) && catalogueVersionOf(query.state.data) !== catalogueVersion })
+    if (catalogueVersion !== undefined && catalogueVersion !== previous) {
+      try { localStorage.setItem(CATALOGUE_VERSION_KEY, catalogueVersionForStorage(catalogueVersion)) } catch { /* private mode */ }
+      qc.removeQueries({ predicate: (query) => !keepForCatalogue(query.queryKey, query.state.data, catalogueVersion) })
       void invalidateRegionalPacks(catalogueVersion).catch(() => {})
     }
     if (!isPath(e.query.queryKey, ['identity', 'me'])) return
@@ -156,9 +156,13 @@ export function TRPCReactProvider({ children }: { children: ReactNode }) {
     void purgePrivatePhotos().catch(() => {})
     const reset = (event: StorageEvent) => {
       if (event.key === PRIVATE_PAUSE_KEY) { if (event.newValue) pauseOutbox(); else resumeOutbox(); return }
-      if (event.key === CATALOGUE_VERSION_KEY && event.newValue) {
-        queryClient.removeQueries({ predicate: (query) => isCatalogueScopedQuery(query.queryKey) && catalogueVersionOf(query.state.data) !== event.newValue })
-        void invalidateRegionalPacks(event.newValue).catch(() => {})
+      if (event.key === CATALOGUE_VERSION_KEY) {
+        // A removed key is treated as a legacy rollback for compatibility with tabs predating the sentinel.
+        const catalogueVersion = catalogueVersionFromStorageEvent(event.newValue)
+        // Preserve the authoritative rollback distinction after an older tab removes the key.
+        if (event.newValue === null) try { localStorage.setItem(CATALOGUE_VERSION_KEY, catalogueVersionForStorage(null)) } catch { /* private mode */ }
+        queryClient.removeQueries({ predicate: (query) => !keepForCatalogue(query.queryKey, query.state.data, catalogueVersion) })
+        void invalidateRegionalPacks(catalogueVersion).catch(() => {})
         return
       }
       if (event.key !== PRIVATE_RESET_KEY && event.key !== IDENTITY_KEY) return

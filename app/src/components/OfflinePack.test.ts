@@ -65,4 +65,18 @@ describe('offline pack readiness', () => {
     expect(values.has(readyKey('region', 'v2'))).toBe(true)
     expect(values.get('dex.persist.identity')).toBe('owner')
   })
+  it('removes only v2 packs and markers after rollback to the legacy catalogue', async () => {
+    const deleted: string[] = []
+    vi.stubGlobal('caches', { keys: async () => ['dex-images', 'dex-pack-legacy', 'dex-pack-v2-active-region', 'dex-pack-v2-old-region'], delete: async (name: string) => { deleted.push(name); return true } })
+    const values = new Map([[readyKey('legacy'), 'legacy'], [readyKey('region', 'active'), 'active'], ['dex.persist.identity', 'owner']])
+    vi.stubGlobal('localStorage', {
+      get length() { return values.size }, key: (i: number) => [...values.keys()][i] ?? null,
+      getItem: (key: string) => values.get(key) ?? null, removeItem: (key: string) => { values.delete(key) },
+    })
+    await invalidateRegionalPacks(null)
+    expect(deleted.sort()).toEqual(['dex-pack-v2-active-region', 'dex-pack-v2-old-region'])
+    expect(values.has(readyKey('legacy'))).toBe(true)
+    expect(values.has(readyKey('region', 'active'))).toBe(false)
+    expect(values.get('dex.persist.identity')).toBe('owner')
+  })
 })
