@@ -83,10 +83,10 @@ This API alternative requires a detailed `LocalPhoto` record with explicitly nul
 fields. The global iNaturalist mapping does not establish an imported Flickr/Commons photo's
 original licence version; an abbreviated `default_photo` alone cannot prove native provenance.
 Under the [owner-approved conservative release rule](https://github.com/Standkreis/atlas/issues/21#issuecomment-5601624909),
-`licensed-gallery-v6` retains v5's exclusion of imported, unknown or contradictory iNaturalist candidates from
+`licensed-gallery-v7` retains v6's exclusion of imported, unknown or contradictory iNaturalist candidates from
 new galleries. Matching detailed records must consistently establish native-free provenance;
 the type or image host alone is insufficient. Rejections retain reasons and bounded provenance,
-with complete responses kept in the cache. Version 6 also binds every accepted asset's ordered
+with complete responses kept in the cache. Version 7 retains v6's binding of every accepted asset's ordered
 metadata and source identity into its work summary. Accepted iNaturalist evidence includes the
 matched taxon/photo identity, complete same-photo native fields, and captured source-response
 references that reproduce the checkpoint fingerprint; the final audit checks that proof against
@@ -94,12 +94,24 @@ the live assets before transfer. There is no automatic original-source verifier 
 licence relabelling. Earlier gallery versions are historical work, not current completion
 evidence. Existing production photos follow the separately reviewed preservation-first plan;
 this local selector does not authorize their replacement or deletion.
-Version 5 introduced, and version 6 retains, the [owner-approved exact Commons-photo exclusion](https://github.com/Standkreis/atlas/issues/21#issuecomment-5605162646)
+Version 5 introduced, and version 7 retains, the [owner-approved exact Commons-photo exclusion](https://github.com/Standkreis/atlas/issues/21#issuecomment-5605162646)
 for `File:Red bartsia 800.jpg`: its conflicting Odontites attribution remains unresolved.
 Both species and their other photos remain. Preserve the scientific rejection's rule and evidence,
-and replay earlier completed work from cache rather than relabelling v5 checkpoints. The final
+and replay earlier completed work from cache rather than relabelling old checkpoints. The final
 audit rejects this source independently of reported work completion. See the
 [selection contract](../../app/etl/README.md#reviewed-scientific-image-exclusions).
+Version 7 additionally applies the owner-approved exact-photo rules for iNaturalist `437081607`
+and `575158298`, and Commons `File:Chrysotoxum cautum Richard Bartz.jpg`. Each was shared across
+two distinct self-accepted GBIF species. The iNaturalist detail records associate the same native
+photo with two distinct active species but contain no observation/native-page or multi-subject
+evidence resolving the assignment; the Commons title/category says cautum while its description
+says verralli. The reviewed outside-Git report
+`final-cross-taxon-photo-review/cross-taxon-photo-review-v2.json` is SHA-256
+`eff063fe88ce9921c651318300a225f42cf03a2732540f12927b4e7b86e9a8e1`.
+Withhold each exact photo from both associated galleries pending identification; retain all six
+species and every unrelated photo. Re-evaluate v6 into v7 from retained responses with
+`ETL_BUDGET=0`; never relabel old checkpoints. Regenerate content, URL and rendered-review bindings
+after the gallery change.
 Source-linked photographs can depict diagnostic traces rather than an adult animal; do not
 silently claim field-identification certainty or introduce an unreviewed visual classifier.
 

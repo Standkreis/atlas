@@ -148,8 +148,8 @@ narrows it further and rejects any key outside the selected set. `--limit` bound
 not the first N catalogue members: repeated limited runs advance through pending work. Invalid
 scope is rejected before any work row is seeded. No model or paid content API is used.
 
-The globally unique checkpoint is `(taxonId, gallery, licensed-gallery-v6)`. Version 6
-retains version 5's requirement for matching detailed iNaturalist `taxon_photos` records to consistently identify a
+The globally unique checkpoint is `(taxonId, gallery, licensed-gallery-v7)`. Version 7
+retains version 6's requirement for matching detailed iNaturalist `taxon_photos` records to consistently identify a
 `LocalPhoto` with explicitly null `native_page_url` and `native_photo_id`. The abbreviated
 `default_photo`, LocalPhoto type alone, and an iNaturalist CDN URL cannot prove native provenance.
 Default candidates inherit proof only from the same photo ID's full detailed records. Imported,
@@ -161,14 +161,14 @@ Every selected asset's ordered metadata and source identity enter the work summa
 iNaturalist images additionally retain the matched taxon/photo identity and complete same-photo
 native-source evidence; exact captured source URL/response fingerprints reproduce the checkpoint's
 source fingerprint. Rejections retain bounded provenance details and reasons, while complete
-original responses remain in the source cache. This changes evidence, never gallery selection,
-species membership or existing
-production photos, whose preservation/visibility is owned by the separate migration plan.
+original responses remain in the source cache. Version 7 changes gallery selection only for the
+three exact owner-reviewed cross-taxon photos below. It does not change species membership or
+existing production photos, whose preservation/visibility is owned by the separate migration plan.
 
 Version 5 retains version 4's selection policy and version 4 retains version 3's correction that
 canonicalizes legacy HTTP and localized Creative Commons deed links only when their family,
 version and jurisdiction exactly match the declared licence. Credentials and nondefault ports
-remain invalid. Versions 1–5 are historical checkpoints, not current completion evidence.
+remain invalid. Versions 1–6 are historical checkpoints, not current completion evidence.
 Completed work,
 including a valid zero-image result, is reused across catalogue versions. Failed or expired work
 is retried once per invocation; a live lease is left to its owner. Stop/restart with the same
@@ -186,13 +186,33 @@ says vernus; this is unresolved species attribution, not a licence defect or tax
 The reviewed source-evidence bundle has SHA-256
 `075799c48c4aad347569c306d8acaa84d5ddcb7de89f99fd300ba3018920818f`.
 
-Version 5 introduced, and version 6 retains, rule `commons-red-bartsia-ambiguous-species-v1` for this exact Commons file
+Version 5 introduced, and version 7 retains, rule `commons-red-bartsia-ambiguous-species-v1` for this exact Commons file
 identity before ordering/capping. Rejections retain `ambiguous-species-attribution`, the rule,
 evidence reference and digest; the final content audit independently blocks that source or a
 scientific rejection without its reviewed evidence. No species/category-wide rejection is added.
 Existing production rows remain subject to the separately reviewed preservation migration.
 
-Re-evaluate v5 completed galleries into v6 using retained responses and `ETL_BUDGET=0`; do not copy
+On 2026-09-10 the owner approved the same conservative withholding for three additional exact
+cross-taxon photo identities: iNaturalist photos `437081607` (Cornus alba/Cornus sericea) and
+`575158298` (Carassius carassius/Carassius auratus), plus Commons
+`File:Chrysotoxum cautum Richard Bartz.jpg` (Chrysotoxum cautum/Chrysotoxum verralli). The two
+iNaturalist photos occur in detailed native-free `LocalPhoto` records for two distinct active
+iNaturalist species and two distinct self-accepted GBIF species; those records prove provenance,
+not which species the pixels depict. The Commons title, object name and category say cautum while
+its description says verralli. None has evidence proving one accepted identity or a multi-subject
+photo. Withhold each photo from both associated galleries pending identification; all six species
+and their other photos remain.
+
+Rules `inat-photo-437081607-cross-taxon-ambiguous-v1`,
+`inat-photo-575158298-cross-taxon-ambiguous-v1` and
+`commons-chrysotoxum-cautum-richard-bartz-ambiguous-species-v1` match only those exact provider
+source identities, including their canonical source-page and render-URL spellings. They do not
+exclude a taxon, genus, category or neighbouring photo ID. The reviewed outside-Git report
+`final-cross-taxon-photo-review/cross-taxon-photo-review-v2.json` has SHA-256
+`eff063fe88ce9921c651318300a225f42cf03a2732540f12927b4e7b86e9a8e1` and retains the exact
+provider/cache hashes, accepted taxonomy envelopes and remaining gallery counts.
+
+Re-evaluate v6 completed galleries into v7 using retained responses and `ETL_BUDGET=0`; do not copy
 or relabel completion rows. Cache misses remain explicit failed/retryable work, not zero-image
 successes. Preserve old checkpoints and raw source evidence. Unchanged galleries retain IDs;
 changed galleries get consecutive positions. Regenerate final content/gallery artifacts and

@@ -46,7 +46,7 @@ function checkedUrls(data: ContentAuditSnapshot, generatedAt = at): ContentUrlCh
 const codes = (snapshot: ContentAuditSnapshot) => buildContentAudit(snapshot).defects.map((defect) => defect.code)
 
 describe('German catalogue content audit', () => {
-  it('independently blocks the reviewed excluded photo despite complete v6 work and passing network evidence', () => {
+  it('independently blocks the reviewed excluded photo despite complete v7 work and passing network evidence', () => {
     const data = fixture(), asset = data.assets[0]!
     Object.assign(asset, { origin: 'commons', sourceUrl: 'https://commons.wikimedia.org/wiki/File:Red%20bartsia%20800.jpg',
       url: 'https://upload.wikimedia.org/wikipedia/commons/d/db/Red_bartsia_800.jpg?utm_source=commons',
@@ -57,15 +57,15 @@ describe('German catalogue content audit', () => {
     Object.assign(summary, { inatImages: 0, commonsImages: 1, coverage: { inat: false, commons: true }, acceptedEvidence: [{ position, url, author, licence, licenceUrl, sourceUrl, origin, caption, sourceId: 'commons:File:Red bartsia 800.jpg' }], sourceResponses })
     data.work.find((row) => row.taxonId === asset.taxonId && row.kind === 'gallery')!.sourceFingerprint = responseEvidenceFingerprint(sourceResponses)
     const audit = buildContentAudit(data, approved(buildContentAudit(data)), checkedUrls(data), clock)
-    expect(audit.versions.gallery).toBe('licensed-gallery-v6')
+    expect(audit.versions.gallery).toBe('licensed-gallery-v7')
     expect(audit.work.gallery.complete).toBe(4)
     expect(audit.defects.map((finding) => finding.code)).toEqual(['gallery-scientific-exclusion'])
     expect(audit.verdict).toBe('blocked')
   })
 
-  it('requires current v6 checkpoints and retains scientific exclusion evidence separately from licence rejection', () => {
+  it('requires current v7 checkpoints and retains scientific exclusion evidence separately from licence rejection', () => {
     const data = fixture()
-    for (const row of data.work.filter((work) => work.kind === 'gallery')) row.version = 'licensed-gallery-v5'
+    for (const row of data.work.filter((work) => work.kind === 'gallery')) row.version = 'licensed-gallery-v6'
     expect(buildContentAudit(data).work.gallery).toMatchObject({ missing: 4, complete: 0 })
     for (const row of data.work.filter((work) => work.kind === 'gallery')) row.version = CONTENT_WORK_VERSIONS.gallery
     const summary = data.work.find((row) => row.kind === 'gallery')!.resultSummary as Record<string, unknown>
@@ -76,6 +76,29 @@ describe('German catalogue content audit', () => {
     expect(codes(data)).toEqual([])
     rejection.review = null
     expect(codes(data)).toContain('gallery-exclusion-evidence')
+  })
+
+  it('blocks an accepted reviewed iNaturalist photo and validates its exact rejection provenance', () => {
+    const data = fixture(), asset = data.assets[0]!
+    Object.assign(asset, {
+      url: 'https://inaturalist-open-data.s3.amazonaws.com/photos/437081607/medium.jpg',
+      sourceUrl: 'https://www.inaturalist.org/photos/437081607',
+    })
+    const row = data.work.find((work) => work.taxonId === asset.taxonId && work.kind === 'gallery')!
+    const summary = row.resultSummary as { acceptedEvidence: Array<Record<string, unknown>>; rejections: unknown[] }
+    const accepted = summary.acceptedEvidence[0]!
+    Object.assign(accepted, { url: asset.url, sourceUrl: asset.sourceUrl, sourceId: 'inat:437081607', photoId: 437081607 })
+    const provenance = accepted.provenance as { evidence: Array<Record<string, unknown>> }
+    Object.assign(provenance.evidence[0]!, { photoId: 437081607, mediumUrl: asset.url })
+    const audit = buildContentAudit(data, approved(buildContentAudit(data)), checkedUrls(data), clock)
+    expect(audit.defects.map((finding) => finding.code)).toEqual(['gallery-scientific-exclusion'])
+
+    const rejected = fixture()
+    const rejectedSummary = rejected.work.find((work) => work.kind === 'gallery')!.resultSummary as { rejections: unknown[] }
+    rejectedSummary.rejections = [{ source: 'inat:437081607', reason: 'ambiguous-species-attribution', review: scientificGalleryExclusion({ origin: 'inat', sourceId: 'inat:437081607' }) }]
+    expect(codes(rejected)).toEqual([])
+    ;(rejectedSummary.rejections[0] as { review: unknown }).review = null
+    expect(codes(rejected)).toContain('gallery-exclusion-evidence')
   })
 
   it('requires representative network evidence without confusing metadata validity with image rendering', () => {

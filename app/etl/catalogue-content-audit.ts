@@ -310,7 +310,8 @@ export function buildContentAudit(snapshot: ContentAuditSnapshot, review: Conten
         const reason = item!.reason as string
         if (reason === 'ambiguous-species-attribution') {
           const source = item!.source as string
-          const exclusion = source.startsWith('commons:') ? scientificGalleryExclusion({ origin: 'commons', sourceId: source.slice(8) }) : null
+          const exclusion = source.startsWith('commons:') ? scientificGalleryExclusion({ origin: 'commons', sourceId: source.slice(8) })
+            : source.startsWith('inat:') ? scientificGalleryExclusion({ origin: 'inat', sourceId: source }) : null
           if (!exclusion || canonicalContent(item!.review ?? null) !== canonicalContent(exclusion)) fail('gallery-exclusion-evidence', taxon.id, 'scientific source rejection lacks its exact reviewed rule/evidence')
         }
         bump(galleries.rejections, reason)

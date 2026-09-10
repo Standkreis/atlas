@@ -4,29 +4,105 @@ export { normalizedRemoteUrl, commonsLicenceFamily, commonsLicenceUrlMatches } f
 
 export const GALLERY_LIMIT = 12
 
+export type ScientificGalleryReview = {
+  ruleId: string
+  reason: 'ambiguous-species-attribution'
+  evidence: string
+  evidenceSha256: string
+}
+
 const RED_BARTSIA_REVIEW = {
   ruleId: 'commons-red-bartsia-ambiguous-species-v1',
   reason: 'ambiguous-species-attribution' as const,
   evidence: 'app/etl/README.md#reviewed-scientific-image-exclusions',
   evidenceSha256: '075799c48c4aad347569c306d8acaa84d5ddcb7de89f99fd300ba3018920818f',
+} satisfies ScientificGalleryReview
+
+const CROSS_TAXON_EVIDENCE_SHA256 = 'eff063fe88ce9921c651318300a225f42cf03a2732540f12927b4e7b86e9a8e1'
+const CROSS_TAXON_EVIDENCE = 'app/etl/README.md#reviewed-scientific-image-exclusions'
+const INAT_CORNUS_REVIEW = {
+  ruleId: 'inat-photo-437081607-cross-taxon-ambiguous-v1',
+  reason: 'ambiguous-species-attribution' as const,
+  evidence: CROSS_TAXON_EVIDENCE,
+  evidenceSha256: CROSS_TAXON_EVIDENCE_SHA256,
+} satisfies ScientificGalleryReview
+const INAT_CARASSIUS_REVIEW = {
+  ruleId: 'inat-photo-575158298-cross-taxon-ambiguous-v1',
+  reason: 'ambiguous-species-attribution' as const,
+  evidence: CROSS_TAXON_EVIDENCE,
+  evidenceSha256: CROSS_TAXON_EVIDENCE_SHA256,
+} satisfies ScientificGalleryReview
+const COMMONS_CHRYSOTOXUM_REVIEW = {
+  ruleId: 'commons-chrysotoxum-cautum-richard-bartz-ambiguous-species-v1',
+  reason: 'ambiguous-species-attribution' as const,
+  evidence: CROSS_TAXON_EVIDENCE,
+  evidenceSha256: CROSS_TAXON_EVIDENCE_SHA256,
+} satisfies ScientificGalleryReview
+
+const reviewedInat = new Map<number, ScientificGalleryReview>([
+  [437081607, INAT_CORNUS_REVIEW],
+  [575158298, INAT_CARASSIUS_REVIEW],
+])
+const reviewedCommons = new Map<string, { review: ScientificGalleryReview; renderPath: RegExp }>([
+  ['File:Red bartsia 800.jpg', { review: RED_BARTSIA_REVIEW, renderPath: /^\/wikipedia\/commons\/(?:thumb\/)?d\/db\/Red_bartsia_800\.jpg(?:\/[^/]+)?$/ }],
+  ['File:Chrysotoxum cautum Richard Bartz.jpg', { review: COMMONS_CHRYSOTOXUM_REVIEW, renderPath: /^\/wikipedia\/commons\/(?:thumb\/)?a\/a5\/Chrysotoxum_cautum_Richard_Bartz\.jpg(?:\/[^/]+)?$/ }],
+])
+
+const commonsTitle = (value: string) => {
+  try {
+    const raw = value.startsWith('commons:') ? value.slice('commons:'.length) : value
+    return decodeURIComponent(raw).replace(/_/g, ' ').replace(/\s+/g, ' ').trim()
+  } catch { return '' }
+}
+
+const inatPhotoId = (value: string) => {
+  const match = value.trim().match(/^(?:inat:)?(\d+)$/)
+  return match ? Number(match[1]) : null
 }
 
 /** Exact reviewed source identity, not a species/name/category or licence-family exclusion. */
 export function scientificGalleryExclusion(image: { origin: string; sourceId?: string; sourceUrl?: string | null; url?: string | null }) {
-  if (image.origin !== 'commons') return null
-  const file = (value: string) => {
-    try { return decodeURIComponent(value).replace(/_/g, ' ').trim() === 'File:Red bartsia 800.jpg' } catch { return false }
+  if (image.origin === 'inat') {
+    if (image.sourceId) {
+      const review = reviewedInat.get(inatPhotoId(image.sourceId) ?? -1)
+      if (review) return review
+    }
+    try {
+      const page = new URL(image.sourceUrl ?? '')
+      const match = page.pathname.match(/^\/photos\/(\d+)\/?$/)
+      if (['www.inaturalist.org', 'inaturalist.org'].includes(page.hostname) && match) {
+        const review = reviewedInat.get(Number(match[1]))
+        if (review) return review
+      }
+    } catch { /* Invalid source URLs remain subject to the separate metadata gate. */ }
+    try {
+      const render = new URL(image.url ?? '')
+      const match = decodeURIComponent(render.pathname).match(/^\/photos\/(\d+)\/(?:square|small|medium|large|original)\.[a-z0-9]+$/i)
+      if (render.hostname === 'inaturalist-open-data.s3.amazonaws.com' && match) {
+        const review = reviewedInat.get(Number(match[1]))
+        if (review) return review
+      }
+    } catch { /* Invalid render URLs remain subject to the separate metadata gate. */ }
+    return null
   }
-  if (image.sourceId && file(image.sourceId)) return RED_BARTSIA_REVIEW
+  if (image.origin !== 'commons') return null
+  if (image.sourceId) {
+    const match = reviewedCommons.get(commonsTitle(image.sourceId))
+    if (match) return match.review
+  }
   try {
     const page = new URL(image.sourceUrl ?? '')
-    if (page.hostname === 'commons.wikimedia.org' &&
-      ((page.pathname.startsWith('/wiki/') && file(page.pathname.slice(6))) ||
-        (page.pathname === '/w/index.php' && file(page.searchParams.get('title') ?? '')))) return RED_BARTSIA_REVIEW
+    const title = page.pathname.startsWith('/wiki/') ? commonsTitle(page.pathname.slice(6))
+      : page.pathname === '/w/index.php' ? commonsTitle(page.searchParams.get('title') ?? '') : ''
+    const match = reviewedCommons.get(title)
+    if (page.hostname === 'commons.wikimedia.org' && match) return match.review
   } catch { /* Invalid source URLs remain subject to the separate metadata gate. */ }
   try {
     const render = new URL(image.url ?? '')
-    if (render.hostname === 'upload.wikimedia.org' && /^\/wikipedia\/commons\/(?:thumb\/)?d\/db\/Red_bartsia_800\.jpg(?:\/[^/]+)?$/.test(decodeURIComponent(render.pathname))) return RED_BARTSIA_REVIEW
+    if (['upload.wikimedia.org', 'thumb.wikimedia.org'].includes(render.hostname)) {
+      const path = decodeURIComponent(render.pathname)
+      for (const { review, renderPath } of reviewedCommons.values()) if (renderPath.test(path)) return review
+    }
   } catch { /* Invalid render URLs remain subject to the separate metadata gate. */ }
   return null
 }
@@ -102,7 +178,7 @@ export type GalleryRejection = {
   source: string
   reason: GalleryRejectionReason
   provenance?: InatPhotoProvenance
-  review?: typeof RED_BARTSIA_REVIEW
+  review?: ScientificGalleryReview
 }
 
 export type GallerySelection = {
@@ -150,6 +226,11 @@ function reject(rejections: GalleryRejection[], source: string, reason: GalleryR
 function inatCandidate(photo: InatPhotoCandidate, sourceTaxon: InatGallerySource, sciName: string, rejections: GalleryRejection[]): Candidate | null {
   const source = `inat:${photo.id}`
   if (!Number.isSafeInteger(photo.id) || photo.id <= 0) return reject(rejections, source, 'invalid-source-id')
+  const exclusion = scientificGalleryExclusion({ origin: 'inat', sourceId: source, sourceUrl: `https://www.inaturalist.org/photos/${photo.id}`, url: photo.renderUrl })
+  if (exclusion) {
+    rejections.push({ source, reason: exclusion.reason, review: exclusion })
+    return null
+  }
   if (photo.provenance?.status !== 'native-free-local-photo') {
     rejections.push({ source, reason: photo.provenance?.status === 'unverified-imported-licence' ? 'unverified-imported-licence' : 'unknown-provenance',
       ...(photo.provenance ? { provenance: photo.provenance } : {}) })

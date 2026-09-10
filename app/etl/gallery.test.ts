@@ -61,6 +61,72 @@ describe('licensed gallery selection', () => {
     ]) expect(scientificGalleryExclusion(image)).toBeNull()
   })
 
+  it.each([
+    [437081607, 'inat-photo-437081607-cross-taxon-ambiguous-v1'],
+    [575158298, 'inat-photo-575158298-cross-taxon-ambiguous-v1'],
+  ] as const)('withholds only reviewed cross-taxon iNaturalist photo %i and preserves the remaining gallery', (photoId, ruleId) => {
+    const selected = selectGallery({
+      scientificName: 'Example species',
+      inat: inat([photo(photoId, { curatedPosition: 0 }), photo(17, { curatedPosition: 1 })], photoId, 'Example species'),
+    })
+    expect(selected.assets.map((asset) => [asset.position, asset.sourceUrl])).toEqual([[0, 'https://www.inaturalist.org/photos/17']])
+    expect(selected.rejections).toEqual([{
+      source: `inat:${photoId}`,
+      reason: 'ambiguous-species-attribution',
+      review: {
+        ruleId,
+        reason: 'ambiguous-species-attribution',
+        evidence: 'app/etl/README.md#reviewed-scientific-image-exclusions',
+        evidenceSha256: 'eff063fe88ce9921c651318300a225f42cf03a2732540f12927b4e7b86e9a8e1',
+      },
+    }])
+  })
+
+  it('matches exact reviewed iNaturalist identities across source/page/render variants and leaves unrelated IDs untouched', () => {
+    for (const image of [
+      { origin: 'inat', sourceId: '437081607' },
+      { origin: 'inat', sourceId: 'inat:575158298' },
+      { origin: 'inat', sourceUrl: 'https://www.inaturalist.org/photos/437081607/?source=review' },
+      { origin: 'inat', sourceUrl: 'https://inaturalist.org/photos/575158298' },
+      { origin: 'inat', url: 'https://inaturalist-open-data.s3.amazonaws.com/photos/437081607/small.jpeg?size=small' },
+      { origin: 'inat', url: 'https://inaturalist-open-data.s3.amazonaws.com/photos/575158298/original.jpg' },
+    ]) expect(scientificGalleryExclusion(image)?.reason).toBe('ambiguous-species-attribution')
+    for (const image of [
+      { origin: 'commons', sourceId: 'inat:437081607' },
+      { origin: 'inat', sourceId: '437081608' },
+      { origin: 'inat', sourceUrl: 'https://other.example/photos/437081607' },
+      { origin: 'inat', sourceUrl: 'https://www.inaturalist.org/photos/4370816070' },
+      { origin: 'inat', url: 'https://other.example/photos/575158298/medium.jpg' },
+    ]) expect(scientificGalleryExclusion(image)).toBeNull()
+  })
+
+  it('withholds the exact conflicting Chrysotoxum Commons file across identity variants without excluding neighbours', () => {
+    const title = 'File:Chrysotoxum cautum Richard Bartz.jpg'
+    const expected = {
+      ruleId: 'commons-chrysotoxum-cautum-richard-bartz-ambiguous-species-v1',
+      reason: 'ambiguous-species-attribution',
+      evidence: 'app/etl/README.md#reviewed-scientific-image-exclusions',
+      evidenceSha256: 'eff063fe88ce9921c651318300a225f42cf03a2732540f12927b4e7b86e9a8e1',
+    }
+    for (const image of [
+      { origin: 'commons', sourceId: title },
+      { origin: 'commons', sourceId: 'commons:File:Chrysotoxum_cautum_Richard_Bartz.jpg' },
+      { origin: 'commons', sourceUrl: 'https://commons.wikimedia.org/wiki/File:Chrysotoxum%20cautum%20Richard%20Bartz.jpg?oldid=1062030691' },
+      { origin: 'commons', sourceUrl: 'https://commons.wikimedia.org/w/index.php?title=File:Chrysotoxum_cautum_Richard_Bartz.jpg&oldid=1062030691' },
+      { origin: 'commons', url: 'https://upload.wikimedia.org/wikipedia/commons/a/a5/Chrysotoxum_cautum_Richard_Bartz.jpg' },
+      { origin: 'commons', url: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a5/Chrysotoxum_cautum_Richard_Bartz.jpg/640px-Chrysotoxum_cautum_Richard_Bartz.jpg?x=1' },
+    ]) expect(scientificGalleryExclusion(image)).toEqual(expected)
+    const selected = selectGallery({ scientificName: 'Chrysotoxum verralli', commons: commons({ sourceId: title, title, sourceUrl: 'https://commons.wikimedia.org/wiki/File:Chrysotoxum_cautum_Richard_Bartz.jpg', renderUrl: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a5/Chrysotoxum_cautum_Richard_Bartz.jpg/960px-Chrysotoxum_cautum_Richard_Bartz.jpg' }) })
+    expect(selected.assets).toEqual([])
+    expect(selected.rejections).toEqual([{ source: `commons:${title}`, reason: 'ambiguous-species-attribution', review: expected }])
+    for (const image of [
+      { origin: 'inat', sourceId: title },
+      { origin: 'commons', sourceId: 'File:Chrysotoxum cautum Richard Bartz 2.jpg' },
+      { origin: 'commons', sourceUrl: 'https://other.example/wiki/File:Chrysotoxum_cautum_Richard_Bartz.jpg' },
+      { origin: 'commons', url: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/b/a5/Chrysotoxum_cautum_Richard_Bartz.jpg/640px-Chrysotoxum_cautum_Richard_Bartz.jpg' },
+    ]) expect(scientificGalleryExclusion(image)).toBeNull()
+  })
+
   it('keeps the lead ladder and places Commons after an accepted default', () => {
     const selected = selectGallery({ scientificName: 'Turdus merula', inat: inat([photo(2), photo(1)], 2), commons: commons() })
     expect(selected.assets.map((asset) => [asset.position, asset.origin, asset.sourceUrl])).toEqual([

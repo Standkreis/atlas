@@ -7,9 +7,9 @@ import { commonsInfo, commonsLicenceUrl, fetchInatGallery } from './sources'
 import { runTaxonWork, type TaxonWorkResult } from './taxon-work'
 import { wikidataFor } from './wikidata'
 
-// v6 retains v5's selection and additionally binds every accepted source/provenance record
-// into the durable checkpoint. Earlier checkpoints remain historical evidence, not current proof.
-export const GALLERY_VERSION = 'licensed-gallery-v6'
+// v7 retains v6's durable accepted-source/provenance binding and adds the owner-reviewed exact
+// cross-taxon photo exclusions. Earlier checkpoints remain historical evidence, not current proof.
+export const GALLERY_VERSION = 'licensed-gallery-v7'
 export type GalleryTaxon = { id: string; gbifKey: number; sciName: string }
 export type GalleryFetch = GallerySelection & { coverage: { inat: boolean; commons: boolean } }
 
