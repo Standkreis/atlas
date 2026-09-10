@@ -48,6 +48,10 @@ function checkedRow(spec: TransferSpec, row: Record<string, unknown>) {
 
 // Every statement is static and scoped through the selected catalogue. Personal tables and Asset
 // are intentionally absent. ORDER BY is a stable primary-key order for incremental hashing.
+export const CATALOGUE_VERSION_TRANSFER_COLUMNS = ['id', 'countryCode', 'runKey', 'registryVersionId', 'inputFingerprint', 'sourceFingerprint', 'responseFingerprint', 'unionFingerprint', 'plausibleRulesVersion', 'tileMappingVersion', 'observationWindowVersion', 'yearFrom', 'yearTo', 'occurrencePredicates', 'status', 'expectedRegions', 'completedRegions', 'unionTaxa', 'startedAt', 'generatedAt', 'auditedAt', 'activatedAt', 'executionOwner', 'executionExpiresAt', 'updatedAt']
+export const CATALOGUE_REGION_BUILD_TRANSFER_COLUMNS = ['id', 'catalogueVersionId', 'registryVersionId', 'registryEntryId', 'status', 'attempts', 'leaseOwner', 'leaseExpiresAt', 'startedAt', 'completedAt', 'error', 'totalObservations', 'monthTotals', 'regionSize', 'perTile', 'nowCounts', 'rejectedTaxa', 'requestStats', 'responseFingerprint', 'setFingerprint', 'createdAt', 'updatedAt']
+const selectedColumns = (alias: string, columns: readonly string[]) => columns.map((column) => `${alias}."${column}"`).join(', ')
+
 export const TRANSFER_SPECS: TransferSpec[] = [
   {
     table: 'Region',
@@ -91,13 +95,13 @@ export const TRANSFER_SPECS: TransferSpec[] = [
   },
   {
     table: 'CatalogueVersion',
-    columns: ['id', 'countryCode', 'runKey', 'registryVersionId', 'inputFingerprint', 'sourceFingerprint', 'responseFingerprint', 'unionFingerprint', 'plausibleRulesVersion', 'tileMappingVersion', 'observationWindowVersion', 'yearFrom', 'yearTo', 'occurrencePredicates', 'status', 'expectedRegions', 'completedRegions', 'unionTaxa', 'startedAt', 'generatedAt', 'auditedAt', 'activatedAt', 'executionOwner', 'executionExpiresAt', 'updatedAt'],
-    sql: `SELECT to_jsonb(x) AS row FROM (SELECT c.* FROM "CatalogueVersion" c WHERE c.id=$1 ORDER BY c.id LIMIT $2 OFFSET $3) x`,
+    columns: CATALOGUE_VERSION_TRANSFER_COLUMNS,
+    sql: `SELECT to_jsonb(x) AS row FROM (SELECT ${selectedColumns('c', CATALOGUE_VERSION_TRANSFER_COLUMNS)} FROM "CatalogueVersion" c WHERE c.id=$1 ORDER BY c.id LIMIT $2 OFFSET $3) x`,
   },
   {
     table: 'CatalogueRegionBuild',
-    columns: ['id', 'catalogueVersionId', 'registryVersionId', 'registryEntryId', 'status', 'attempts', 'leaseOwner', 'leaseExpiresAt', 'startedAt', 'completedAt', 'error', 'totalObservations', 'monthTotals', 'regionSize', 'perTile', 'nowCounts', 'rejectedTaxa', 'requestStats', 'responseFingerprint', 'setFingerprint', 'createdAt', 'updatedAt'],
-    sql: `SELECT to_jsonb(x) AS row FROM (SELECT b.* FROM "CatalogueRegionBuild" b WHERE b."catalogueVersionId"=$1 ORDER BY b.id LIMIT $2 OFFSET $3) x`,
+    columns: CATALOGUE_REGION_BUILD_TRANSFER_COLUMNS,
+    sql: `SELECT to_jsonb(x) AS row FROM (SELECT ${selectedColumns('b', CATALOGUE_REGION_BUILD_TRANSFER_COLUMNS)} FROM "CatalogueRegionBuild" b WHERE b."catalogueVersionId"=$1 ORDER BY b.id LIMIT $2 OFFSET $3) x`,
   },
   {
     table: 'CataloguePlausibility',

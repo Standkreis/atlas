@@ -55,6 +55,12 @@ This guard protects the build migration entrypoint only. It does not isolate Pre
 
 Local and CI schema checks continue through `npm run db:check:setup`, which accepts only a fresh disposable local `dex_check_*` database; never invent a production-like Vercel context as a local bypass. Do not run local `vercel build --prod` with production credentials: the guard is not a substitute for the local-only database policy. The repository's separate migration review and production-data rules still apply.
 
+The historical `20260913120000_catalogue_marine_habitat` migration must remain exact. It is additive
+and represented by inert Prisma fields/table solely to reconcile an already-applied checksum; it
+does not reactivate the cancelled habitat experiment. Existing catalogue rows retain the default
+rule version `0`, existing regional membership is unchanged, and the empty evidence table remains
+untouched. Never resolve migration history by dropping these objects or deleting/editing its row.
+
 After the guarded migration step, `npm run build` runs normally: `prebuild` mints the build id, `next build`, and `postbuild` writes the worker manifest.
 
 ## 🩺 Health, cron, background work

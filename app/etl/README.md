@@ -250,6 +250,13 @@ re-review the base catalogue artifact after enrichment, then bind both final art
 same frozen local data. Neither artifact generation nor localhost activation transfers data to
 production. The separately agreed migration/recovery plan remains a release prerequisite.
 
+The catalogue artifact projects `CatalogueVersion` and `CatalogueRegionBuild` through explicit
+reviewed column lists. Dormant migration-history fields (`habitatRulesVersion`, `habitatSource`,
+`habitatSummary`) and the empty `CatalogueHabitatBatch` table are deliberately absent from the
+v2 payload. The row-shape check still rejects every unexpected selected field; this is an exact
+projection, not permission to ignore unrelated schema drift. Catalogue membership, v2 input and
+response fingerprints, and all previously reviewed exported field semantics remain unchanged.
+
 Why the region job precedes the content job: a species enters a set first, content follows. GloBI targets outside every set get a `Taxon` row (tile from GBIF's ranks, `contentAt` null) and are never picked up by the content job unless they gain a plausibility row or a sighting (record 0002 E13).
 
 ## ✍️ The prose — handoff [0028](../../docs/handoffs/0028-prose.md)
