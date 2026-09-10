@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { writeTransferJsonl, type TransferSpec } from './catalogue-transfer'
+import { CATALOGUE_REGION_BUILD_TRANSFER_COLUMNS, CATALOGUE_VERSION_TRANSFER_COLUMNS, TRANSFER_SPECS, writeTransferJsonl, type TransferSpec } from './catalogue-transfer'
 
 vi.mock('node:fs', async (original) => {
   const actual = await original<typeof import('node:fs')>()
@@ -15,6 +15,25 @@ const roots: string[] = []
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))))
 
 describe('catalogue transfer stream', () => {
+  it('projects dormant-compatible catalogue tables through exact reviewed columns', () => {
+    expect(CATALOGUE_VERSION_TRANSFER_COLUMNS).toEqual(['id', 'countryCode', 'runKey', 'registryVersionId', 'inputFingerprint', 'sourceFingerprint', 'responseFingerprint', 'unionFingerprint', 'plausibleRulesVersion', 'tileMappingVersion', 'observationWindowVersion', 'yearFrom', 'yearTo', 'occurrencePredicates', 'status', 'expectedRegions', 'completedRegions', 'unionTaxa', 'startedAt', 'generatedAt', 'auditedAt', 'activatedAt', 'executionOwner', 'executionExpiresAt', 'updatedAt'])
+    expect(CATALOGUE_REGION_BUILD_TRANSFER_COLUMNS).toEqual(['id', 'catalogueVersionId', 'registryVersionId', 'registryEntryId', 'status', 'attempts', 'leaseOwner', 'leaseExpiresAt', 'startedAt', 'completedAt', 'error', 'totalObservations', 'monthTotals', 'regionSize', 'perTile', 'nowCounts', 'rejectedTaxa', 'requestStats', 'responseFingerprint', 'setFingerprint', 'createdAt', 'updatedAt'])
+    const cases = [
+      { table: 'CatalogueVersion', columns: CATALOGUE_VERSION_TRANSFER_COLUMNS, dormant: ['habitatRulesVersion', 'habitatSource'] },
+      { table: 'CatalogueRegionBuild', columns: CATALOGUE_REGION_BUILD_TRANSFER_COLUMNS, dormant: ['habitatSummary'] },
+    ]
+    for (const { table, columns, dormant } of cases) {
+      const spec = TRANSFER_SPECS.find((candidate) => candidate.table === table)!
+      expect(spec.columns).toEqual(columns)
+      expect(spec.sql).not.toMatch(/\b[bc]\.\*/)
+      for (const column of columns) expect(spec.sql).toContain(`."${column}"`)
+      for (const column of dormant) {
+        expect(spec.columns).not.toContain(column)
+        expect(spec.sql).not.toContain(`."${column}"`)
+      }
+    }
+  })
+
   it('pages and incrementally hashes a Germany-scale payload without retaining it', async () => {
     const root = await mkdtemp(join(tmpdir(), 'atlas-transfer-')); roots.push(root)
     const rows = 250_000

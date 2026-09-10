@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { activateLocalCatalogue, buildCatalogueAudit, loadAuditSnapshot, makeReviewTemplate, sha256, type AuditRegistryContract, type ReviewFile } from '../../etl/catalogue-audit'
-import { exportLocalCatalogueArtifact } from '../../etl/catalogue-transfer'
+import { CATALOGUE_REGION_BUILD_TRANSFER_COLUMNS, CATALOGUE_VERSION_TRANSFER_COLUMNS, exportLocalCatalogueArtifact } from '../../etl/catalogue-transfer'
 import { db } from '../../etl/db'
 
 const REGISTRY_ID = 'de-krg-2096-12-31-audit'
@@ -148,6 +148,7 @@ describe('reviewed local catalogue activation', () => {
     const live = await db.plausibility.findMany({ where: { regionId: { in: REGION_IDS } }, select: { obs: true, words: true } })
     const taxon = await db.taxon.findUniqueOrThrow({ where: { gbifKey: TAXON_KEY }, select: { facts: true, prose: true } })
     const catalogue = await db.catalogueVersion.findUniqueOrThrow({ where: { id: CATALOGUE_ID }, select: { status: true, auditedAt: true, activatedAt: true } })
+    const dormant = await db.catalogueVersion.findUniqueOrThrow({ where: { id: CATALOGUE_ID }, select: { habitatRulesVersion: true, habitatSource: true, habitat: true, regionBuilds: { select: { habitatSummary: true } } } })
     const registry = await db.regionRegistryVersion.findUniqueOrThrow({ where: { id: REGISTRY_ID }, select: { active: true } })
     const personal = await db.identity.findUniqueOrThrow({ where: { id: IDENTITY_ID }, select: { displayName: true, sightings: { select: { id: true, place: true } }, studies: { select: { taxonId: true, recapPassed: true } }, assets: { select: { id: true, byteSize: true } } } })
     expect(regions).toHaveLength(6)
@@ -158,6 +159,7 @@ describe('reviewed local catalogue activation', () => {
     expect(taxon.facts).toEqual({ marker: { value: 'preserve', source: 'fixture' } })
     expect(taxon.prose).toEqual({ version: 1, regions: { 'another-region': { marker: 'preserve' } } })
     expect(catalogue).toMatchObject({ status: 'active', auditedAt: TOPIC_DATE, activatedAt: TOPIC_DATE })
+    expect(dormant).toEqual({ habitatRulesVersion: 0, habitatSource: null, habitat: [], regionBuilds: Array.from({ length: 6 }, () => ({ habitatSummary: null })) })
     expect(registry.active).toBe(true)
     expect(personal).toMatchObject({ displayName: 'Preserve me', sightings: [{ id: SIGHTING_ID, place: 'Private place' }], studies: [{ recapPassed: true }], assets: [{ id: ASSET_ID, byteSize: 42 }] })
 
@@ -177,12 +179,15 @@ describe('reviewed local catalogue activation', () => {
         return exportLocalCatalogueArtifact({ catalogueId: CATALOGUE_ID, path: join(output, 'transfer-artifact.jsonl'), pageSize: 2, snapshotId: exported!.snapshotId })
       }, { isolationLevel: 'RepeatableRead', timeout: 30_000 })
       expect(transfer.tables.find((table) => table.table === 'CatalogueRegionBuild')).toMatchObject({ rows: 6 })
-      expect(transfer.tables.find((table) => table.table === 'CatalogueRegionBuild')?.columns).toContain('completedAt')
+      expect(transfer.tables.find((table) => table.table === 'CatalogueRegionBuild')?.columns).toEqual(CATALOGUE_REGION_BUILD_TRANSFER_COLUMNS)
+      expect(transfer.tables.find((table) => table.table === 'CatalogueVersion')?.columns).toEqual(CATALOGUE_VERSION_TRANSFER_COLUMNS)
       expect(transfer.tables.find((table) => table.table === 'Taxon')).toMatchObject({ rows: 1 })
       expect(transfer.artifact.rows).toBeGreaterThan(20)
       const lines = (await readFile(join(output, 'transfer-artifact.jsonl'), 'utf8')).trim().split('\n').map((line) => JSON.parse(line))
       expect(lines.find((line) => line.type === 'row' && line.table === 'Taxon').row.commonNames).toEqual({ de: 'Auditpflanze' })
       expect(lines.filter((line) => line.type === 'row' && line.table === 'Region').map((line) => line.row.id)).toEqual([...REGION_IDS].sort())
+      expect(Object.keys(lines.find((line) => line.type === 'row' && line.table === 'CatalogueVersion').row)).toEqual([...CATALOGUE_VERSION_TRANSFER_COLUMNS].sort())
+      expect(lines.filter((line) => line.type === 'row' && line.table === 'CatalogueRegionBuild').every((line) => Object.keys(line.row).join('|') === [...CATALOGUE_REGION_BUILD_TRANSFER_COLUMNS].sort().join('|'))).toBe(true)
     } finally {
       await db.taxon.update({ where: { gbifKey: TAXON_KEY }, data: { commonNames: { de: 'Auditpflanze' } } })
       await rm(output, { recursive: true, force: true })

@@ -72,6 +72,14 @@ reported as a limitation; no habitat-filtered experimental candidate is eligible
 for this release. Regional sizes describe observation-driven sets, and seasonal
 labels are observation profiles rather than guarantees of biological absence.
 
+Migration `20260913120000_catalogue_marine_habitat` is retained byte-for-byte because it already
+exists in deployment history. Its additive columns and empty batch table are represented in Prisma
+only as dormant compatibility objects: active catalogue behavior keeps `habitatRulesVersion=0`,
+and no source call, classifier, membership filter or alternative exclusion reads or writes them.
+Do not drop the objects, delete the migration, or rewrite its checksum. The v2 transfer uses explicit
+catalogue/build projections that exclude these three dormant fields and the table while preserving
+strict failure on every selected column outside its reviewed allowlist.
+
 The mechanical outlier fence is a triage device, not a biological acceptance threshold. The attributed review must explain credible extremes or mark the affected check failed.
 
 ## 📦 Transfer boundary
