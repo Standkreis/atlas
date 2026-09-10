@@ -56,4 +56,16 @@ describe('reviewed reference visibility', () => {
       { position: 1 },
     ]) expect(referenceGallery([{ ...original, ...drift, referenceVisibility: bound }])).toEqual([])
   })
+
+  it('binds the same review instant after PostgreSQL normalizes timestamp precision', () => {
+    const original = row('timestamp', 0), bound = visibility(original, 0)
+    const snapshot = bound.receipt.sourceSnapshot as { reviews: Array<{ reviewedAt: string }> }
+    snapshot.reviews[0]!.reviewedAt = '2026-09-10T20:00:00Z'
+    bound.reviewedAt = new Date('2026-09-10T20:00:00.000Z')
+    expect(referenceGallery([{ ...original, referenceVisibility: bound }])).toHaveLength(1)
+    bound.reviewedAt = new Date('2026-09-10T20:00:00.001Z')
+    expect(referenceGallery([{ ...original, referenceVisibility: bound }])).toEqual([])
+    bound.reviewedAt = 'invalid'
+    expect(referenceGallery([{ ...original, referenceVisibility: bound }])).toEqual([])
+  })
 })

@@ -99,7 +99,8 @@ describe('public gallery read contract', () => {
 
   it('uses one reviewed visibility decision for detail, every lead read and the offline pack', async () => {
     const targetAssets = await db.asset.findMany({ where: { taxonId: taxonIds[0], kind: 'image', ownerId: null, sightingId: null, avatarOf: null }, include: { avatarOf: { select: { id: true } } }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }] }) as ReferenceAsset[]
-    const reviewedAt = '2026-09-10T20:00:00.000Z'
+    // Valid planner timestamps need not include milliseconds; PostgreSQL returns a Date.
+    const reviewedAt = '2026-09-10T20:00:00Z'
     const reviews: ReferenceAssetReview[] = targetAssets.map((row) => {
       const rightsStatus = row.licence === 'unknown' ? 'unverified' as const : 'verified-supported-licence' as const
       const subjectStatus = row.id === leadId ? 'confirmed-conflict' as const : 'verified' as const

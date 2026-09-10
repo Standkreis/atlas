@@ -87,6 +87,7 @@ export function canonicalReferenceContent(value: unknown): string {
   return JSON.stringify(normalize(value))
 }
 const record = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+const reviewTime = (value: unknown) => value instanceof Date ? value.getTime() : typeof value === 'string' ? Date.parse(value) : NaN
 function reviewBindsCurrentAsset(asset: ReferenceRow, visibility: ReferenceVisibility) {
   const source = record(visibility.receipt?.sourceSnapshot), result = record(visibility.receipt?.resultSnapshot)
   if (!source || !result || source.schemaVersion !== 1 || source.catalogueVersionId !== visibility.catalogueVersionId || source.taxonId !== visibility.taxonId) return false
@@ -98,7 +99,7 @@ function reviewBindsCurrentAsset(asset: ReferenceRow, visibility: ReferenceVisib
   if (reviews.length !== 1) return false
   const review = reviews[0]!
   if (review.sourceAssetFingerprint !== visibility.sourceAssetFingerprint || review.evidenceFingerprint !== visibility.evidenceFingerprint ||
-    review.reviewer !== visibility.reviewer || canonicalReferenceContent(review.reviewedAt) !== canonicalReferenceContent(visibility.reviewedAt) ||
+    review.reviewer !== visibility.reviewer || reviewTime(review.reviewedAt) !== reviewTime(visibility.reviewedAt) ||
     review.decision !== 'eligible' || review.correctedLicenceUrl !== visibility.correctedLicenceUrl) return false
   const eligible = (Array.isArray(result.eligible) ? result.eligible : []).filter((item) => record(item)?.assetId === asset.id).map(record)
   if (eligible.length !== 1) return false
