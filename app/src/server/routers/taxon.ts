@@ -122,7 +122,7 @@ export const taxonRouter = router({
       const month = input.month ?? thisMonth()
       const t = await ctx.db.taxon.findUnique({
         where: { gbifKey: input.gbifKey },
-        include: { assets: { where: { OR: [referenceImageWhere, { kind: 'sound', ownerId: null, sightingId: null, avatarOf: null }] }, orderBy: [...referenceAssetOrder] }, interactionsFrom: { include: { target: { select: taxonCard } } } },
+        include: { assets: { where: { OR: [referenceImageWhere, { kind: 'sound', ownerId: null, sightingId: null, avatarOf: null }] }, orderBy: [...referenceAssetOrder], include: { referenceVisibility: { select: { eligible: true, targetPosition: true, hiddenReason: true, correctedLicenceUrl: true } } } }, interactionsFrom: { include: { target: { select: taxonCard } } } },
       })
       if (!t) return null
       const regionId = input.regionId

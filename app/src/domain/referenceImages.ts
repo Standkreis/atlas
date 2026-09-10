@@ -31,7 +31,8 @@ export function normalizedRemoteUrl(value: string) {
   return url.toString()
 }
 
-export type ReferenceRow = { id: string; kind: string; position: number; createdAt: Date | string; url: string; author: string; licence: string; licenceUrl: string | null; sourceUrl: string; origin: string }
+export type ReferenceVisibility = { eligible: boolean; targetPosition: number | null; hiddenReason: string | null; correctedLicenceUrl: string | null }
+export type ReferenceRow = { id: string; kind: string; position: number; createdAt: Date | string; url: string; author: string; licence: string; licenceUrl: string | null; sourceUrl: string; origin: string; referenceVisibility?: ReferenceVisibility | null }
 export function validReferenceImage(asset: ReferenceRow) {
   return asset.kind === 'image' && Number.isSafeInteger(asset.position) && asset.position >= 0 &&
     typeof asset.author === 'string' && Boolean(asset.author.trim()) && typeof asset.licence === 'string' &&
@@ -44,7 +45,19 @@ export function referenceGallery<T extends ReferenceRow>(rows: readonly T[], lim
   if (!Number.isSafeInteger(limit) || limit <= 0) return []
   const pages = new Set<string>(), urls = new Set<string>()
   const out: T[] = []
-  const ordered = rows.filter(validReferenceImage).sort((a, b) => a.position - b.position || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  // A completely unreviewed gallery keeps the legacy contract until the atomic cutover. Once any
+  // reviewed row exists, missing/hidden decisions fail closed and only explicit target positions
+  // are eligible. The original Asset metadata stays untouched; the reviewed same-rights URL is a
+  // display overlay.
+  const reviewed = rows.some((asset) => asset.referenceVisibility != null)
+  const candidates = rows.flatMap((asset) => {
+    const visibility = asset.referenceVisibility
+    if (!reviewed) return validReferenceImage(asset) ? [asset] : []
+    if (!visibility?.eligible || !Number.isSafeInteger(visibility.targetPosition) || visibility.targetPosition! < 0 || visibility.targetPosition! > 11) return []
+    const effective = { ...asset, position: visibility.targetPosition!, licenceUrl: visibility.correctedLicenceUrl ?? asset.licenceUrl }
+    return validReferenceImage(effective) ? [effective] : []
+  })
+  const ordered = candidates.sort((a, b) => a.position - b.position || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   for (const asset of ordered) {
     const page = normalizedRemoteUrl(asset.sourceUrl), url = normalizedRemoteUrl(asset.url)
     if (pages.has(page) || urls.has(url)) continue

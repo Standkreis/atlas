@@ -354,6 +354,7 @@ model CatalogueVersion {
   taxa         CatalogueTaxon[]
   taxonomy     CatalogueTaxonomyResolution[]
   habitat      CatalogueHabitatBatch[]
+  referenceGalleryReceipts ReferenceGalleryReceipt[]
 
   @@unique([countryCode, runKey])
   @@unique([id, registryVersionId])
@@ -544,6 +545,7 @@ model Taxon {
   catalogueLookalikeSiblings CatalogueLookalike[] @relation("catalogueLookalikeSibling")
   catalogues CatalogueTaxon[]
   enrichmentWork TaxonEnrichmentWork[]
+  referenceGalleryReceipts ReferenceGalleryReceipt[]
 }
 
 /// Membership in a region's set, whole year, cut per tile (record 0002 E2, E3). GBIF alone.
@@ -644,9 +646,55 @@ model Asset {
   /// Legacy photos conservatively count as the previous 8 MiB upload maximum.
   byteSize   Int       @default(8388608)
   scans      ScanWork[]
+  referenceVisibility ReferenceAssetVisibility?
 
   @@index([taxonId])
   @@index([taxonId, position])
+}
+
+/// Reviewed target visibility for one retained global reference asset. The source Asset row remains
+/// the immutable before-image; correctedLicenceUrl is the only permitted display metadata overlay.
+model ReferenceAssetVisibility {
+  asset                  Asset                   @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  assetId                String                  @id
+  receipt                ReferenceGalleryReceipt @relation(fields: [catalogueVersionId, taxonId], references: [catalogueVersionId, taxonId], onDelete: Restrict)
+  catalogueVersionId     String
+  taxonId                String
+  eligible               Boolean
+  targetPosition         Int?
+  hiddenReason           String?
+  correctedLicenceUrl    String?
+  sourceAssetFingerprint String
+  evidence               Json
+  evidenceFingerprint    String
+  reviewer               String
+  reviewedAt             DateTime
+  createdAt              DateTime                @default(now())
+
+  @@unique([catalogueVersionId, taxonId, targetPosition])
+  @@index([taxonId])
+}
+
+/// Target merge receipt, distinct from source-enrichment work. Exact before-images, reviewed
+/// evidence and the effective ordered gallery are independently fingerprinted for replay checks.
+model ReferenceGalleryReceipt {
+  catalogueVersion    CatalogueVersion           @relation(fields: [catalogueVersionId], references: [id], onDelete: Restrict)
+  catalogueVersionId  String
+  taxon               Taxon                      @relation(fields: [taxonId], references: [id], onDelete: Restrict)
+  taxonId             String
+  sourceSnapshot      Json
+  sourceFingerprint   String
+  evidence            Json
+  evidenceFingerprint String
+  resultSnapshot      Json
+  resultFingerprint   String
+  reviewer            String
+  reviewedAt          DateTime
+  createdAt           DateTime                   @default(now())
+  visibility          ReferenceAssetVisibility[]
+
+  @@id([catalogueVersionId, taxonId])
+  @@index([taxonId])
 }
 
 // ── The atom and the other axis ───────────────────────────────────────────────

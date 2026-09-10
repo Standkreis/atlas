@@ -6,14 +6,19 @@ import { taxonRouter } from './routers/taxon'
 import { journalRouter } from './routers/journal'
 import { sightingRouter } from './routers/sighting'
 import type { Context } from './trpc'
+import { regionalPackUrls } from '../components/OfflinePack'
 
 const taxonIds = [randomUUID(), randomUUID()]
 const keys = [990037001, 990037002]
 const leadId = '00000000-0037-4000-8000-000000000001'
+const reviewedLeadId = '00000000-0037-4000-8000-000000000002'
+const registryId = randomUUID(), catalogueId = randomUUID()
 let context: Context, regionId: string, sightingId: string
 const asset = (taxonId: string, n: number, position = n) => ({ taxonId, kind: 'image' as const, position, url: `https://example.test/image/${n}/medium.jpg`, author: 'Photographer', licence: 'CC BY 4.0', licenceUrl: 'https://creativecommons.org/licenses/by/4.0/', sourceUrl: `https://example.test/source/${n}`, origin: 'commons', caption: `Image ${n}`, createdAt: new Date('2025-01-01') })
 
 beforeAll(async () => {
+  await db.regionRegistryVersion.create({ data: { id: registryId, countryCode: 'DE', version: registryId, artifactSha256: 'a'.repeat(64), expectedRegions: 0, expectedSourceUnits: 0 } })
+  await db.catalogueVersion.create({ data: { id: catalogueId, countryCode: 'DE', runKey: catalogueId, registryVersionId: registryId, inputFingerprint: 'i', sourceFingerprint: 's', plausibleRulesVersion: 1, tileMappingVersion: 1, observationWindowVersion: 1, yearFrom: 2016, yearTo: 2026, occurrencePredicates: {}, expectedRegions: 1 } })
   const identity = await db.identity.create({ data: {} })
   context = { db, identity, networkKey: randomUUID(), minted: false, cookies: {}, outCookies: [], origin: 'http://localhost', locale: 'en', setCookie: () => 0 }
   const region = await db.region.create({ data: { name: 'Gallery reads fixture', higher: 'Deutschland', status: 'ready' } })
@@ -30,7 +35,7 @@ beforeAll(async () => {
     { ...asset(taxonIds[0], 101, 0), licence: 'unknown', createdAt: new Date(0) },
     { ...asset(taxonIds[0], 102, 0), url: 'javascript:alert(1)', createdAt: new Date(0) },
     { ...asset(taxonIds[0], 1, 0), id: leadId },
-    { ...asset(taxonIds[0], 2, 0), id: '00000000-0037-4000-8000-000000000002' },
+    { ...asset(taxonIds[0], 2, 0), id: reviewedLeadId },
     { ...asset(taxonIds[0], 1, 1), url: 'https://example.test/image/1/small.jpg?duplicate=1' },
     { ...asset(taxonIds[0], 3, 1), sourceUrl: 'https://example.test/source/1' },
     ...Array.from({ length: 14 }, (_, i) => asset(taxonIds[0], i + 4, i + 1)),
@@ -44,9 +49,13 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await db.identity.delete({ where: { id: context.identity.id } })
+  await db.referenceAssetVisibility.deleteMany({ where: { catalogueVersionId: catalogueId } })
+  await db.referenceGalleryReceipt.deleteMany({ where: { catalogueVersionId: catalogueId } })
+  if (context) await db.identity.delete({ where: { id: context.identity.id } })
   await db.taxon.deleteMany({ where: { id: { in: taxonIds } } })
-  await db.region.delete({ where: { id: regionId } })
+  if (regionId) await db.region.delete({ where: { id: regionId } })
+  await db.catalogueVersion.deleteMany({ where: { id: catalogueId } })
+  await db.regionRegistryVersion.deleteMany({ where: { id: registryId } })
   await db.$disconnect()
 })
 
@@ -84,6 +93,44 @@ describe('public gallery read contract', () => {
     expect(fill?.taxon.lead?.id).toBe(leadId)
     const outside = await sightingRouter.createCaller(context).outside({ regionId: randomUUID() })
     expect(outside[0].lead?.id).toBe(leadId)
+  })
+
+  it('uses one reviewed visibility decision for detail, every lead read and the offline pack', async () => {
+    await db.referenceGalleryReceipt.create({ data: {
+      catalogueVersionId: catalogueId, taxonId: taxonIds[0], sourceSnapshot: { fixture: 'before-images' }, sourceFingerprint: 'a'.repeat(64),
+      evidence: { fixture: 'target review' }, evidenceFingerprint: 'b'.repeat(64), resultSnapshot: { fixture: 'effective gallery' }, resultFingerprint: 'c'.repeat(64),
+      reviewer: 'Integration reviewer', reviewedAt: new Date('2026-09-10T20:00:00.000Z'),
+    } })
+    await expect(db.referenceAssetVisibility.create({ data: {
+      assetId: leadId, catalogueVersionId: catalogueId, taxonId: taxonIds[0], eligible: true,
+      sourceAssetFingerprint: 'd'.repeat(64), evidence: { fixture: 'missing target position' }, evidenceFingerprint: 'e'.repeat(64),
+      reviewer: 'Integration reviewer', reviewedAt: new Date('2026-09-10T20:00:00.000Z'),
+    } })).rejects.toThrow()
+    await db.referenceAssetVisibility.createMany({ data: [
+      { assetId: leadId, catalogueVersionId: catalogueId, taxonId: taxonIds[0], eligible: false, hiddenReason: 'confirmed-subject-conflict', sourceAssetFingerprint: 'd'.repeat(64), evidence: { fixture: 'conflict' }, evidenceFingerprint: 'e'.repeat(64), reviewer: 'Integration reviewer', reviewedAt: new Date('2026-09-10T20:00:00.000Z') },
+      { assetId: reviewedLeadId, catalogueVersionId: catalogueId, taxonId: taxonIds[0], eligible: true, targetPosition: 0, correctedLicenceUrl: null, sourceAssetFingerprint: 'f'.repeat(64), evidence: { fixture: 'eligible' }, evidenceFingerprint: '0'.repeat(64), reviewer: 'Integration reviewer', reviewedAt: new Date('2026-09-10T20:00:00.000Z') },
+    ] })
+    try {
+      const protectedIds = (await db.asset.findMany({ where: { taxonId: taxonIds[0], OR: [{ kind: 'sound' }, { origin: 'user' }, { ownerId: { not: null } }, { sightingId: { not: null } }] }, select: { id: true }, orderBy: { id: 'asc' } })).map((row) => row.id)
+      await expect(db.asset.delete({ where: { id: reviewedLeadId } })).rejects.toThrow()
+      await expect(db.taxon.delete({ where: { id: taxonIds[0] } })).rejects.toThrow()
+      const page = await taxonRouter.createCaller(context).page({ gbifKey: keys[0], regionId })
+      expect(page!.assets.filter((row) => row.kind === 'image').map((row) => row.id)).toEqual([reviewedLeadId])
+      expect(page!.assets.filter((row) => row.kind === 'sound')).toHaveLength(2)
+      const dex = await dexRouter.createCaller(context).set({ regionId, tiles: ['bird'] })
+      const row = dex!.species.find((species) => species.taxonId === taxonIds[0])!
+      expect(row.lead?.id).toBe(reviewedLeadId)
+      expect(row.lead).not.toHaveProperty('referenceVisibility')
+      expect(regionalPackUrls([row])).toEqual([row.leadSmall])
+      expect((await taxonRouter.createCaller(context).ensure({ gbifKey: keys[0] })).leadInfo?.sourceUrl).toBe(asset(taxonIds[0], 2).sourceUrl)
+      expect((await journalRouter.createCaller(context).get({ id: sightingId }))?.reference?.id).toBe(reviewedLeadId)
+      expect((await sightingRouter.createCaller(context).fill({ id: sightingId }))?.taxon.lead?.id).toBe(reviewedLeadId)
+      expect((await sightingRouter.createCaller(context).outside({ regionId: randomUUID() }))[0]?.lead?.id).toBe(reviewedLeadId)
+      expect((await db.asset.findMany({ where: { id: { in: protectedIds } }, select: { id: true }, orderBy: { id: 'asc' } })).map((row) => row.id)).toEqual(protectedIds)
+    } finally {
+      await db.referenceAssetVisibility.deleteMany({ where: { catalogueVersionId: catalogueId } })
+      await db.referenceGalleryReceipt.delete({ where: { catalogueVersionId_taxonId: { catalogueVersionId: catalogueId, taxonId: taxonIds[0] } } })
+    }
   })
 
   it('keeps optional-content pages functional when every reference and common name is malformed', async () => {
