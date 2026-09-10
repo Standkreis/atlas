@@ -1,11 +1,12 @@
 // The fetch layer, ported from scripts/etl-probe/lib.mjs (record 0002 E11): GET JSON or text with a URL-keyed disk
-// cache under etl/.cache/<host>/, a total network-attempt budget per process (50,000, `ETL_BUDGET`), per-host gaps as reserved slots, an in-flight cap for GBIF, retries with backoff, one User-Agent.
-// The probe ran ~7,000 responses on exactly these settings with zero 429s.
+// cache under etl/.cache/<host>/, a total network-attempt budget per process (50,000, `ETL_BUDGET`),
+// durable shared iNaturalist allowance, per-host slots, GBIF in-flight cap, retries and one User-Agent.
 import { createHash } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { blockInatUntil, dispatchInat } from './inat-request-ledger'
 
 export const UA = 'standkreis-dex/0.1 (https://github.com/svreiser/standkreis-dex; svreiser@gmail.com)'
 export const CACHE = join(dirname(fileURLToPath(import.meta.url)), '.cache')
@@ -21,10 +22,12 @@ function store(dir: string, file: string, body: string) {
   }
 }
 const BUDGET = Number(process.env.ETL_BUDGET ?? 50_000)
-/** Minimum gap between two requests to one host, ms. iNaturalist allows ~1/s; Wikidata and GloBI ~3/s. */
-const MIN_GAP: Record<string, number> = { 'api.inaturalist.org': 1100, 'query.wikidata.org': 300, 'api.globalbioticinteractions.org': 300, 'api.gbif.org': 200, 'xeno-canto.org': 1100, 'gift.uni-goettingen.de': 500 }
-/** GBIF publishes no fixed safe search rate. Keep requests conservative and let Retry-After extend the shared host cooldown. */
-const MAX_INFLIGHT: Record<string, number> = { 'api.gbif.org': 2 }
+/** Conservative minimum gaps, not guaranteed quotas: WDQS limits processing time, not a fixed request rate. */
+const MIN_GAP: Record<string, number> = { 'api.inaturalist.org': 1100, 'query.wikidata.org': 1100, 'api.globalbioticinteractions.org': 300, 'api.gbif.org': 200, 'xeno-canto.org': 1100, 'gift.uni-goettingen.de': 500 }
+/** Serialize WDQS work; let Retry-After extend host cooldowns. GBIF retains its two-request cap. */
+const MAX_INFLIGHT: Record<string, number> = { 'api.gbif.org': 2, 'query.wikidata.org': 1 }
+/** WDQS documents a 60 s query timeout; allow its response plus a small transport margin. */
+const REQUEST_TIMEOUT_MS: Record<string, number> = { 'query.wikidata.org': 65_000 }
 const ATTEMPTS = 5
 
 const budget: Record<string, number> = {}
@@ -101,12 +104,20 @@ export const failedCaptureRequests = (error: unknown): RequestStats | null => (
 const cachePolicy = new AsyncLocalStorage<{ refresh: boolean }>()
 export const withFreshCache = <T>(fn: () => Promise<T>): Promise<T> => cachePolicy.run({ refresh: true }, fn)
 type ResponseCapture = { entries: { url: string; response: string }[]; requests: RequestStats }
+export type ResponseEvidence = { url: string; responseFingerprint: string }
+export function responseEvidenceFingerprint(entries: readonly ResponseEvidence[]) {
+  const fingerprint = createHash('sha256')
+  for (const entry of [...entries].sort((a, b) => a.url.localeCompare(b.url) || a.responseFingerprint.localeCompare(b.responseFingerprint))) {
+    fingerprint.update(entry.url).update('\0').update(entry.responseFingerprint).update('\n')
+  }
+  return fingerprint.digest('hex')
+}
 /**
  * Capture the effective responses read by an ETL operation without retaining their bodies.
  * The returned digest is stable for the same URL/response pairs, regardless of completion order.
  * Each async context owns its entries, so concurrent runs cannot contaminate one another.
  */
-export async function withResponseCapture<T>(fn: () => Promise<T>): Promise<{ value: T; fingerprint: string; requests: RequestStats }> {
+export async function withResponseCapture<T>(fn: () => Promise<T>): Promise<{ value: T; fingerprint: string; responses: ResponseEvidence[]; requests: RequestStats }> {
   const capture: ResponseCapture = { entries: [], requests: emptyRequestStats() }
   let value: T
   try {
@@ -114,11 +125,9 @@ export async function withResponseCapture<T>(fn: () => Promise<T>): Promise<{ va
   } catch (error) {
     throw new ResponseCaptureFailure(error, capture.requests)
   }
-  const fingerprint = createHash('sha256')
-  for (const entry of [...capture.entries].sort((a, b) => a.url.localeCompare(b.url) || a.response.localeCompare(b.response))) {
-    fingerprint.update(entry.url).update('\0').update(entry.response).update('\n')
-  }
-  return { value, fingerprint: fingerprint.digest('hex'), requests: capture.requests }
+  const responses = capture.entries.map(({ url, response }) => ({ url, responseFingerprint: response }))
+    .sort((a, b) => a.url.localeCompare(b.url) || a.responseFingerprint.localeCompare(b.responseFingerprint))
+  return { value, fingerprint: responseEvidenceFingerprint(responses), responses, requests: capture.requests }
 }
 const responseCapture = new AsyncLocalStorage<ResponseCapture>()
 const recordResponse = (url: string, response: string) => responseCapture.getStore()?.entries.push({ url, response })
@@ -155,6 +164,7 @@ export async function get(url: string, { headers = {}, text = false, bytes = fal
   }
   stats.misses++
   recordRequest('misses')
+  if (networkAttempts >= BUDGET) throw new Error(`total request budget exhausted (${BUDGET} network attempts)`)
   const gap = MIN_GAP[host] ?? 100
   const slot = async () => {
     while (true) {
@@ -178,12 +188,20 @@ export async function get(url: string, { headers = {}, text = false, bytes = fal
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
       await slot()
       if (networkAttempts >= BUDGET) throw new Error(`total request budget exhausted (${BUDGET} network attempts)`)
-      networkAttempts += 1
-      budget[host] = (budget[host] ?? 0) + 1
-      recordAttempt(host)
       try {
-        const timeout = AbortSignal.timeout(15_000)
-        const r = await fetch(url, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout, headers: { 'User-Agent': UA, Accept: text || bytes ? '*/*' : 'application/json', ...headers } })
+        const dispatch = () => {
+          // Recheck after a shared-ledger wait; another host may have consumed the process budget.
+          if (networkAttempts >= BUDGET) throw new Error(`total request budget exhausted (${BUDGET} network attempts)`)
+          signal?.throwIfAborted()
+          networkAttempts += 1
+          budget[host] = (budget[host] ?? 0) + 1
+          recordAttempt(host)
+          const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS[host] ?? 15_000)
+          return fetch(url, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+            ...(host === 'api.inaturalist.org' ? { redirect: 'error' as const } : {}),
+            headers: { 'User-Agent': UA, Accept: text || bytes ? '*/*' : 'application/json', ...headers } })
+        }
+        const r = await (host === 'api.inaturalist.org' ? dispatchInat(dispatch, { signal }) : dispatch())
         if (r.status === 404) {
           if (!bytes) store(dir, file, text ? '' : 'null')
           if (!bytes) recordResponse(url, '404')
@@ -196,6 +214,7 @@ export async function get(url: string, { headers = {}, text = false, bytes = fal
           lastErr = new Error(`${r.status} ${redact(url)}`)
           const retryAt = Date.now() + retryAfterMs(r.headers.get('retry-after'), attempt)
           blockedUntil[host] = Math.max(blockedUntil[host] ?? 0, retryAt)
+          if (host === 'api.inaturalist.org') await blockInatUntil(retryAt)
           continue
         }
         if (!r.ok) throw new Error(`${r.status} ${redact(url)}`)

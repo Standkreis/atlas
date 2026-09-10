@@ -1,14 +1,15 @@
-import { createHash } from 'node:crypto'
 import type { Prisma } from '../src/generated/prisma/client'
 import { db } from './db'
-import { requests } from './fetch'
+import { requests, withResponseCapture } from './fetch'
 import { commonsLicenceUrlMatches, normalizedRemoteUrl, selectGallery, type GalleryAsset, type GallerySelection } from './gallery'
 import { commonsFileOf, INAT_LICENCES, inatLicence, inatLicenceUrl } from './prune'
 import { commonsInfo, commonsLicenceUrl, fetchInatGallery } from './sources'
 import { runTaxonWork, type TaxonWorkResult } from './taxon-work'
 import { wikidataFor } from './wikidata'
 
-export const GALLERY_VERSION = 'licensed-gallery-v1'
+// v7 retains v6's durable accepted-source/provenance binding and adds the owner-reviewed exact
+// cross-taxon photo exclusions. Earlier checkpoints remain historical evidence, not current proof.
+export const GALLERY_VERSION = 'licensed-gallery-v7'
 export type GalleryTaxon = { id: string; gbifKey: number; sciName: string }
 export type GalleryFetch = GallerySelection & { coverage: { inat: boolean; commons: boolean } }
 
@@ -142,13 +143,15 @@ export async function runGallery(options: GalleryOptions): Promise<GalleryReport
       const taxon = byId.get(taxonId)!
       counts.examined++
       try {
-        const fetched = await (options.fetchGallery ?? fetchReferenceGallery)(taxon)
+        const captured = await withResponseCapture(() => (options.fetchGallery ?? fetchReferenceGallery)(taxon))
+        const fetched = captured.value
         signal.throwIfAborted()
         const summary = { images: fetched.assets.length, zero: fetched.assets.length === 0, changed: false, coverage: fetched.coverage, rejections: fetched.rejections,
+          acceptedEvidence: fetched.acceptedEvidence, sourceResponses: captured.responses,
           inatImages: fetched.assets.filter((a) => a.origin === 'inat').length, commonsImages: fetched.assets.filter((a) => a.origin === 'commons').length }
         return {
           resultSummary: summary,
-          sourceFingerprint: createHash('sha256').update(JSON.stringify(fetched)).digest('hex'),
+          sourceFingerprint: captured.fingerprint,
           publish: async (tx) => { signal.throwIfAborted(); summary.changed = await replaceReferenceGallery(tx, taxonId, fetched.assets) },
         }
       } catch (error) {

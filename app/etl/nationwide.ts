@@ -331,7 +331,7 @@ export type NationwideOptions = {
   species?: SpeciesLookup
   match?: SpeciesMatchLookup
   fresh?: typeof withFreshCache
-  capture?: typeof withResponseCapture
+  capture?: <T>(fn: () => Promise<T>) => Promise<{ value: T; fingerprint: string; requests: RequestStats }>
 }
 
 export type NationwideResult = {

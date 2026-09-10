@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { selectGallery, type CommonsCandidate, type InatGallerySource, type InatPhotoCandidate } from './gallery'
+import { scientificGalleryExclusion, selectGallery, type CommonsCandidate, type InatGallerySource, type InatPhotoCandidate } from './gallery'
 import { fetchInatGallery } from './sources'
 
 const photo = (id: number, extra: Partial<InatPhotoCandidate> = {}): InatPhotoCandidate => ({
@@ -8,6 +8,10 @@ const photo = (id: number, extra: Partial<InatPhotoCandidate> = {}): InatPhotoCa
   attributionName: `Author ${id}`,
   renderUrl: `https://inaturalist-open-data.s3.amazonaws.com/photos/${id}/medium.jpg`,
   curatedPosition: id,
+  provenance: { status: 'native-free-local-photo', detailedRecords: 1, totalRecords: 1, conflictingMetadata: false, evidence: [{
+    photoId: id, detailed: true, type: 'LocalPhoto', nativePageUrl: null, nativePhotoId: null, missingFields: [], licenseCode: 'cc-by',
+    attribution: null, attributionName: `Author ${id}`, mediumUrl: `https://inaturalist-open-data.s3.amazonaws.com/photos/${id}/medium.jpg`, url: null,
+  }] },
   ...extra,
 })
 const inat = (photos: InatPhotoCandidate[], defaultPhotoId: number | null = photos[0]?.id ?? null, matchedName = 'Turdus merula'): InatGallerySource => ({ taxonId: 42, matchedName, defaultPhotoId, photos })
@@ -24,12 +28,116 @@ const commons = (extra: Partial<CommonsCandidate> = {}): CommonsCandidate => ({
 })
 
 describe('licensed gallery selection', () => {
+  it.each(['Odontites vulgaris', 'Odontites vernus'])('withholds only the reviewed ambiguous Commons source for %s, preserving other images', (scientificName) => {
+    const candidate = commons({ sourceId: 'File:Red bartsia 800.jpg', title: 'File:Red bartsia 800.jpg',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Red_bartsia_800.jpg',
+      renderUrl: 'https://upload.wikimedia.org/wikipedia/commons/d/db/Red_bartsia_800.jpg?utm_source=commons' })
+    for (const defaultId of [1, null]) {
+      const input = { scientificName, inat: inat([photo(1), photo(2)], defaultId, scientificName), commons: candidate }
+      const before = structuredClone(input)
+      const selected = selectGallery(input)
+      expect(selected.assets.map((asset) => [asset.position, asset.origin, asset.sourceUrl])).toEqual([
+        [0, 'inat', 'https://www.inaturalist.org/photos/1'], [1, 'inat', 'https://www.inaturalist.org/photos/2'],
+      ])
+      expect(selected.rejections).toEqual([{ source: 'commons:File:Red bartsia 800.jpg', reason: 'ambiguous-species-attribution',
+        review: { ruleId: 'commons-red-bartsia-ambiguous-species-v1', reason: 'ambiguous-species-attribution', evidence: 'app/etl/README.md#reviewed-scientific-image-exclusions', evidenceSha256: expect.stringMatching(/^[a-f0-9]{64}$/) } }])
+      expect(input).toEqual(before)
+      expect(selectGallery(input)).toEqual(selected)
+    }
+    expect(selectGallery({ scientificName, commons: candidate })).toMatchObject({ status: 'ok', assets: [] })
+    expect(selectGallery({ scientificName, commons: commons({ title: 'Odontites vernus', categories: 'Odontites vulgaris' }) }).assets).toHaveLength(1)
+  })
+
+  it('matches exact reviewed Commons identities across URL spellings without excluding similarly named sources', () => {
+    for (const sourceUrl of ['https://commons.wikimedia.org/wiki/File:Red_bartsia_800.jpg?x=1', 'https://commons.wikimedia.org/wiki/File:Red%20bartsia%20800.jpg', 'https://commons.wikimedia.org/w/index.php?title=File:Red_bartsia_800.jpg&oldid=460093141']) {
+      expect(scientificGalleryExclusion({ origin: 'commons', sourceUrl })?.reason).toBe('ambiguous-species-attribution')
+    }
+    expect(scientificGalleryExclusion({ origin: 'commons', sourceId: 'File:Red_bartsia_800.jpg' })).not.toBeNull()
+    expect(scientificGalleryExclusion({ origin: 'commons', url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Red_bartsia_800.jpg/640px-Red_bartsia_800.jpg?x=2' })).not.toBeNull()
+    for (const image of [
+      { origin: 'inat', sourceId: 'File:Red bartsia 800.jpg' },
+      { origin: 'commons', sourceId: 'File:Red bartsia 800 different.jpg' },
+      { origin: 'commons', sourceUrl: 'https://other.example/wiki/File:Red_bartsia_800.jpg' },
+    ]) expect(scientificGalleryExclusion(image)).toBeNull()
+  })
+
+  it.each([
+    [437081607, 'inat-photo-437081607-cross-taxon-ambiguous-v1'],
+    [575158298, 'inat-photo-575158298-cross-taxon-ambiguous-v1'],
+  ] as const)('withholds only reviewed cross-taxon iNaturalist photo %i and preserves the remaining gallery', (photoId, ruleId) => {
+    const selected = selectGallery({
+      scientificName: 'Example species',
+      inat: inat([photo(photoId, { curatedPosition: 0 }), photo(17, { curatedPosition: 1 })], photoId, 'Example species'),
+    })
+    expect(selected.assets.map((asset) => [asset.position, asset.sourceUrl])).toEqual([[0, 'https://www.inaturalist.org/photos/17']])
+    expect(selected.rejections).toEqual([{
+      source: `inat:${photoId}`,
+      reason: 'ambiguous-species-attribution',
+      review: {
+        ruleId,
+        reason: 'ambiguous-species-attribution',
+        evidence: 'app/etl/README.md#reviewed-scientific-image-exclusions',
+        evidenceSha256: 'eff063fe88ce9921c651318300a225f42cf03a2732540f12927b4e7b86e9a8e1',
+      },
+    }])
+  })
+
+  it('matches exact reviewed iNaturalist identities across source/page/render variants and leaves unrelated IDs untouched', () => {
+    for (const image of [
+      { origin: 'inat', sourceId: '437081607' },
+      { origin: 'inat', sourceId: 'inat:575158298' },
+      { origin: 'inat', sourceUrl: 'https://www.inaturalist.org/photos/437081607/?source=review' },
+      { origin: 'inat', sourceUrl: 'https://inaturalist.org/photos/575158298' },
+      { origin: 'inat', url: 'https://inaturalist-open-data.s3.amazonaws.com/photos/437081607/small.jpeg?size=small' },
+      { origin: 'inat', url: 'https://inaturalist-open-data.s3.amazonaws.com/photos/575158298/original.jpg' },
+    ]) expect(scientificGalleryExclusion(image)?.reason).toBe('ambiguous-species-attribution')
+    for (const image of [
+      { origin: 'commons', sourceId: 'inat:437081607' },
+      { origin: 'inat', sourceId: '437081608' },
+      { origin: 'inat', sourceUrl: 'https://other.example/photos/437081607' },
+      { origin: 'inat', sourceUrl: 'https://www.inaturalist.org/photos/4370816070' },
+      { origin: 'inat', url: 'https://other.example/photos/575158298/medium.jpg' },
+    ]) expect(scientificGalleryExclusion(image)).toBeNull()
+  })
+
+  it('withholds the exact conflicting Chrysotoxum Commons file across identity variants without excluding neighbours', () => {
+    const title = 'File:Chrysotoxum cautum Richard Bartz.jpg'
+    const expected = {
+      ruleId: 'commons-chrysotoxum-cautum-richard-bartz-ambiguous-species-v1',
+      reason: 'ambiguous-species-attribution',
+      evidence: 'app/etl/README.md#reviewed-scientific-image-exclusions',
+      evidenceSha256: 'eff063fe88ce9921c651318300a225f42cf03a2732540f12927b4e7b86e9a8e1',
+    }
+    for (const image of [
+      { origin: 'commons', sourceId: title },
+      { origin: 'commons', sourceId: 'commons:File:Chrysotoxum_cautum_Richard_Bartz.jpg' },
+      { origin: 'commons', sourceUrl: 'https://commons.wikimedia.org/wiki/File:Chrysotoxum%20cautum%20Richard%20Bartz.jpg?oldid=1062030691' },
+      { origin: 'commons', sourceUrl: 'https://commons.wikimedia.org/w/index.php?title=File:Chrysotoxum_cautum_Richard_Bartz.jpg&oldid=1062030691' },
+      { origin: 'commons', url: 'https://upload.wikimedia.org/wikipedia/commons/a/a5/Chrysotoxum_cautum_Richard_Bartz.jpg' },
+      { origin: 'commons', url: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a5/Chrysotoxum_cautum_Richard_Bartz.jpg/640px-Chrysotoxum_cautum_Richard_Bartz.jpg?x=1' },
+    ]) expect(scientificGalleryExclusion(image)).toEqual(expected)
+    const selected = selectGallery({ scientificName: 'Chrysotoxum verralli', commons: commons({ sourceId: title, title, sourceUrl: 'https://commons.wikimedia.org/wiki/File:Chrysotoxum_cautum_Richard_Bartz.jpg', renderUrl: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a5/Chrysotoxum_cautum_Richard_Bartz.jpg/960px-Chrysotoxum_cautum_Richard_Bartz.jpg' }) })
+    expect(selected.assets).toEqual([])
+    expect(selected.rejections).toEqual([{ source: `commons:${title}`, reason: 'ambiguous-species-attribution', review: expected }])
+    for (const image of [
+      { origin: 'inat', sourceId: title },
+      { origin: 'commons', sourceId: 'File:Chrysotoxum cautum Richard Bartz 2.jpg' },
+      { origin: 'commons', sourceUrl: 'https://other.example/wiki/File:Chrysotoxum_cautum_Richard_Bartz.jpg' },
+      { origin: 'commons', url: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/b/a5/Chrysotoxum_cautum_Richard_Bartz.jpg/640px-Chrysotoxum_cautum_Richard_Bartz.jpg' },
+    ]) expect(scientificGalleryExclusion(image)).toBeNull()
+  })
+
   it('keeps the lead ladder and places Commons after an accepted default', () => {
     const selected = selectGallery({ scientificName: 'Turdus merula', inat: inat([photo(2), photo(1)], 2), commons: commons() })
     expect(selected.assets.map((asset) => [asset.position, asset.origin, asset.sourceUrl])).toEqual([
       [0, 'inat', 'https://www.inaturalist.org/photos/2'],
       [1, 'commons', 'https://commons.wikimedia.org/wiki/File:Turdus_merula.jpg'],
       [2, 'inat', 'https://www.inaturalist.org/photos/1'],
+    ])
+    expect(selected.acceptedEvidence).toMatchObject([
+      { position: 0, origin: 'inat', sourceId: 'inat:2', taxonId: 42, matchedName: 'Turdus merula', photoId: 2, provenance: { status: 'native-free-local-photo' } },
+      { position: 1, origin: 'commons', sourceId: 'commons:File:Turdus merula.jpg' },
+      { position: 2, origin: 'inat', sourceId: 'inat:1', taxonId: 42, matchedName: 'Turdus merula', photoId: 1, provenance: { status: 'native-free-local-photo' } },
     ])
   })
 
@@ -86,6 +194,23 @@ describe('licensed gallery selection', () => {
     expect(selectGallery({ scientificName: 'Turdus merula', commons: commons({ sourceId: '' }) }).rejections[0]?.reason).toBe('invalid-source-id')
   })
 
+  it('withholds imported/unknown iNat candidates while retaining independently licensed Commons and species fallback', () => {
+    for (const status of ['unverified-imported-licence', 'unknown-provenance'] as const) {
+      const candidate = photo(1, { provenance: { status, detailedRecords: 1, totalRecords: 1, conflictingMetadata: false, evidence: [] } })
+      const selected = selectGallery({ scientificName: 'Turdus merula', inat: inat([candidate]), commons: commons() })
+      expect(selected.assets.map((a) => a.origin)).toEqual(['commons'])
+      expect(selected.rejections).toContainEqual({ source: 'inat:1', reason: status, provenance: candidate.provenance })
+      expect(selectGallery({ scientificName: 'Turdus merula', inat: inat([candidate]) })).toMatchObject({ status: 'ok', assets: [] })
+    }
+    expect(selectGallery({ scientificName: 'Turdus merula', inat: inat([photo(1, { provenance: undefined })]) }).rejections[0]?.reason).toBe('unknown-provenance')
+  })
+
+  it('does not let an earlier accepted duplicate hide later contrary provenance', () => {
+    const selected = selectGallery({ scientificName: 'Turdus merula', inat: inat([photo(1), photo(1, { provenance: { status: 'unverified-imported-licence', detailedRecords: 1, totalRecords: 1, conflictingMetadata: false, evidence: [] } })]) })
+    expect(selected.assets).toEqual([])
+    expect(selected.rejections[0]?.reason).toBe('unverified-imported-licence')
+  })
+
   it.each([
     ['missing-render-url', { renderUrl: undefined }],
     ['insecure-render-url', { renderUrl: 'http://example.test/photo.jpg' }],
@@ -105,6 +230,8 @@ describe('licensed gallery selection', () => {
     ['unsupported-licence', { licence: 'CC BY-NC 4.0' }],
     ['missing-licence-url', { licenceUrl: null }],
     ['invalid-licence-url', { licenceUrl: 'https://creativecommons.org/licenses/by/4.0/' }],
+    ['invalid-licence-url', { licenceUrl: 'https://user:pass@creativecommons.org/licenses/by-sa/4.0/' }],
+    ['invalid-licence-url', { licenceUrl: 'https://creativecommons.org:8443/licenses/by-sa/4.0/' }],
     ['missing-source-page', { sourceUrl: '' }],
     ['insecure-source-page', { sourceUrl: 'http://commons.wikimedia.org/wiki/File:X.jpg' }],
     ['rejected-commons-subject', { title: 'File:Turdus merula specimen.jpg' }],
@@ -116,6 +243,73 @@ describe('licensed gallery selection', () => {
 })
 
 describe('iNaturalist curated gallery fetch', () => {
+  const rawPhoto = (id: number) => ({ id, license_code: 'cc-by', attribution: `(c) Author ${id}, some rights reserved`, url: `https://inaturalist-open-data.s3.amazonaws.com/photos/${id}/square.jpg` })
+  const detailedPhoto = (id: number) => ({ ...rawPhoto(id), type: 'LocalPhoto', native_page_url: null, native_photo_id: null })
+  const fetched = async (defaultPhoto: unknown, detailed: unknown[]) => {
+    let calls = 0
+    const fetchJson = async <T>(): Promise<T> => (++calls === 1 ? { results: [{ id: 42, name: 'Turdus merula' }] }
+      : { results: [{ id: 42, name: 'Turdus merula', default_photo: defaultPhoto, taxon_photos: detailed.map((photo) => ({ photo })) }] }) as T
+    const result = await fetchInatGallery('Turdus merula', [], fetchJson)
+    if (result.status !== 'ok') throw new Error(`unexpected fixture failure: ${result.status}`)
+    return { source: result.source, selected: selectGallery({ scientificName: 'Turdus merula', inat: result.source }) }
+  }
+
+  it('inherits default provenance only from the matching detailed native-free LocalPhoto', async () => {
+    const { source, selected } = await fetched(rawPhoto(1), [
+      { ...detailedPhoto(1), medium_url: 'https://inaturalist-open-data.s3.amazonaws.com/photos/1/medium.jpg', attribution_name: '  Author   1  ' },
+      detailedPhoto(2),
+    ])
+    expect(source.photos[0]!.provenance).toMatchObject({ status: 'native-free-local-photo', detailedRecords: 1, totalRecords: 2, conflictingMetadata: false })
+    expect(source.photos[0]!.provenance!.evidence).toEqual([
+      { photoId: 1, detailed: false, type: null, nativePageUrl: null, nativePhotoId: null, missingFields: ['type', 'native_page_url', 'native_photo_id'], licenseCode: 'cc-by', attribution: '(c) Author 1, some rights reserved', attributionName: null, mediumUrl: null, url: 'https://inaturalist-open-data.s3.amazonaws.com/photos/1/square.jpg' },
+      { photoId: 1, detailed: true, type: 'LocalPhoto', nativePageUrl: null, nativePhotoId: null, missingFields: [], licenseCode: 'cc-by', attribution: '(c) Author 1, some rights reserved', attributionName: '  Author   1  ', mediumUrl: 'https://inaturalist-open-data.s3.amazonaws.com/photos/1/medium.jpg', url: 'https://inaturalist-open-data.s3.amazonaws.com/photos/1/square.jpg' },
+    ])
+    expect(selected.assets.map((a) => a.sourceUrl)).toEqual(['https://www.inaturalist.org/photos/1', 'https://www.inaturalist.org/photos/2'])
+    expect(selected.assets.map((a) => a.position)).toEqual([0, 1])
+  })
+
+  it('does not infer provenance from the default type, CDN URL, or another photo’s details', async () => {
+    for (const defaultPhoto of [rawPhoto(1), detailedPhoto(1)]) {
+      const { selected } = await fetched(defaultPhoto, [])
+      expect(selected.assets).toEqual([])
+      expect(selected.rejections[0]).toMatchObject({ source: 'inat:1', reason: 'unknown-provenance', provenance: { detailedRecords: 0 } })
+    }
+    const other = await fetched(rawPhoto(1), [detailedPhoto(2)])
+    expect(other.selected.assets.map((a) => a.sourceUrl)).toEqual(['https://www.inaturalist.org/photos/2'])
+    expect(other.selected.rejections[0]?.reason).toBe('unknown-provenance')
+  })
+
+  it.each([
+    { type: 'FlickrPhoto' }, { native_page_url: 'https://www.flickr.com/photos/original/123' }, { native_photo_id: '123' },
+    { type: 'LocalPhoto', native_page_url: 'https://commons.wikimedia.org/wiki/File:Imported.jpg', native_photo_id: 'File:Imported.jpg' },
+  ])('withholds imported detailed provenance and retains rejection evidence: %j', async (fields) => {
+    const { selected } = await fetched(rawPhoto(1), [{ ...detailedPhoto(1), ...fields }])
+    expect(selected.assets).toEqual([])
+    expect(selected.rejections[0]).toMatchObject({ source: 'inat:1', reason: 'unverified-imported-licence', provenance: { detailedRecords: 1, totalRecords: 2 } })
+    expect(selected.rejections[0]!.provenance!.evidence[1]).toMatchObject({ detailed: true })
+  })
+
+  it('withholds missing detailed fields and every contradictory duplicate instead of taking the first', async () => {
+    expect((await fetched(rawPhoto(1), [rawPhoto(1)])).selected.rejections[0]?.reason).toBe('unknown-provenance')
+    expect((await fetched(rawPhoto(1), [{ ...detailedPhoto(1), native_photo_id: undefined }])).selected.rejections[0]?.reason).toBe('unknown-provenance')
+    for (const contrary of [{ type: 'FlickrPhoto' }, { native_photo_id: '123' }, { license_code: 'cc-by-sa' }, { attribution: 'Someone else' }]) {
+      const { selected } = await fetched(rawPhoto(1), [detailedPhoto(1), { ...detailedPhoto(1), ...contrary }])
+      expect(selected.assets).toEqual([])
+      expect(selected.rejections[0]?.reason).toBe('unverified-imported-licence')
+      expect(selected.rejections[0]?.provenance?.conflictingMetadata).toBe('license_code' in contrary || 'attribution' in contrary)
+    }
+    const importedDefault = await fetched({ ...rawPhoto(1), native_page_url: 'https://flickr.com/example' }, [detailedPhoto(1)])
+    expect(importedDefault.selected.assets).toEqual([])
+    expect(importedDefault.selected.rejections[0]?.reason).toBe('unverified-imported-licence')
+  })
+
+  it('bounds checkpoint provenance while considering all detailed records', async () => {
+    const { selected } = await fetched(rawPhoto(1), [...Array.from({ length: 9 }, () => detailedPhoto(1)), { ...detailedPhoto(1), native_photo_id: 'last-conflict' }])
+    expect(selected.assets).toEqual([])
+    expect(selected.rejections[0]).toMatchObject({ reason: 'unverified-imported-licence', provenance: { detailedRecords: 10, totalRecords: 11 } })
+    expect(selected.rejections[0]!.provenance!.evidence).toHaveLength(8)
+  })
+
   it('fetches one curated list only for an exact match and represents a valid zero-image result', async () => {
     const calls: string[] = []
     const fetchJson = async <T>(url: string): Promise<T> => {

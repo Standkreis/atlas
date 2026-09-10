@@ -21,7 +21,7 @@ describe('complete reference-gallery fetching', () => {
     expect(parseGalleryArgs(['--catalogue', 'cat', '--keys', '1,2', '--limit', '10', '--json'])).toMatchObject({ catalogueVersionId: 'cat', keys: [1, 2], limit: 10, json: true })
   })
   it('treats safely absent sources as a successful zero', async () => {
-    await expect(fetchReferenceGallery(taxon)).resolves.toEqual({ status: 'ok', assets: [], rejections: [], coverage: { inat: false, commons: false } })
+    await expect(fetchReferenceGallery(taxon)).resolves.toEqual({ status: 'ok', assets: [], acceptedEvidence: [], rejections: [], coverage: { inat: false, commons: false } })
   })
   it('never turns a provider or unsafe detail response into zero', async () => {
     vi.mocked(fetchInatGallery).mockResolvedValue({ status: 'failure', reason: 'unsafe-match', detail: 'detail identity changed' })

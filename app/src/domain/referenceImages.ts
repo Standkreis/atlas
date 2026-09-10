@@ -17,7 +17,7 @@ export function commonsLicenceUrlMatches(licence: string, value: string) {
   const family = commonsLicenceFamily(licence)
   if (!family || !https(value)) return false
   const url = new URL(value)
-  if (url.hostname !== 'creativecommons.org') return false
+  if (url.hostname !== 'creativecommons.org' || url.username || url.password || url.port) return false
   const path = url.pathname.replace(/\/$/, '').toLowerCase()
   if (family.family === 'cc0') return path === '/publicdomain/zero/1.0'
   if (family.family === 'public-domain') return path === '/publicdomain/mark/1.0'

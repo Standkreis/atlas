@@ -22,7 +22,7 @@ TypeScript on `tsx`, the app's Prisma client, and `ffmpeg-static` (dev dependenc
 | `registry/germany-regions.json` · `registry/registry.ts` | Pinned BKG/BBSR region and Kreis-unit snapshot, complete source/licence metadata and strict invariant validation. No GADM ids, geometry or crosswalk are redistributed in Git |
 | `registry-mapping.ts` · `registry-import.ts` | Strict local-only GBIF/GADM mapping validation and the transactional, idempotent Postgres importer. Mapping provenance and reviewed query ids live only in the operational database |
 | `accepted-taxonomy.ts` · `composite-aggregation.ts` | Deduplicated accepted-key resolution and pure composite count aggregation. Floors/cuts happen after the merge; ties use accepted key ascending |
-| `fetch.ts` | `get` with cache, total-attempt budget (`ETL_BUDGET`, 50,000/run), gaps as reserved slots (iNat 1,100 ms, Wikidata and GloBI 300 ms, GBIF 200 ms with at most 2 in flight, else 100 ms), 5 attempts, shared-host `Retry-After`/bounded fallback cooldown, one User-Agent · request-scoped and process counters · `pool` · `q` |
+| `fetch.ts` | `get` with cache, total-attempt budget (`ETL_BUDGET`, 50,000/run), durable shared iNat rolling-24h allowance (9,000 default; 10,000 ceiling), gaps as reserved slots (iNat/Wikidata 1,100 ms, Wikidata at most 1 in flight, GloBI 300 ms, GBIF 200 ms with at most 2 in flight, else 100 ms), 5 attempts, shared-host `Retry-After`/bounded fallback cooldown, one User-Agent · request-scoped and process counters · `pool` · `q` |
 | `gbif.ts` | `resolveRegion`, `gbifFacet`, `gbifSpecies`, `gbifMatch`, the occurrence window (`ETL_YEARS`, default `2016,2026`) |
 | `rules.ts` | Pure: `tileOf`, `cutTile`, `monthShares` (per 100,000), `words`, `nowRatio`, `isNow`. Shared with the read routers |
 | `prune.ts` | Pure: `pickNames`, `iucnCode`, the Commons reject list, iNat licences, `foldKind`, `capEdges`, `parseAnAge`. Tested in `src/server/routers/taxon.test.ts` |
@@ -94,6 +94,49 @@ automation. A partial run exits with status 2 after writing its report; rerun th
 to continue. Network concurrency is capped at four, GBIF scheduling/retries remain governed by
 `fetch.ts`, and `ETL_BUDGET` counts every actual network attempt, including retries.
 
+Wikidata Query Service calls are serialized within each process with a minimum 1,100 ms
+dispatch gap, including retries. This is conservative load reduction, not a guaranteed provider
+quota: [WDQS usage constraints](https://www.mediawiki.org/wiki/Wikidata_Query_Service/Implementation#Usage_constraints)
+describe a per-client allowance of 60 query-processing seconds per 60 seconds, not three requests
+per second. Expensive queries can still exhaust that allowance; honor Retry-After, retain 429/retry
+counts, and pause/reassess repeated throttling. Run names/gallery provider phases sequentially;
+this in-process scheduler does not coordinate unrelated Wikidata clients or processes.
+WDQS alone has a 65-second client timeout to allow its documented 60-second server query timeout
+plus transport margin; other hosts retain 15 seconds, and caller cancellation still applies.
+
+### Shared iNaturalist allowance
+
+The [official API practices](https://www.inaturalist.org/pages/api+recommended+practices)
+recommend about one request/second and around 10,000 API requests/day. Uncached
+`api.inaturalist.org` requests require `ETL_INAT_LEDGER`, one existing absolute `.json` file
+shared by **every** worktree and batch process on the host. This is additional to the per-process
+`ETL_BUDGET`, not a replacement. Cache hits are free; `ETL_BUDGET=0` remains cache-only and
+does not require a ledger. CDN image checks are separate from API request accounting.
+
+Initialize deliberately through `initializeInatLedger` in `inat-request-ledger.ts`, supplying
+the absolute path, explicit UTC `holdUntil`, and a retained reason explaining prior activity.
+For unknown previous traffic, hold until at least 24 hours after its last possible request;
+never infer zero history from missing logs, cache files, a new worktree, or a process restart.
+The default `dailyLimit` is 9,000 as a conservative margin; an explicit limit can never exceed
+10,000. Initialization refuses existing
+history. It performs no provider or database requests; initialization itself is not permission
+to resume a paused job.
+
+The ledger reserves attempts durably **before dispatch**, counts retries/failures conservatively,
+enforces a rolling 24-hour allowance and 1,100 ms shared gap, and persists Retry-After cooldowns.
+Automatic API redirects are refused so they cannot dispatch uncounted follow-up requests.
+Requests reserved just before an abort/crash can remain counted without reaching the provider.
+Missing/corrupt files, backward clocks, failed persistence and unresolved locks fail closed.
+`.lock` and `.next` files are recovery evidence: never age-delete/steal a lock or reset a ledger
+to regain quota. Stop all participating workers, preserve the files, establish that no owner can
+dispatch, and review history/uncertainty before any manual recovery; uncertainty requires a new
+documented hold covering the unaccounted window. Store these files outside disposable worktrees,
+in a private local directory; do not share them across machines/network filesystems.
+
+Only participating processes are counted. Browsers, scripts bypassing `get`, other machines,
+and previously untracked requests remain external uncertainty, not automatically free allowance.
+Retain per-batch reports alongside the ledger and stop before changing provider-accounting scope.
+
 ### Resumable reference galleries ([#36](https://github.com/Standkreis/atlas/issues/36))
 
 Run `npm run etl -- gallery --catalogue <completed-catalogue-id> --limit 100 --concurrency 2`
@@ -105,12 +148,75 @@ narrows it further and rejects any key outside the selected set. `--limit` bound
 not the first N catalogue members: repeated limited runs advance through pending work. Invalid
 scope is rejected before any work row is seeded. No model or paid content API is used.
 
-The globally unique checkpoint is `(taxonId, gallery, licensed-gallery-v1)`. Completed work,
+The globally unique checkpoint is `(taxonId, gallery, licensed-gallery-v7)`. Version 7
+retains version 6's requirement for matching detailed iNaturalist `taxon_photos` records to consistently identify a
+`LocalPhoto` with explicitly null `native_page_url` and `native_photo_id`. The abbreviated
+`default_photo`, LocalPhoto type alone, and an iNaturalist CDN URL cannot prove native provenance.
+Default candidates inherit proof only from the same photo ID's full detailed records. Imported,
+nonlocal or conflicting records are withheld as `unverified-imported-licence`; missing detailed
+proof is `unknown-provenance`. No original-source licence verifier is introduced: these new
+candidates remain excluded until their original grant can be independently verified. The
+independently sourced Commons path remains available under its existing licence contract.
+Every selected asset's ordered metadata and source identity enter the work summary. Selected
+iNaturalist images additionally retain the matched taxon/photo identity and complete same-photo
+native-source evidence; exact captured source URL/response fingerprints reproduce the checkpoint's
+source fingerprint. Rejections retain bounded provenance details and reasons, while complete
+original responses remain in the source cache. Version 7 changes gallery selection only for the
+three exact owner-reviewed cross-taxon photos below. It does not change species membership or
+existing production photos, whose preservation/visibility is owned by the separate migration plan.
+
+Version 5 retains version 4's selection policy and version 4 retains version 3's correction that
+canonicalizes legacy HTTP and localized Creative Commons deed links only when their family,
+version and jurisdiction exactly match the declared licence. Credentials and nondefault ports
+remain invalid. Versions 1–6 are historical checkpoints, not current completion evidence.
+Completed work,
 including a valid zero-image result, is reused across catalogue versions. Failed or expired work
 is retried once per invocation; a live lease is left to its owner. Stop/restart with the same
 command to resume. There is no destructive force flag; an intentional rules refresh requires a
 reviewed gallery-version change. A lost lease cannot publish. Gallery replacement and work
 completion share one transaction, while unchanged galleries keep their Asset IDs and timestamps.
+
+#### Reviewed scientific image exclusions
+
+On 2026-09-09 the owner approved withholding the exact Commons source
+`File:Red bartsia 800.jpg` from the new galleries for Odontites vulgaris (GBIF 5415024) and
+Odontites vernus (8971475), retaining both species, memberships and other photos. The retained
+Commons category says vulgaris while the [pinned source description](https://commons.wikimedia.org/w/index.php?title=File:Red_bartsia_800.jpg&oldid=460093141)
+says vernus; this is unresolved species attribution, not a licence defect or taxon-merge decision.
+The reviewed source-evidence bundle has SHA-256
+`075799c48c4aad347569c306d8acaa84d5ddcb7de89f99fd300ba3018920818f`.
+
+Version 5 introduced, and version 7 retains, rule `commons-red-bartsia-ambiguous-species-v1` for this exact Commons file
+identity before ordering/capping. Rejections retain `ambiguous-species-attribution`, the rule,
+evidence reference and digest; the final content audit independently blocks that source or a
+scientific rejection without its reviewed evidence. No species/category-wide rejection is added.
+Existing production rows remain subject to the separately reviewed preservation migration.
+
+On 2026-09-10 the owner approved the same conservative withholding for three additional exact
+cross-taxon photo identities: iNaturalist photos `437081607` (Cornus alba/Cornus sericea) and
+`575158298` (Carassius carassius/Carassius auratus), plus Commons
+`File:Chrysotoxum cautum Richard Bartz.jpg` (Chrysotoxum cautum/Chrysotoxum verralli). The two
+iNaturalist photos occur in detailed native-free `LocalPhoto` records for two distinct active
+iNaturalist species and two distinct self-accepted GBIF species; those records prove provenance,
+not which species the pixels depict. The Commons title, object name and category say cautum while
+its description says verralli. None has evidence proving one accepted identity or a multi-subject
+photo. Withhold each photo from both associated galleries pending identification; all six species
+and their other photos remain.
+
+Rules `inat-photo-437081607-cross-taxon-ambiguous-v1`,
+`inat-photo-575158298-cross-taxon-ambiguous-v1` and
+`commons-chrysotoxum-cautum-richard-bartz-ambiguous-species-v1` match only those exact provider
+source identities, including their canonical source-page and render-URL spellings. They do not
+exclude a taxon, genus, category or neighbouring photo ID. The reviewed outside-Git report
+`final-cross-taxon-photo-review/cross-taxon-photo-review-v2.json` has SHA-256
+`eff063fe88ce9921c651318300a225f42cf03a2732540f12927b4e7b86e9a8e1` and retains the exact
+provider/cache hashes, accepted taxonomy envelopes and remaining gallery counts.
+
+Re-evaluate v6 completed galleries into v7 using retained responses and `ETL_BUDGET=0`; do not copy
+or relabel completion rows. Cache misses remain explicit failed/retryable work, not zero-image
+successes. Preserve old checkpoints and raw source evidence. Unchanged galleries retain IDs;
+changed galleries get consecutive positions. Regenerate final content/gallery artifacts and
+their review bindings after replay; catalogue membership and the union fingerprint stay unchanged.
 
 The report's examined/changed/unchanged/zero/capped/rejected/failed/lost counts and source/image
 totals describe this invocation; `work.counts` includes reusable completed work in the selected
@@ -126,6 +232,23 @@ transactional replacement filter and preserve completed global galleries, sounds
 avatars and every user-owned image. Facts/prose follow only successfully filled taxa. The legacy
 content command still provides optional rich content; the gallery command alone does not claim
 complete prose, facts, sounds or interactions.
+
+### German index-ready names and content audit ([#21](https://github.com/Standkreis/atlas/issues/21))
+
+After galleries, run `npm run --silent etl -- names --catalogue <completed-id> --json`.
+The same `--region`, `--keys`, `--limit` and `--concurrency` scope flags are supported. Names
+reuse the gallery pass's Wikidata response cache; run the phases sequentially so their
+per-process host pacing is not multiplied. The `(taxonId, names, wikidata-names-v1)` checkpoint
+records matching evidence and selected/added labels. Existing nonempty names and unrelated
+global content remain unchanged. Missing, ambiguous and non-species matches complete with an
+honest scientific-name fallback; malformed responses fail and remain retryable.
+
+Use the [content audit and filtered transfer runbook](../../docs/operations/germany-content-audit.md)
+for whole-union coverage, resumable live image-URL checks, representative decoded/browser
+review and a reference-only gallery artifact. Names change the Taxon payload: regenerate and
+re-review the base catalogue artifact after enrichment, then bind both final artifacts to the
+same frozen local data. Neither artifact generation nor localhost activation transfers data to
+production. The separately agreed migration/recovery plan remains a release prerequisite.
 
 Why the region job precedes the content job: a species enters a set first, content follows. GloBI targets outside every set get a `Taxon` row (tile from GBIF's ranks, `contentAt` null) and are never picked up by the content job unless they gain a plausibility row or a sighting (record 0002 E13).
 

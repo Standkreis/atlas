@@ -1,11 +1,13 @@
 import { afterAll, beforeAll, afterEach, describe, expect, it, vi } from 'vitest'
 import { createHash } from 'node:crypto'
 const disk = vi.hoisted(() => ({ mtime: Date.now(), body: '{"source":"cache"}' }))
+const guard = vi.hoisted(() => ({ dispatch: vi.fn(async <T>(fn: () => Promise<T>) => fn()), block: vi.fn(async () => {}) }))
+vi.mock('./inat-request-ledger', () => ({ dispatchInat: guard.dispatch, blockInatUntil: guard.block }))
 vi.mock('node:fs', () => ({ existsSync: () => true, mkdirSync: () => {}, readFileSync: () => disk.body, writeFileSync: () => {}, statSync: () => ({ mtimeMs: disk.mtime }) }))
 let layer: typeof import('./fetch')
 beforeAll(async () => { vi.stubEnv('VERCEL', ''); layer = await import('./fetch') })
 afterAll(() => vi.unstubAllEnvs())
-afterEach(() => { layer.resetFetchSchedulingForTest(); vi.useRealTimers(); vi.unstubAllGlobals(); disk.mtime = Date.now() })
+afterEach(() => { layer.resetFetchSchedulingForTest(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.stubEnv('VERCEL', ''); disk.mtime = Date.now(); guard.dispatch.mockClear(); guard.block.mockClear() })
 
 const digest = (...parts: string[]) => {
   const hash = createHash('sha256')
@@ -27,6 +29,156 @@ describe('Retry-After', () => {
 })
 
 describe('ETL cache freshness', () => {
+  it('keeps zero-budget cache hits free and rejects misses before scheduling or dispatch', async () => {
+    vi.useFakeTimers()
+    vi.stubEnv('ETL_BUDGET', '0')
+    vi.resetModules()
+    const zeroBudgetLayer = await import('./fetch')
+    const network = vi.fn(async () => Response.json({ forbidden: true }))
+    vi.stubGlobal('fetch', network)
+
+    expect(await zeroBudgetLayer.get('https://api.inaturalist.org/cached-at-zero')).toEqual({ source: 'cache' })
+
+    let settled = 0
+    const urls = [1, 2, 3].map((id) => `https://api.gbif.org/zero-budget-${id}`)
+    urls.push('https://api.inaturalist.org/zero-budget-ledger')
+    const misses = urls.map((url) => zeroBudgetLayer.withFreshCache(() =>
+      zeroBudgetLayer.get(url),
+    ).then(
+      () => { settled++; throw new Error('zero-budget miss unexpectedly succeeded') },
+      (error: unknown) => { settled++; throw error },
+    ))
+    const results = Promise.allSettled(misses)
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(settled).toBe(4)
+    expect(vi.getTimerCount()).toBe(0)
+    expect(await results).toEqual(Array.from({ length: 4 }, () => expect.objectContaining({
+      status: 'rejected',
+      reason: expect.objectContaining({ message: 'total request budget exhausted (0 network attempts)' }),
+    })))
+    expect(network).not.toHaveBeenCalled()
+    expect(guard.dispatch).not.toHaveBeenCalled()
+    expect(zeroBudgetLayer.requests()).toEqual({
+      perHost: {},
+      networkAttempts: 0,
+      hits: 1,
+      misses: 4,
+      retries: 0,
+      tooMany: 0,
+    })
+  })
+
+  it('rechecks a positive process budget after a concurrent ledger wait', async () => {
+    vi.stubEnv('ETL_BUDGET', '1')
+    vi.resetModules()
+    const oneBudgetLayer = await import('./fetch')
+    let releaseLedger!: () => void
+    guard.dispatch.mockImplementationOnce(async <T>(dispatch: () => Promise<T>) => {
+      await new Promise<void>((resolve) => { releaseLedger = resolve })
+      return dispatch()
+    })
+    const network = vi.fn(async () => Response.json({ ok: true }))
+    vi.stubGlobal('fetch', network)
+
+    const waiting = oneBudgetLayer.withFreshCache(() => oneBudgetLayer.get('https://api.inaturalist.org/waiting'))
+    await vi.waitFor(() => expect(guard.dispatch).toHaveBeenCalledTimes(1))
+    await expect(oneBudgetLayer.withFreshCache(() => oneBudgetLayer.get('https://api.gbif.org/consumes-budget'))).resolves.toEqual({ ok: true })
+    releaseLedger()
+
+    await expect(waiting).rejects.toThrow('total request budget exhausted (1 network attempts)')
+    expect(network).toHaveBeenCalledTimes(1)
+    expect(oneBudgetLayer.requests()).toMatchObject({
+      perHost: { 'api.gbif.org': 1 },
+      networkAttempts: 1,
+      misses: 2,
+    })
+  })
+
+  it('allows the WDQS server timeout plus margin, retains other timeouts and honors caller abort', async () => {
+    vi.useFakeTimers()
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    const controller = new AbortController()
+    let requestSignal: AbortSignal | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      if (!url.includes('query.wikidata.org')) return Response.json({ ok: true })
+      requestSignal = init.signal!
+      return new Promise<Response>((_resolve, reject) => requestSignal!.addEventListener('abort', () => reject(requestSignal!.reason), { once: true }))
+    }))
+    try {
+      const pending = layer.withFreshCache(() => layer.get('https://query.wikidata.org/sparql?abort-test', { signal: controller.signal }))
+      const rejected = expect(pending).rejects.toThrow('caller stopped')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(timeout).toHaveBeenLastCalledWith(65_000)
+      controller.abort(new Error('caller stopped'))
+      await rejected
+      expect(requestSignal?.aborted).toBe(true)
+      await layer.withFreshCache(() => layer.get('https://api.gbif.org/timeout-control'))
+      expect(timeout).toHaveBeenLastCalledWith(15_000)
+    } finally { timeout.mockRestore() }
+  })
+
+  it('serializes Wikidata through response completion and keeps a 1100 ms minimum dispatch gap', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-09T10:00:00Z'))
+    const calls: number[] = [], complete: Array<() => void> = []
+    vi.stubGlobal('fetch', vi.fn(() => {
+      calls.push(Date.now())
+      return new Promise<Response>((done) => complete.push(() => done(Response.json({ ok: true }))))
+    }))
+    const reads = [1, 2, 3].map((n) => layer.withFreshCache(() => layer.get(`https://query.wikidata.org/sparql?test=${n}`)))
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(calls).toHaveLength(1) // Gap elapsed, but the first response is still in flight.
+    complete[0]!()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(calls).toHaveLength(2)
+    complete[1]!()
+    await vi.advanceTimersByTimeAsync(1_099)
+    expect(calls).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(calls).toHaveLength(3)
+    complete[2]!()
+    await Promise.all(reads)
+    expect(calls.slice(1).every((at, i) => at - calls[i]! >= 1_100)).toBe(true)
+  })
+
+  it('honors Wikidata Retry-After before the retry and any queued request', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-09T10:00:00Z'))
+    const calls: number[] = []
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      calls.push(Date.now())
+      return calls.length === 1 ? new Response('limited', { status: 429, headers: { 'Retry-After': '4' } }) : Response.json({ ok: true })
+    }))
+    const first = layer.withResponseCapture(() => layer.withFreshCache(() => layer.get('https://query.wikidata.org/sparql?first')))
+    const queued = layer.withFreshCache(() => layer.get('https://query.wikidata.org/sparql?queued'))
+    await vi.advanceTimersByTimeAsync(3_999)
+    expect(calls).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(calls).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(1_099)
+    expect(calls).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(1)
+    const [result] = await Promise.all([first, queued])
+    expect(calls.map((at) => at - calls[0]!)).toEqual([0, 4_000, 5_100])
+    expect(result.requests).toMatchObject({ perHost: { 'query.wikidata.org': 2 }, retries: 1, tooMany: 1 })
+  })
+
+  it('keeps cached iNaturalist reads free and guards every dispatched retry/error attempt', async () => {
+    vi.useFakeTimers()
+    const network = vi.fn().mockResolvedValueOnce(new Response('slow down', { status: 429, headers: { 'Retry-After': '2' } })).mockResolvedValueOnce(Response.json({ ok: true }))
+    vi.stubGlobal('fetch', network)
+    expect(await layer.get('https://api.inaturalist.org/test')).toEqual({ source: 'cache' })
+    expect(guard.dispatch).not.toHaveBeenCalled()
+    const result = layer.withFreshCache(() => layer.get('https://api.inaturalist.org/test'))
+    await vi.advanceTimersByTimeAsync(3_000)
+    await expect(result).resolves.toEqual({ ok: true })
+    expect(guard.dispatch).toHaveBeenCalledTimes(2)
+    expect(guard.block).toHaveBeenCalledTimes(1)
+    expect(network).toHaveBeenCalledTimes(2)
+    expect(network.mock.calls[0]?.[1]).toMatchObject({ redirect: 'error' })
+  })
+
   it('reuses fresh data but a refresh run fetches even a fresh cached response', async () => {
     const network = vi.fn(async () => Response.json({ source: 'network' }))
     vi.stubGlobal('fetch', network)
@@ -150,6 +302,12 @@ describe('response capture', () => {
     ))
     expect(result.fingerprint).not.toContain('answer')
     expect(result.fingerprint).not.toContain('hello')
+    expect(result.responses).toEqual([
+      { url: 'https://api.gbif.org/cached', responseFingerprint: digest(disk.body) },
+      { url: 'https://api.gbif.org/json', responseFingerprint: digest('{"answer":42}') },
+      { url: 'https://api.gbif.org/missing', responseFingerprint: '404' },
+      { url: 'https://api.gbif.org/text', responseFingerprint: digest('hello') },
+    ])
     expect(result.requests).toEqual({
       perHost: { 'api.gbif.org': 3 },
       networkAttempts: 3,

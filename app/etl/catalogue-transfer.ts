@@ -4,6 +4,7 @@ import { createWriteStream } from 'node:fs'
 import { mkdir, rename, unlink } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { once } from 'node:events'
+import { finished } from 'node:stream/promises'
 import { Client } from 'pg'
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
@@ -123,6 +124,8 @@ export const TRANSFER_SPECS: TransferSpec[] = [
 type FetchPage = (spec: TransferSpec, limit: number, offset: number) => Promise<Page>
 
 async function write(stream: ReturnType<typeof createWriteStream>, hash: ReturnType<typeof createHash>, text: string) {
+  if (stream.errored) throw stream.errored
+  if (stream.destroyed) throw new Error('catalogue transfer stream closed before completion')
   hash.update(text)
   if (!stream.write(text, 'utf8')) await once(stream, 'drain')
 }
@@ -140,6 +143,11 @@ export async function writeTransferJsonl(options: {
   if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 5_000) throw new Error('transfer pageSize must be 1 to 5000')
   await mkdir(dirname(path), { recursive: true })
   const stream = createWriteStream(temporary, { encoding: 'utf8' })
+  // Observe failures immediately, including while a source page is pending. Convert the
+  // rejection to a value until it is deliberately rethrown; no unhandled promise/event gap.
+  const completion = finished(stream, { cleanup: true }).then(() => null, (error: unknown) => error)
+  const closed = new Promise<void>((done) => stream.once('close', done))
+  let opened = false
   const artifactHash = createHash('sha256')
   let bytes = 0, totalRows = 0
   const tables: TransferTable[] = []
@@ -149,6 +157,10 @@ export async function writeTransferJsonl(options: {
     await write(stream, artifactHash, line)
   }
   try {
+    // An early schema/source failure must not destroy/unlink a file whose asynchronous open
+    // is still pending. Also avoid fetching source data when the destination cannot open.
+    await once(stream, 'open')
+    opened = true
     await output({ type: 'standkreis-catalogue-transfer', schemaVersion: 1, catalogueId: options.catalogueId })
     for (const spec of options.specs ?? TRANSFER_SPECS) {
       await output({ type: 'table', table: spec.table, columns: spec.columns })
@@ -171,12 +183,26 @@ export async function writeTransferJsonl(options: {
       tables.push({ table: spec.table, columns: spec.columns, rows, digest: tableHash.digest('hex') })
     }
     stream.end()
-    await once(stream, 'finish')
+    const failure = await completion
+    await closed
+    if (failure) throw failure
     await rename(temporary, path)
     return { artifact: { file: path.split('/').at(-1)!, sha256: artifactHash.digest('hex'), bytes, rows: totalRows }, tables }
   } catch (error) {
+    const aborting = !stream.destroyed
     stream.destroy()
-    await unlink(temporary).catch(() => undefined)
+    await closed
+    const failure = await completion
+    const failures: unknown[] = [error]
+    // Premature close is expected when aborting after a schema/source error; a distinct I/O
+    // error is not. Preserve both causes instead of hiding an asynchronous disk failure.
+    const expectedAbort = aborting && ['ERR_STREAM_PREMATURE_CLOSE', 'ERR_STREAM_DESTROYED'].includes((failure as NodeJS.ErrnoException | null)?.code ?? '')
+    if (failure && failure !== error && !expectedAbort) failures.push(failure)
+    if (opened) {
+      try { await unlink(temporary) }
+      catch (cleanup) { if ((cleanup as NodeJS.ErrnoException).code !== 'ENOENT') failures.push(cleanup) }
+    }
+    if (failures.length > 1) throw new AggregateError(failures, `catalogue transfer failed: ${error instanceof Error ? error.message : String(error)}`)
     throw error
   }
 }
