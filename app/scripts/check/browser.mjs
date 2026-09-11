@@ -20,6 +20,7 @@ const previewAssetIds = ['00000000-0000-4000-8100-000000000000', '00000000-0000-
 const analyticsSightingId = '00000000-0000-4000-8200-000000000000'
 let shiftedPreviewAssets = []
 let previewVisibility = []
+let previewRestored = false
 let oldRegistries = [], oldCatalogues = [], oldMainz = []
 const fixtureDb = new pg.Client({ connectionString: database.href })
 await fixtureDb.connect()
@@ -121,12 +122,25 @@ try {
   for (const locale of ['en', 'de']) await run('scripts/check/ux.mjs', [base, locale])
   for (const locale of ['en', 'de']) await run('scripts/check/scan-transition.mjs', [base, locale])
   await run('scripts/check/gallery.mjs', [base])
+  await run('scripts/check/analytics.mjs', [base])
+  await run('scripts/check/offline.mjs', [base, identityId])
   if (fullCatalogue) {
+    // The demo taxon may occur in any German region. Restore its real lead before
+    // measuring target galleries or deriving the actual region pack's eligible URLs.
+    const restore = new pg.Client({ connectionString: database.href })
+    await restore.connect()
+    try {
+      await restore.query('BEGIN')
+      await restore.query('DELETE FROM "Asset" WHERE id = ANY($1::text[])', [previewAssetIds])
+      for (const row of shiftedPreviewAssets) await restore.query('UPDATE "Asset" SET position = $1 WHERE id = $2', [row.position, row.id])
+      for (const row of previewVisibility) await restore.query('INSERT INTO "ReferenceAssetVisibility" SELECT * FROM json_populate_record(NULL::"ReferenceAssetVisibility", $1::json)', [JSON.stringify(row.snapshot)])
+      await restore.query('COMMIT')
+      previewRestored = true
+    } catch (error) { await restore.query('ROLLBACK'); throw error }
+    finally { await restore.end() }
     await run('scripts/check/full-gallery.mjs', [base])
     for (const locale of ['en', 'de']) await run('scripts/check/full-offline.mjs', [base, locale])
   }
-  await run('scripts/check/analytics.mjs', [base])
-  await run('scripts/check/offline.mjs', [base, identityId])
 } finally {
   await stopOwnedProcess(server)
   const cleanup = new pg.Client({ connectionString: database.href })
@@ -136,7 +150,7 @@ try {
     await cleanup.query(`DELETE FROM "Sighting" WHERE id = $1`, [analyticsSightingId])
     await cleanup.query(`DELETE FROM "Asset" WHERE id = ANY($1::text[])`, [previewAssetIds])
     for (const asset of shiftedPreviewAssets) await cleanup.query(`UPDATE "Asset" SET position = $1 WHERE id = $2`, [asset.position, asset.id])
-    for (const row of previewVisibility) await cleanup.query('INSERT INTO "ReferenceAssetVisibility" SELECT * FROM json_populate_record(NULL::"ReferenceAssetVisibility", $1::json)', [JSON.stringify(row.snapshot)])
+    if (!previewRestored) for (const row of previewVisibility) await cleanup.query('INSERT INTO "ReferenceAssetVisibility" SELECT * FROM json_populate_record(NULL::"ReferenceAssetVisibility", $1::json)', [JSON.stringify(row.snapshot)])
     const restoredAssets = await cleanup.query('SELECT id, position FROM "Asset" WHERE id = ANY($1::text[]) ORDER BY id', [shiftedPreviewAssets.map(row => row.id)])
     assert.deepEqual(restoredAssets.rows, shiftedPreviewAssets, 'original gallery positions restored exactly')
     const restoredVisibility = await cleanup.query('SELECT to_json(v) AS snapshot FROM "ReferenceAssetVisibility" v WHERE "assetId" = ANY($1::text[]) ORDER BY "assetId"', [previewVisibility.map(row => row.snapshot.assetId)])
