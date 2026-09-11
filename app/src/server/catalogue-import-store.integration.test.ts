@@ -24,8 +24,9 @@ import type { ValidatedCatalogueReleaseImport, ValidatedImportEvidence } from '.
 
 const sourceEvidence: ValidatedImportEvidence = { files: [], tables: [], decodedFingerprint: '1'.repeat(64) }
 const assertStillValid = vi.fn(async () => undefined)
+const assertReleaseEvidenceStillValid = vi.fn(async () => undefined)
 const validated = { pins: {}, tables: new Map(), evidence: sourceEvidence, releaseEvidence: [], assertStillValid,
-  assertReleaseEvidenceStillValid: assertStillValid } as unknown as ValidatedCatalogueReleaseImport
+  assertReleaseEvidenceStillValid } as unknown as ValidatedCatalogueReleaseImport
 
 const ids = new Set<string>()
 
@@ -109,7 +110,7 @@ afterEach(async () => {
   await db.catalogueVersion.deleteMany({ where: { id: { in: [...ids] } } })
   await db.regionRegistrySource.deleteMany({ where: { id: { in: [...ids] } } })
   await db.regionRegistryVersion.deleteMany({ where: { id: { in: [...ids] } } })
-  ids.clear(); assertStillValid.mockClear()
+  ids.clear(); assertStillValid.mockClear(); assertReleaseEvidenceStillValid.mockClear()
 })
 
 afterAll(async () => { await db.$disconnect() })
@@ -160,7 +161,7 @@ describe('checked catalogue import store', () => {
     const targetPlan = plan(f.snapshot, f.mutations, ['Identity', 'Sighting'])
     const applyReceipt = receipt(targetPlan)
     await applyCatalogueTargetPlan(db, { validated, plan: targetPlan, receipt: applyReceipt })
-    expect(assertStillValid).toHaveBeenCalledTimes(2)
+    expect(assertReleaseEvidenceStillValid).toHaveBeenCalledTimes(2)
     expect(await db.region.findUnique({ where: { id: f.newRegionId } })).toMatchObject({ name: 'Current region' })
     expect(await db.filter.findUniqueOrThrow({ where: { identityId: f.identityId } })).toMatchObject({ regionId: f.newRegionId, regionIds: [f.newRegionId] })
     expect(await readCatalogueCutoverState(db)).toMatchObject({ state: 'open', activeWrites: 0 })
@@ -487,6 +488,20 @@ describe('checked catalogue import store', () => {
     expect(() => receipt({ ...targetPlan, summary: { mutations: 999 } })).toThrow('plan fingerprint mismatch')
     const changed = { ...applyReceipt, catalogueVersionId: 'forged' } as CatalogueApplyReceipt
     await expect(applyCatalogueTargetPlan(db, { validated, plan: targetPlan, receipt: changed })).rejects.toThrow('receipt is invalid')
+    expect(await readCatalogueCutoverState(db)).toMatchObject({ state: 'open' })
+  })
+
+  it('rejects a frozen-source validator without current release evidence before changing the gate', async () => {
+    const f = await fixture(), targetPlan = plan(f.snapshot, f.mutations), applyReceipt = receipt(targetPlan)
+    const frozenOnly = {
+      pins: validated.pins,
+      tables: validated.tables,
+      evidence: validated.evidence,
+      assertStillValid,
+    } as unknown as ValidatedCatalogueReleaseImport
+    await expect(applyCatalogueTargetPlan(db, { validated: frozenOnly, plan: targetPlan, receipt: applyReceipt }))
+      .rejects.toThrow('requires validated current release evidence')
+    expect(await db.region.findUnique({ where: { id: f.newRegionId } })).toBeNull()
     expect(await readCatalogueCutoverState(db)).toMatchObject({ state: 'open' })
   })
 })

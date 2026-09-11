@@ -457,6 +457,13 @@ async function verifyApplied(db: Db, receipt: CatalogueApplyReceipt, committedFi
   }, { isolationLevel: 'RepeatableRead', ...CATALOGUE_TRANSACTION_OPTIONS })
 }
 
+async function assertCurrentReleaseEvidence(validated: ValidatedCatalogueReleaseImport) {
+  if (typeof validated?.assertReleaseEvidenceStillValid !== 'function') {
+    throw new Error('catalogue apply requires validated current release evidence')
+  }
+  await validated.assertReleaseEvidenceStillValid()
+}
+
 /**
  * Close/drain the shared gate, apply under one serializable transaction, verify after commit, and
  * only then reopen. A drain or post-commit failure intentionally leaves maintenance closed.
@@ -469,7 +476,7 @@ export async function applyCatalogueTargetPlan(db: Db, options: {
 }) {
   validatePlan(options.plan)
   assertReceipt(options.receipt, options.plan)
-  await options.validated.assertStillValid()
+  await assertCurrentReleaseEvidence(options.validated)
   if (options.receipt.sourceEvidenceFingerprint !== contentDigest(options.validated.evidence) ||
     contentDigest(options.receipt.sourceEvidence) !== contentDigest(options.validated.evidence)) throw new Error('catalogue receipt source evidence drifted')
   await db.$transaction((tx) => closeCatalogueGate(tx, {
@@ -479,7 +486,7 @@ export async function applyCatalogueTargetPlan(db: Db, options: {
   const drain = await catalogueWriteDrain(db)
   if (drain.count) throw new Error(`catalogue write drain is not empty (${drain.count})`)
   // The drain may be operator-paced; re-hash the six frozen inputs at the actual transaction edge.
-  await options.validated.assertStillValid()
+  await assertCurrentReleaseEvidence(options.validated)
 
   const committedFingerprint = await db.$transaction(async (tx) => {
     await boundCatalogueTransaction(tx)
