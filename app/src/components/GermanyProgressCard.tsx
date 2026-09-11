@@ -65,7 +65,7 @@ function Header({ titleId }: { titleId: string }) {
   )
 }
 
-function Metric({ value, label, tone = 'text-night', testId }: { value: number | null; label: string; tone?: string; testId: string }) {
+function Metric({ value, label, tone = 'text-ink', testId }: { value: number | null; label: string; tone?: string; testId: string }) {
   return (
     <div data-testid={testId}>
       <dt className="mt-1.5 text-[12px] leading-tight text-ink-soft">{label}</dt>
