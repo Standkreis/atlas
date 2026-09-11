@@ -23,8 +23,16 @@ let previousRegistry: PreviousRegistry | null = null
 let manifestBefore: PreviousRegistry | null = null
 let previousCatalogue: PreviousCatalogue | null = null
 let ownedManifestRegistry = false
+let managesManifestRegistry = false
 const ownedRegionIds: string[] = []
 let priorMembershipCount = 0
+
+type RegistryVersionWriter = Pick<typeof db, 'regionRegistryVersion'>
+
+async function deactivateManagedManifestRegistry(client: RegistryVersionWriter, managed: boolean) {
+  if (!managed) return
+  await client.regionRegistryVersion.updateMany({ where: { id: registryId }, data: { active: false } })
+}
 
 const land: LandFeature[] = [
   { key: south, bbox: [7, 48, 9, 49.5], polygons: [[[[7, 48], [9, 48], [9, 49.5], [7, 49.5], [7, 48]]]] },
@@ -80,11 +88,13 @@ beforeAll(async () => {
       throw new Error('checked-in Germany manifest registry lacks the required canonical fixture regions')
     }
     regionIds = [idsByKey.get(north)!, idsByKey.get(south)!]
+    managesManifestRegistry = true
   } else {
-    ownedManifestRegistry = true
     await db.regionRegistryVersion.create({ data: {
       id: registryId, countryCode: 'DE', version: registryId, artifactSha256: sha, expectedRegions: 2, expectedSourceUnits: 2,
     } })
+    ownedManifestRegistry = true
+    managesManifestRegistry = true
     const source = await db.regionRegistrySource.create({ data: {
       registryVersionId: registryId, role: 'regions', name: 'Fixture', url: 'https://example.test/fixture',
       topicDate: new Date('2024-12-31'), downloadedAt: new Date(), sha256: sha, licenceId: 'dl-de/by-2-0', attribution: 'Fixture',
@@ -139,7 +149,7 @@ afterAll(async () => {
     await db.catalogueTaxon.deleteMany({ where: { catalogueVersionId: { in: catalogueIds } } })
     await db.catalogueVersion.deleteMany({ where: { id: { in: catalogueIds } } })
     await db.taxon.deleteMany({ where: { id: { in: taxonIds } } })
-    await db.regionRegistryVersion.updateMany({ where: { id: registryId }, data: { active: false } })
+    await deactivateManagedManifestRegistry(db, managesManifestRegistry)
     if (ownedManifestRegistry) {
       await db.regionRegistryEntry.deleteMany({ where: { registryVersionId: registryId } })
       await db.regionRegistrySource.deleteMany({ where: { registryVersionId: registryId } })
@@ -150,7 +160,7 @@ afterAll(async () => {
       where: { id: previousRegistry.id },
       data: { active: previousRegistry.active, activatedAt: previousRegistry.activatedAt },
     })
-    if (manifestBefore && !manifestBefore.active && manifestBefore.id !== previousRegistry?.id) await db.regionRegistryVersion.update({
+    if (managesManifestRegistry && manifestBefore && manifestBefore.id !== previousRegistry?.id) await db.regionRegistryVersion.update({
       where: { id: manifestBefore.id },
       data: { active: manifestBefore.active, activatedAt: manifestBefore.activatedAt },
     })
@@ -164,6 +174,12 @@ afterAll(async () => {
 })
 
 describe('Germany-wide personal progress', () => {
+  it('does not deactivate the manifest registry after an unvalidated partial setup', async () => {
+    const updateMany = vi.fn()
+    await deactivateManagedManifestRegistry({ regionRegistryVersion: { updateMany } } as unknown as RegistryVersionWriter, false)
+    expect(updateMany).not.toHaveBeenCalled()
+  })
+
   it('intersects unique accepted taxa with the active catalogue independently of location and recap', async () => {
     await sight(0, { lat: 50, lng: 8 })
     await sight(0, { lat: 49, lng: 8 })
