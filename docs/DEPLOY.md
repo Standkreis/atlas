@@ -72,22 +72,28 @@ exact Vercel Production context: `VERCEL=1`, `VERCEL_ENV=production`, and
 unknown contexts collect nothing. There are no custom product events or Atlas identity properties.
 
 Before a page view can leave the browser, the boundary removes every query string and fragment,
-normalizes the URL against the current same origin, and rewrites `/{locale}/sighting/{id}` to
-`/{locale}/sighting/[id]`. Unparseable, cross-origin and non-page-view events are dropped. The site
+decodes and normalizes the URL against the current same origin, and rewrites
+`/{locale}/sighting/{id}` to `/{locale}/sighting/[id]`. Ambiguous/double-encoded, unknown,
+unparseable, cross-origin and non-page-view events are dropped. The framework-neutral SDK adapter
+uses the same canonical value for both the URL and the separately transported dynamic-route field,
+while retaining the raw pathname only as the SDK's navigation-change token; that value is processed
+by the URL callback and is not the reported dynamic route. This prevents a raw ID from bypassing
+the URL callback without collapsing consecutive visits to two different sightings. The adapter
+also forwards Vercel's public resilient-intake configuration just as the Next adapter does. The site
 uses an origin-only referrer policy. Because the SDK's `beforeSend` callback does not cover its
 separately collected initial referrer, a document with a private sighting path, query, fragment or
 unexpectedly detailed cross-origin referrer does not load analytics at all.
 
-Vercel documents that a page-view data point may also include its timestamp, dynamic route,
-referrer, approximate city-level geolocation, OS/browser/device type and script version. It derives
+Vercel documents that a page-view data point may also include its timestamp, canonical dynamic
+route, referrer, approximate city-level geolocation, OS/browser/device type and script version. It derives
 a visitor hash from the request without a third-party analytics cookie and discards the visitor
 session after 24 hours. The Settings disclosure distinguishes that collection from the app's
 same-origin HttpOnly `dex_id` cookie. The app does not read that cookie into an analytics event.
 Because the intake is same-origin, browser transport may nevertheless attach same-origin cookies
 as HTTP request headers; that is distinct from the event body and configured dashboard fields, but
-remains part of the legal/privacy review. Cookie-free analytics is not by itself a legal
-conclusion: the owner must confirm the applicable disclosure/consent basis before completing the
-production release, and revisit it if the provider configuration or collected fields change.
+does not by itself resolve legal consent or disclosure requirements. Cookie-free analytics is not
+by itself a compliance claim; revisit that open legal question if the provider configuration,
+collected fields or applicable requirements change.
 
 Dashboard enablement is a separate owner-controlled prerequisite, potentially subject to the
 Vercel plan, usage limits and billing authority. A repository build cannot prove enablement or

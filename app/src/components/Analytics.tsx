@@ -1,9 +1,25 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
-import { Analytics, type BeforeSendEvent } from '@vercel/analytics/next'
+import { Analytics, type BeforeSendEvent } from '@vercel/analytics/react'
+import { usePathname } from 'next/navigation'
 
-const PRIVATE_SIGHTING_PATH = /^\/(de|en)\/sighting\/[^/]+\/?$/
+const PRIVATE_SIGHTING_PATH = /^\/(de|en)\/sighting(?:\/.*)?$/
+const PUBLIC_PATH = /^\/(?:$|(de|en)(?:\/?|\/(?:journal|log|onboarding|quests|settings|sources|you)\/?|\/species\/\d+\/?))$/
+
+/** Decode once, then reject ambiguous/double-encoded and unknown routes rather than reporting them. */
+export function sanitizeAnalyticsPathname(pathname: string): string | null {
+  try {
+    if (!pathname.startsWith('/') || pathname.includes('?') || pathname.includes('#')) return null
+    const decoded = decodeURIComponent(pathname)
+    if (decoded.includes('%') || /[\u0000-\u001f\u007f]/.test(decoded)) return null
+    const sighting = decoded.match(PRIVATE_SIGHTING_PATH)
+    if (sighting) return `/${sighting[1]}/sighting/[id]`
+    return PUBLIC_PATH.test(decoded) ? decoded : null
+  } catch {
+    return null
+  }
+}
 
 /** Vercel's callback is the last boundary before a page view enters the analytics script. */
 export function sanitizeAnalyticsPageView(event: BeforeSendEvent, expectedOrigin: string): BeforeSendEvent | null {
@@ -14,10 +30,13 @@ export function sanitizeAnalyticsPageView(event: BeforeSendEvent, expectedOrigin
     const url = new URL(event.url, origin)
     if (!['http:', 'https:'].includes(origin.protocol) || url.origin !== origin.origin || url.username || url.password) return null
 
+    const pathname = sanitizeAnalyticsPathname(url.pathname)
+    if (!pathname) return null
     url.search = ''
     url.hash = ''
-    url.pathname = url.pathname.replace(PRIVATE_SIGHTING_PATH, '/$1/sighting/[id]')
-    return { ...event, url: url.href }
+    url.pathname = pathname
+    // Return the documented minimum so future SDK-added fields cannot bypass this boundary.
+    return { type: 'pageview', url: url.href }
   } catch {
     return null
   }
@@ -35,13 +54,17 @@ export function isSafeAnalyticsReferrer(referrer: string, expectedOrigin: string
     const url = new URL(referrer)
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) return false
     if (url.origin !== origin.origin && url.pathname !== '/') return false
-    return !PRIVATE_SIGHTING_PATH.test(url.pathname)
+    if (url.origin !== origin.origin) return true
+    const pathname = sanitizeAnalyticsPathname(url.pathname)
+    return pathname !== null && !pathname.endsWith('/sighting/[id]')
   } catch {
     return false
   }
 }
 
 export function AnalyticsClient() {
+  const rawPathname = usePathname()
+  const pathname = sanitizeAnalyticsPathname(rawPathname)
   const allowed = useSyncExternalStore(
     () => () => undefined,
     () => isSafeAnalyticsReferrer(document.referrer, window.location.origin),
@@ -49,5 +72,13 @@ export function AnalyticsClient() {
   )
 
   if (!allowed) return null
-  return <Analytics mode="production" beforeSend={(event) => sanitizeAnalyticsPageView(event, window.location.origin)} />
+  // Supplying our canonical route disables the script's auto tracker, including its raw route field.
+  return <Analytics
+    mode="production"
+    route={pathname}
+    path={pathname === null ? null : rawPathname}
+    basePath={process.env.NEXT_PUBLIC_VERCEL_OBSERVABILITY_BASEPATH}
+    configString={process.env.NEXT_PUBLIC_VERCEL_OBSERVABILITY_CLIENT_CONFIG}
+    beforeSend={(event) => sanitizeAnalyticsPageView(event, window.location.origin)}
+  />
 }
