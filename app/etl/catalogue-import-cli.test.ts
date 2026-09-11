@@ -116,6 +116,8 @@ describe('catalogue import operational CLI', () => {
   it('uses strict configs and distinct read/write execution-manifest contracts', () => {
     expect(parseCatalogueImportExecutionConfig(config)).toEqual(config)
     expect(() => parseCatalogueImportExecutionConfig({ ...config, databaseUrl: 'postgresql://secret' })).toThrow()
+    expect(() => parseCatalogueImportExecutionConfig({ ...config, activationAt: 'not-a-timestamp' })).toThrow()
+    expect(() => parseCatalogueImportExecutionConfig({ ...config, activationAt: '2026-02-30T12:00:00.000Z' })).toThrow()
     expect(parseCatalogueImportExecutionManifest({
       schemaVersion: 1, kind: 'owner-approved-catalogue-import-execution', action: 'plan', codeHead: head,
       configDigest: catalogueImportDigest(config), target: localTarget,
@@ -126,6 +128,43 @@ describe('catalogue import operational CLI', () => {
       configDigest: catalogueImportDigest(config), target: localTarget,
       approval: { name: 'Owner approval record', link: 'https://example.test/approval', approvedAt: '2026-09-10T12:00:00.000Z' },
     })).toThrow()
+    const invalidApproval = { name: 'Owner approval record', link: 'https://example.test/approval', approvedAt: '2026-02-30T12:00:00.000Z' }
+    expect(() => parseCatalogueImportExecutionManifest({
+      schemaVersion: 1, kind: 'owner-approved-catalogue-import-execution', action: 'plan', codeHead: head,
+      configDigest: catalogueImportDigest(config), target: localTarget, approval: invalidApproval,
+    })).toThrow()
+    expect(() => parseCatalogueImportExecutionManifest({
+      schemaVersion: 1, kind: 'owner-approved-catalogue-import-execution', action: 'apply', codeHead: head,
+      configDigest: catalogueImportDigest(config), target: localTarget, planRecordDigest: sha('1'),
+      planFingerprint: sha('2'), receiptFingerprint: sha('3'), receiptFileSha256: sha('4'), approval: invalidApproval,
+    })).toThrow()
+  })
+
+  it.each(['plan', 'apply'] as const)('rejects a future %s approval before connecting', async (action) => {
+    const remoteTarget = { hostname: 'db.example.test', port: '5432', database: 'dex' }
+    const remoteRecord = { ...planRecord, target: remoteTarget }
+    const approval = { name: 'Owner approval record', link: 'https://example.test/approval', approvedAt: '2026-09-12T12:00:00.000Z' }
+    const executionManifest: CatalogueImportExecutionManifest = action === 'plan' ? {
+      schemaVersion: 1, kind: 'owner-approved-catalogue-import-execution', action, codeHead: head,
+      configDigest: catalogueImportDigest(config), target: remoteTarget, approval,
+    } : {
+      schemaVersion: 1, kind: 'owner-approved-catalogue-import-execution', action, codeHead: head,
+      configDigest: catalogueImportDigest(config), target: remoteTarget, planRecordDigest: catalogueImportDigest(remoteRecord),
+      planFingerprint: plan.fingerprint, receiptFingerprint: receipt.fingerprint, receiptFileSha256: receiptDescriptor.sha256, approval,
+    }
+    const fake = runtime({
+      readJson: vi.fn(async (path: string) => path === '/config.json' ? parsed(config)
+        : path === '/plan-record.json' ? parsed(remoteRecord)
+          : path === '/manifest.json' ? parsed(executionManifest) : parsed({ schemaVersion: 1 })) as CatalogueImportCliRuntime['readJson'],
+    })
+    const args = action === 'plan'
+      ? ['plan', '--config', '/config.json', '--receipt', '/receipt.jsonl', '--plan-record', '/new-plan-record.json', '--execution-manifest', '/manifest.json']
+      : ['apply', '--config', '/config.json', '--receipt', '/receipt.jsonl', '--plan-record', '/plan-record.json', '--release-record', '/release.json', '--execution-manifest', '/manifest.json']
+
+    await expect(runCatalogueImportCli(args, {
+      runtime: fake.value, env: { DATABASE_URL: 'postgresql://user:password@db.example.test/dex' },
+    })).rejects.toThrow('approval date is in the future')
+    expect(fake.value.connect).not.toHaveBeenCalled()
   })
 
   it('classifies only loopback dex_check databases as disposable and never exposes credentials', () => {

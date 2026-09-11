@@ -39,6 +39,10 @@ const MAX_OPERATOR_JSON_BYTES = 32 * 1024 * 1024
 
 const shaSchema = z.string().regex(SHA256)
 const textSchema = z.string().trim().min(1)
+const utcMillisSchema = z.string().regex(UTC_MILLIS).refine((value) => {
+  const timestamp = new Date(value)
+  return Number.isFinite(timestamp.getTime()) && timestamp.toISOString() === value
+}, 'must be a real UTC timestamp with millisecond precision')
 const fileSchema = z.strictObject({ path: textSchema, sha256: shaSchema, bytes: z.number().int().nonnegative().optional() })
 const bundleSchema = z.strictObject({ audit: fileSchema, manifest: fileSchema, artifact: fileSchema })
 const pinsSchema = z.strictObject({
@@ -53,7 +57,7 @@ const importBundleSchema = z.strictObject({
 const releaseEvidenceSchema = z.strictObject({ networkReview: fileSchema, auditUrlReport: fileSchema, currentUrlReport: fileSchema })
 const configSchema = z.strictObject({
   schemaVersion: z.literal(1), kind: z.literal('catalogue-import-execution-config'), expectedCommit: z.string().regex(COMMIT),
-  operationId: textSchema, activationAt: z.string().regex(UTC_MILLIS), frozenBundle: importBundleSchema,
+  operationId: textSchema, activationAt: utcMillisSchema, frozenBundle: importBundleSchema,
   releaseEvidence: releaseEvidenceSchema,
   galleryReview: z.strictObject({ document: fileSchema, documentFingerprint: shaSchema, evidenceFingerprint: shaSchema }),
 })
@@ -61,14 +65,14 @@ const targetSchema = z.strictObject({ hostname: textSchema, port: textSchema, da
 const receiptDescriptorSchema = z.strictObject({ sha256: shaSchema, bytes: z.number().int().nonnegative(), receiptFingerprint: shaSchema, streamSha256: shaSchema, protectedScopes: z.number().int().nonnegative(), mutations: z.number().int().nonnegative() })
 const planRecordSchema = z.strictObject({
   schemaVersion: z.literal(1), kind: z.literal('catalogue-import-plan-record'), codeHead: z.string().regex(COMMIT),
-  configDigest: shaSchema, target: targetSchema, operationId: textSchema, activationAt: z.string().regex(UTC_MILLIS),
+  configDigest: shaSchema, target: targetSchema, operationId: textSchema, activationAt: utcMillisSchema,
   planFingerprint: shaSchema, receiptFingerprint: shaSchema, receiptFile: receiptDescriptorSchema,
   summary: z.record(z.string(), z.number().int().nonnegative()),
 })
 const executionManifestBase = {
   schemaVersion: z.literal(1), kind: z.literal('owner-approved-catalogue-import-execution'),
   codeHead: z.string().regex(COMMIT), configDigest: shaSchema, target: targetSchema,
-  approval: z.strictObject({ name: textSchema, link: z.url(), approvedAt: z.string().regex(UTC_MILLIS) }),
+  approval: z.strictObject({ name: textSchema, link: z.url(), approvedAt: utcMillisSchema }),
 } as const
 const executionManifestSchema = z.discriminatedUnion('action', [
   z.strictObject({ ...executionManifestBase, action: z.literal('plan') }),

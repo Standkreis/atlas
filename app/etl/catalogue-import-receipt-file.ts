@@ -113,9 +113,14 @@ async function exclusiveCanonicalWriter(path: string) {
   const handle = await open(absolute, 'wx', 0o600)
   const fileHash = createHash('sha256')
   let bytes = 0
-  const write = async (value: unknown, hash?: ReturnType<typeof createHash>) => {
+  const write = async (value: unknown, hash?: ReturnType<typeof createHash>, maxBytes?: number) => {
+    let recordBytes = 0
     for (const chunk of catalogueJsonChunks(value)) {
       const buffer = Buffer.from(chunk, 'utf8')
+      recordBytes += buffer.length
+      if (maxBytes !== undefined && recordBytes > maxBytes) {
+        throw new Error(`catalogue receipt record exceeds the ${maxBytes} byte size limit`)
+      }
       await writeBuffer(handle, buffer)
       fileHash.update(buffer)
       hash?.update(buffer)
@@ -171,18 +176,18 @@ export async function writeCatalogueReceiptFile(path: string, receipt: Catalogue
   const streamHash = createHash('sha256')
   const writer = await exclusiveCanonicalWriter(path)
   try {
-    await writer.write(header, streamHash); await writer.newline(streamHash)
+    await writer.write(header, streamHash, DEFAULT_MAX_LINE_BYTES); await writer.newline(streamHash)
     for (const [index, scope] of receipt.protectedScopes.entries()) {
-      await writer.write({ type: 'scope', index, scope }, streamHash); await writer.newline(streamHash)
+      await writer.write({ type: 'scope', index, scope }, streamHash, DEFAULT_MAX_LINE_BYTES); await writer.newline(streamHash)
     }
     for (const [index, mutation] of receipt.mutations.entries()) {
-      await writer.write({ type: 'mutation', index, mutation }, streamHash); await writer.newline(streamHash)
+      await writer.write({ type: 'mutation', index, mutation }, streamHash, DEFAULT_MAX_LINE_BYTES); await writer.newline(streamHash)
     }
     const footer: ReceiptFooter = {
       type: 'footer', protectedScopes: receipt.protectedScopes.length, mutations: receipt.mutations.length,
       receiptFingerprint: receipt.fingerprint, streamSha256: streamHash.digest('hex'),
     }
-    await writer.write(footer); await writer.newline()
+    await writer.write(footer, undefined, DEFAULT_MAX_LINE_BYTES); await writer.newline()
     await writer.handle.sync()
     await writer.handle.close()
     await durableDirectory(writer.absolute)
@@ -193,7 +198,9 @@ export async function writeCatalogueReceiptFile(path: string, receipt: Catalogue
     })
   } catch (error) {
     await writer.handle.close().catch(() => undefined)
-    await unlink(writer.absolute).catch(() => undefined)
+    // Retain the exclusive, owner-only partial file as an unmistakably invalid operation artifact.
+    // No descriptor is returned, so the CLI cannot bind it into an approved plan record.
+    await durableDirectory(writer.absolute).catch(() => undefined)
     throw error
   }
 }

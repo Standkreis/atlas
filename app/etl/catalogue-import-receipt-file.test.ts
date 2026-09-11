@@ -91,4 +91,22 @@ describe('catalogue import receipt files', () => {
     expect(record.contentDigest).toBe(catalogueImportDigest({ z: 2, a: 1 }))
     await expect(writeCanonicalExclusiveFile(recordPath, { a: 1 })).rejects.toMatchObject({ code: 'EEXIST' })
   })
+
+  it('retains an invalid owner-only partial file instead of approving an oversized receipt record', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'catalogue-oversized-receipt-'))
+    const path = join(directory, 'receipt.jsonl')
+    const payload = Object.fromEntries(Object.entries(receipt()).filter(([key]) => key !== 'fingerprint')) as Omit<CatalogueApplyReceipt, 'fingerprint'>
+    const oversizedPayload = {
+      ...payload,
+      mutations: [{
+        ...payload.mutations[0]!,
+        after: { ...payload.mutations[0]!.after, prose: 'x'.repeat(16 * 1024 * 1024) },
+      }],
+    }
+    const oversized = { ...oversizedPayload, fingerprint: catalogueImportDigest(oversizedPayload) }
+
+    await expect(writeCatalogueReceiptFile(path, oversized)).rejects.toThrow('record exceeds the 16777216 byte size limit')
+    expect((await stat(path)).mode & 0o777).toBe(0o600)
+    expect(await readFile(path, 'utf8')).not.toContain('"type":"footer"')
+  })
 })
