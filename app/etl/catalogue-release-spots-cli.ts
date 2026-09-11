@@ -2,7 +2,7 @@
 import { appendFile, lstat, mkdir, readFile, stat } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { parseCatalogueImportExecutionConfig } from './catalogue-import-cli'
+import { parseCatalogueImportExecutionConfig, type CatalogueImportExecutionConfig } from './catalogue-import-cli'
 import { validateCatalogueImportBundle, validateFrozenReleaseEvidence } from './catalogue-import-validation'
 import { writeCanonicalExclusiveFile } from './catalogue-import-receipt-file'
 import { contentDigest } from './catalogue-gallery-transfer'
@@ -68,23 +68,33 @@ export async function checkReleaseSpots(contract: ReleaseSpotContract, options: 
   return report
 }
 
-export async function runReleaseSpotAudit(options: ReturnType<typeof parseReleaseSpotArgs>) {
-  if ((await stat(options.config)).size > 32 * 1024 * 1024) throw new Error('execution config exceeds 32 MiB')
-  const config = parseCatalogueImportExecutionConfig(JSON.parse(await readFile(options.config, 'utf8')))
+export async function assertReleaseSpotPaths(config: CatalogueImportExecutionConfig, options: ReturnType<typeof parseReleaseSpotArgs>) {
   const protectedPaths = [config.frozenBundle.base, config.frozenBundle.gallery].flatMap((bundle) => [bundle.audit.path, bundle.manifest.path, bundle.artifact.path])
-  protectedPaths.push(options.config, config.releaseEvidence.networkReview.path, config.releaseEvidence.auditUrlReport.path, config.galleryReview.document.path)
+  protectedPaths.push(options.config, config.releaseEvidence.networkReview.path, config.releaseEvidence.auditUrlReport.path,
+    config.releaseEvidence.currentUrlReport.path, config.galleryReview.document.path)
   if (protectedPaths.some((path) => [options.checkpoint, options.output].includes(resolve(path)))) throw new Error('spot output/checkpoint cannot overwrite frozen evidence')
   try {
     const checkpoint = await lstat(options.checkpoint)
     if (!checkpoint.isFile() || checkpoint.size > 32 * 1024 * 1024) throw new Error('spot checkpoint must be a regular file no larger than 32 MiB')
     for (const path of protectedPaths) {
-      const input = await stat(path)
+      const input = await stat(path).catch((error: NodeJS.ErrnoException) => {
+        // The ignored current descriptor may name a future report. Do not skip later inputs.
+        if (error.code === 'ENOENT' && resolve(path) === resolve(config.releaseEvidence.currentUrlReport.path)) return null
+        throw error
+      })
+      if (!input) continue
       if (checkpoint.dev === input.dev && checkpoint.ino === input.ino) throw new Error('spot checkpoint aliases protected input')
     }
   } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
   // Output is exclusive; fail before issuing requests if the chosen report already exists.
   try { await stat(options.output); throw new Error('spot output already exists; choose a new report path') }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
+}
+
+export async function runReleaseSpotAudit(options: ReturnType<typeof parseReleaseSpotArgs>) {
+  if ((await stat(options.config)).size > 32 * 1024 * 1024) throw new Error('execution config exceeds 32 MiB')
+  const config = parseCatalogueImportExecutionConfig(JSON.parse(await readFile(options.config, 'utf8')))
+  await assertReleaseSpotPaths(config, options)
   const source = await validateCatalogueImportBundle(config.frozenBundle)
   const { spotContract } = await validateFrozenReleaseEvidence(source, config.releaseEvidence)
   console.error(`release spots: ${spotContract.targets.length} reviewed assets, ${new Set(spotContract.targets.map((target) => target.url)).size} unique image URLs`)

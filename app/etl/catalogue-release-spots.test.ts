@@ -1,9 +1,10 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { link, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { validateReleaseSpotReport, type ReleaseSpotContract, type ReleaseSpotReport } from './catalogue-release-spots'
-import { checkReleaseSpots, parseReleaseSpotArgs } from './catalogue-release-spots-cli'
+import { assertReleaseSpotPaths, checkReleaseSpots, parseReleaseSpotArgs, runReleaseSpotAudit } from './catalogue-release-spots-cli'
+import type { CatalogueImportExecutionConfig } from './catalogue-import-cli'
 import { contentDigest } from './catalogue-gallery-transfer'
 
 const now = new Date('2026-09-11T18:00:00.000Z'), url = 'https://static.inaturalist.org/photos/1/medium.jpg'
@@ -14,7 +15,23 @@ function report(): ReleaseSpotReport { return { schemaVersion: 1, kind: 'catalog
   generatedAt: now.toISOString(), attempted: 1, networkRequests: 1, reused: 0, limitation: 'HTTP only',
   checks: [{ url, checkedAt: now.toISOString(), ok: true, method: 'HEAD', status: 200, contentType: 'image/jpeg', finalUrl: url, reason: null }] } }
 const owned: string[] = []
-afterEach(async () => { await Promise.all(owned.splice(0).map((path) => rm(path, { recursive: true, force: true }))) })
+afterEach(async () => { vi.unstubAllGlobals(); await Promise.all(owned.splice(0).map((path) => rm(path, { recursive: true, force: true }))) })
+
+async function fileFixture() {
+  const root = await mkdtemp(join(tmpdir(), 'atlas-release-spots-')); owned.push(root)
+  const input = join(root, 'input.json'), previous = join(root, 'previous-current.json'), configPath = join(root, 'config.json')
+  await writeFile(input, '{}\n'); await writeFile(previous, '{"retained":"prior-current-report"}\n')
+  const descriptor = { path: input, sha256: '1'.repeat(64) }, bundle = { audit: descriptor, manifest: descriptor, artifact: descriptor }
+  const config: CatalogueImportExecutionConfig = { schemaVersion: 1, kind: 'catalogue-import-execution-config', expectedCommit: '1'.repeat(40),
+    operationId: 'fixture', activationAt: now.toISOString(), frozenBundle: { base: bundle, gallery: bundle,
+      pins: { catalogueId: 'c', runKey: 'r', registryVersionId: 'v', unionTaxa: 1, inputFingerprint: descriptor.sha256,
+        responseFingerprint: descriptor.sha256, unionFingerprint: descriptor.sha256, baseAuditFingerprint: descriptor.sha256,
+        contentAuditFingerprint: descriptor.sha256, contentFingerprint: descriptor.sha256, taxonFingerprint: descriptor.sha256 } },
+    releaseEvidence: { networkReview: descriptor, auditUrlReport: descriptor, currentUrlReport: { ...descriptor, path: previous } },
+    galleryReview: { document: descriptor, documentFingerprint: descriptor.sha256, evidenceFingerprint: descriptor.sha256 } }
+  await writeFile(configPath, JSON.stringify(config))
+  return { root, input, previous, config, options: { config: configPath, checkpoint: join(root, 'checkpoint.jsonl'), output: join(root, 'new-report.json'), limit: 1 } }
+}
 
 describe('versioned representative release availability', () => {
   it('accepts exact reviewed coverage and GET partial content', () => {
@@ -73,5 +90,24 @@ describe('versioned representative release availability', () => {
     for (const args of [['--keys', '1'], ['--config', '/a', '--config', '/b'],
       ['--config', '/a', '--checkpoint', '/a', '--output', '/c'],
       ['--config', '/a', '--checkpoint', '/b', '--output', '/c', '--limit', '0']]) expect(() => parseReleaseSpotArgs(args)).toThrow()
+  })
+  it.each(['path', 'hardlink'])('protects a previous current report used as checkpoint by %s before any network request', async (alias) => {
+    const fixture = await fileFixture(), before = await readFile(fixture.previous)
+    const request = vi.fn(); vi.stubGlobal('fetch', request)
+    if (alias === 'hardlink') await link(fixture.previous, fixture.options.checkpoint)
+    else fixture.options.checkpoint = fixture.previous
+    await expect(runReleaseSpotAudit(fixture.options)).rejects.toThrow(/overwrite frozen evidence|aliases protected input/)
+    expect(await readFile(fixture.previous)).toEqual(before)
+    expect(request).not.toHaveBeenCalled()
+  })
+  it('allows a nonexistent ignored current descriptor but still protects later existing inputs', async () => {
+    const fixture = await fileFixture()
+    fixture.config.releaseEvidence.currentUrlReport.path = join(fixture.root, 'future-report.json')
+    await writeFile(fixture.options.checkpoint, '')
+    await expect(assertReleaseSpotPaths(fixture.config, fixture.options)).resolves.toBeUndefined()
+    const galleryReviewPath = join(fixture.root, 'target-review.json')
+    await link(fixture.options.checkpoint, galleryReviewPath)
+    fixture.config.galleryReview.document = { ...fixture.config.galleryReview.document, path: galleryReviewPath }
+    await expect(assertReleaseSpotPaths(fixture.config, fixture.options)).rejects.toThrow('aliases protected input')
   })
 })
