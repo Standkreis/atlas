@@ -84,7 +84,8 @@ const mapping = parseRegionQueryMapping({
 const legacy: { id: string }[] = []
 let identityId: string
 let taxonId: string
-let newRegionId: string | undefined
+const ownedRegionIds: string[] = []
+let ownsRegistry = false
 
 async function removeRegistry() {
   await db.regionQueryUnit.deleteMany({ where: { registryVersionId: REGISTRY_ID } })
@@ -105,6 +106,7 @@ beforeAll(async () => {
   for (const [index, gadmGid] of legacyGids.entries()) {
     const row = await db.region.create({ data: { gadmGid, name: `Legacy ${index}`, higher: 'Legacy', status: 'ready' } })
     legacy.push({ id: row.id })
+    ownedRegionIds.push(row.id)
   }
   const identity = await db.identity.create({ data: {} })
   identityId = identity.id
@@ -116,10 +118,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   try {
-    await removeRegistry()
+    if (ownsRegistry) await removeRegistry()
     await db.identity.deleteMany({ where: { id: { in: identityId ? [identityId] : [] } } })
     await db.taxon.deleteMany({ where: { id: { in: taxonId ? [taxonId] : [] } } })
-    await db.region.deleteMany({ where: { id: { in: [...legacy.map((row) => row.id), newRegionId].filter(Boolean) as string[] } } })
+    await db.region.deleteMany({ where: { id: { in: ownedRegionIds } } })
   } finally {
     await db.$disconnect()
   }
@@ -132,8 +134,11 @@ describe('versioned German region registry import', () => {
       importRegionRegistry({ registry: fixture, artifactSha256: ARTIFACT_SHA, mapping }, dependencies),
       importRegionRegistry({ registry: fixture, artifactSha256: ARTIFACT_SHA, mapping }, dependencies),
     ])
-    expect(concurrent.map((result) => result.created).sort()).toEqual([false, true])
     const first = concurrent.find((result) => result.created)!
+    ownsRegistry = first.created
+    const ownedNewRegion = await db.region.findUniqueOrThrow({ where: { canonicalKey: regionKeys[2] }, select: { id: true } })
+    ownedRegionIds.push(ownedNewRegion.id)
+    expect(concurrent.map((result) => result.created).sort()).toEqual([false, true])
     expect(first).toMatchObject({ created: true, regions: 3, sourceUnits: 5, queryUnits: 6, legacyRegionsReused: 2 })
 
     const [mainz, swp, newRegion, filter, plausibility, version] = await Promise.all([
@@ -146,7 +151,7 @@ describe('versioned German region registry import', () => {
     ])
     expect(mainz.id).toBe(legacy[0]!.id)
     expect(swp.id).toBe(legacy[1]!.id)
-    newRegionId = newRegion.id
+    expect(newRegion.id).toBe(ownedNewRegion.id)
     expect(filter.regionId).toBe(legacy[0]!.id)
     expect(filter.regionIds).toEqual([legacy[0]!.id])
     expect(plausibility.regionId).toBe(legacy[0]!.id)

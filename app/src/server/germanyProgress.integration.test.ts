@@ -24,6 +24,7 @@ let manifestBefore: PreviousRegistry | null = null
 let previousCatalogue: PreviousCatalogue | null = null
 let ownedManifestRegistry = false
 const ownedRegionIds: string[] = []
+let priorMembershipCount = 0
 
 const land: LandFeature[] = [
   { key: south, bbox: [7, 48, 9, 49.5], polygons: [[[[7, 48], [9, 48], [9, 49.5], [7, 49.5], [7, 48]]]] },
@@ -97,6 +98,7 @@ beforeAll(async () => {
     }
   }
   await db.regionRegistryVersion.update({ where: { id: registryId }, data: { active: true } })
+  priorMembershipCount = await db.plausibility.count({ where: { regionId: regionIds[0], taxon: { tile: { in: ['bird', 'plant'] } } } })
   for (const [index, id] of taxonIds.entries()) {
     await db.taxon.create({ data: { id, gbifKey: 990_026_001 + index, sciName: `Progress fixture ${index}`, rank: 'SPECIES', tile: index === 1 ? 'plant' : 'bird' } })
   }
@@ -244,9 +246,7 @@ describe('Germany-wide personal progress', () => {
     const personal = await identity.progress()
     await progress()
     expect(await regional.setCounts({ regionId: regionIds[0], tiles: ['bird', 'plant'] })).toEqual(before)
-    if (ownedManifestRegistry) {
-      expect(before).toMatchObject({ total: 4, seen: { bird: 1, plant: 1 }, studied: { bird: 1, plant: 0 } })
-    }
+    expect(before).toMatchObject({ total: priorMembershipCount + 4, seen: { bird: 1, plant: 1 }, studied: { bird: 1, plant: 0 } })
     expect(await identity.progress()).toEqual(personal)
   })
 
