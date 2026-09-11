@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { contentDigest } from './catalogue-gallery-transfer'
 import {
+  assertCatalogueTargetPlan,
   CATALOGUE_APPLY_ORDER,
   CATALOGUE_TARGET_SNAPSHOT_TABLES,
   type CatalogueTargetRow,
@@ -9,7 +10,6 @@ import {
 } from './catalogue-import-plan'
 import type { ValidatedCatalogueImport } from './catalogue-import-validation'
 import { planCatalogueTarget } from './catalogue-import-relational-plan'
-import { createCatalogueApplyReceipt } from './catalogue-import-store'
 
 const at = '2026-09-10T12:00:00.000Z'
 const later = '2026-09-11T12:00:00.000Z'
@@ -242,7 +242,15 @@ describe('planCatalogueTarget', () => {
     const again = planCatalogueTarget({ source, target, gallery, activationAt: later })
     expect(again.fingerprint).toBe(plan.fingerprint)
     expect(contentDigest(again.mutations)).toBe(contentDigest(plan.mutations))
-    expect(createCatalogueApplyReceipt({ operationId: 'fixture', plan, validated: source, createdAt: later }).planFingerprint).toBe(plan.fingerprint)
+    expect(assertCatalogueTargetPlan(plan)).toBe(plan)
+    expect(plan).toMatchObject({
+      schemaVersion: 1,
+      catalogueVersionId: 'catalogue-new',
+      registryVersionId: 'registry-new',
+      sourceEvidence: source.evidence,
+      targetSnapshotFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+      fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+    })
   })
 
   it('preserves an unsupported nonempty target prose shape without reinterpreting it', () => {
