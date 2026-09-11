@@ -108,9 +108,23 @@ try {
   await screenshot('retired', 390, 844, true)
   await screenshot('retired', 1440, 900, false)
   await call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
-  await evaluate(`document.querySelector('[data-testid=ladder-region-retry]').scrollIntoView({ block: 'center' })`)
-  await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`)
-  assert.equal(await evaluate(`(() => { const button = document.querySelector('[data-testid=ladder-region-retry]').getBoundingClientRect(); const body = document.querySelector('[data-testid=ladder-body]').getBoundingClientRect(); return button.top >= Math.max(0, body.top) && button.bottom <= Math.min(innerHeight, body.bottom) })()`), true, 'retired-region recovery action is reachable in the phone sheet')
+  // CDP acknowledges the metric override before Chrome has necessarily completed the responsive
+  // overflow layout. Scroll the current CTA only after that layout exists, and retain the exact
+  // viewport + scroll-container assertion; a genuinely unreachable action still times out.
+  let reachability
+  for (let i = 0; i < 50; i++) {
+    reachability = await evaluate(`(() => {
+      const element = document.querySelector('[data-testid=ladder-region-retry]');
+      const container = document.querySelector('[data-testid=ladder-body]');
+      if (!element || !container) return { reachable: false, width: innerWidth, height: innerHeight };
+      element.scrollIntoView({ block: 'center', behavior: 'instant' });
+      const button = element.getBoundingClientRect(), body = container.getBoundingClientRect();
+      return { reachable: innerWidth === 390 && innerHeight === 844 && button.top >= Math.max(0, body.top) && button.bottom <= Math.min(innerHeight, body.bottom), width: innerWidth, height: innerHeight, button: { top: button.top, bottom: button.bottom }, body: { top: body.top, bottom: body.bottom }, scrollTop: container.scrollTop, scrollHeight: container.scrollHeight, clientHeight: container.clientHeight };
+    })()`)
+    if (reachability.reachable) break
+    await sleep(100)
+  }
+  assert.equal(reachability?.reachable, true, `retired-region recovery action is reachable in the phone sheet: ${JSON.stringify(reachability)}`)
   await screenshot('retired-action', 390, 844, true)
   await evaluate(`document.querySelector('[data-testid=ladder-region-retry]').click()`)
   await wait(`document.querySelector('[data-testid=ladder-body]')?.dataset.state === 'maintenance'`, 'retryable maintenance ladder')
