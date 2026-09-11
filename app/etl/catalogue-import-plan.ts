@@ -11,6 +11,7 @@ import {
 } from './reference-gallery-preservation'
 import { normalizedRemoteUrl } from '../src/domain/referenceImages'
 import { referenceAssetFromSnapshot, referenceTimestampUtc } from './catalogue-import-review'
+import { catalogueImportDigest } from './catalogue-import-json'
 
 export type CatalogueTargetRow = Readonly<Record<string, unknown>>
 export type CatalogueMutationPhase = 'materialize' | 'publish'
@@ -197,7 +198,7 @@ const sortedMapEntries = (map: ReadonlyMap<string, string>) => [...map.entries()
 
 /** Recompute the plan digest; the stored fingerprint itself is deliberately excluded. */
 export function catalogueTargetPlanFingerprint(plan: Omit<CatalogueTargetPlan, 'fingerprint'> | CatalogueTargetPlan) {
-  return contentDigest({
+  return catalogueImportDigest({
     schemaVersion: plan.schemaVersion,
     catalogueVersionId: plan.catalogueVersionId,
     registryVersionId: plan.registryVersionId,
