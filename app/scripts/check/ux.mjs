@@ -95,6 +95,7 @@ try {
   }
   await send('Page.enable')
   await send('Network.enable')
+  if (process.env.BROWSER_JOURNEY_ID) await send('Network.setCookie', { name: 'dex_id', value: process.env.BROWSER_JOURNEY_ID, url: base, httpOnly: true, sameSite: 'Lax' })
   await send('Fetch.enable', { patterns: [{ urlPattern: 'https://atlas-fixture.invalid/*' }] })
   await send('Browser.setPermission', { permission: { name: 'geolocation' }, setting: 'denied', origin: base })
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `
@@ -368,7 +369,10 @@ try {
   await wait(selector('[data-testid=empty]'), 'successful empty journal after retry')
   await click('[data-testid=tab-dex]')
   await wait(selector('[data-testid=grid] a'))
+  const progressSpeciesUrl = await evaluate(`${selector('[data-testid=grid] a')}.href`)
   await click('[data-testid=grid] a')
+  await click('[data-testid=study]')
+  await wait(`${selector('[data-testid=study]')}.getAttribute('aria-pressed') === 'true'`, 'study is saved without location')
   await click('[data-testid=log]')
   await click('[data-testid=wildness-wild]')
   await click('[data-testid=save-submit]')
@@ -383,6 +387,8 @@ try {
   const journalName = await evaluate(`${selector('[data-testid=row]')}.textContent.trim()`)
   await click('[data-testid=tab-you]')
   await wait(`${selector('[data-testid=germany-discovered] dd')}?.textContent.trim() === '1'`, 'national discovery refreshes on Profile mount')
+  await wait(`${selector('[data-testid=germany-studied] dd')}?.textContent.trim() === '1'`, 'location-independent study contributes nationally')
+  const nationalDenominator = await evaluate(`${selector('[data-testid=germany-denominator]')}.textContent`)
   assert.notEqual(await evaluate(`${selector('[data-testid=germany-sightings] dd')}.textContent.trim()`), '1', 'observation without confirmed German land containment is not a German sighting')
   await click('[data-testid=tab-journal]')
   await wait(selector('[data-testid=row][data-kind=sighting]'))
@@ -419,6 +425,7 @@ try {
   await wait(`${selector('[data-testid=germany-progress]')}?.dataset.state === 'ready'`, 'Germany progress opens from persisted data offline')
   await wait(`!!${selector('[data-testid=germany-offline]')}`, 'cached national result is qualified as offline')
   assert.equal(await evaluate(`${selector('[data-testid=germany-discovered] dd')}.textContent.trim()`), '1', 'location-independent discovery refreshes and persists')
+  assert.equal(await evaluate(`${selector('[data-testid=germany-studied] dd')}.textContent.trim()`), '1', 'study survives offline reload')
   assert.notEqual(await evaluate(`${selector('[data-testid=germany-sightings] dd')}.textContent.trim()`), '1', 'unconfirmed German land containment does not become a German sighting')
   await wait(selector('[data-testid=display-name]'), 'profile opens from the shell offline')
   await click('[data-testid=change-region]')
@@ -450,6 +457,30 @@ try {
     // Dispatch the event explicitly so this deterministic check exercises RegionReplay's real reconnect path.
     await evaluate(`window.dispatchEvent(new Event('online'))`)
     await wait(`localStorage.getItem('dex.region.pending') === null`, 'online replay acknowledges and clears the pending region intent')
+    await send('Network.setBlockedURLs', { urls: ['*sighting.place*', '*api.gbif.org/*', `${base}/api/tiles/*`] })
+    await send('Browser.setPermission', { permission: { name: 'geolocation' }, setting: 'granted', origin: base })
+    // Keep the same catalogue taxon: territorial counts depend on coordinates/wildness,
+    // while the discovered/studied membership stays one across regional switches.
+    for (const sample of [
+      { latitude: 49.992, longitude: 8.247, wildness: 'wild', german: '1' },
+      { latitude: 48.8566, longitude: 2.3522, wildness: 'wild', german: '1' },
+      { latitude: 49.992, longitude: 8.247, wildness: 'kept', german: '1' },
+    ]) {
+      await send('Emulation.setGeolocationOverride', { latitude: sample.latitude, longitude: sample.longitude, accuracy: 10 })
+      await send('Page.navigate', { url: progressSpeciesUrl })
+      await click('[data-testid=log]')
+      await wait(`${selector('[data-testid=save-where]')} && !${selector('[data-testid=save-locate]')} && !${selector('[data-testid=save-denied]')}`, 'deterministic location granted')
+      await click(`[data-testid=wildness-${sample.wildness}]`)
+      await click('[data-testid=save-submit]')
+      await wait(`!${selector('[data-testid=log-save]')}`, 'repeat sighting accepted')
+      await send('Page.navigate', { url: `${base}/${locale}/you` })
+      await wait(`${selector('[data-testid=germany-sightings] dd')}?.textContent.trim() === ${JSON.stringify(sample.german)}`, 'only German wild land observations count territorially')
+      assert.equal(await evaluate(`${selector('[data-testid=germany-discovered] dd')}.textContent.trim()`), '1')
+      assert.equal(await evaluate(`${selector('[data-testid=germany-studied] dd')}.textContent.trim()`), '1')
+      assert.equal(await evaluate(`${selector('[data-testid=germany-denominator]')}.textContent`), nationalDenominator)
+    }
+    await send('Emulation.clearGeolocationOverride')
+    console.log('UX: positive study/discovery, Germany land, outside-Germany and captive exclusion passed after region switch')
   } else {
     await click('[data-testid=region-add]')
     await wait(selector('[data-testid=region-picker-panel]'))

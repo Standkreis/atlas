@@ -1,9 +1,19 @@
 // Explicit downloader on a small real region. Transport/storage faults stay inside owned Chrome.
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { browserJourney, q } from './journey.mjs'
 
 const [base = 'http://localhost:3002', locale = 'en'] = process.argv.slice(2)
-await browserJourney(base, async ({ send, evaluate, wait, click, viewport, requests }) => {
+await browserJourney(base, async ({ send, evaluate, wait, click, viewport, requests, listeners }) => {
+  const mediaMode = locale === 'de' ? 'deterministic local image bytes' : 'actual CDN responses'
+  const patterns = [{ urlPattern: 'https://*', resourceType: 'Image' }, { urlPattern: 'https://*', resourceType: 'Fetch' }]
+  if (locale === 'de') {
+    const body = readFileSync(new URL('../../public/onboarding/bird.webp', import.meta.url)).toString('base64')
+    listeners.add(message => {
+      if (message.method === 'Fetch.requestPaused') void send('Fetch.fulfillRequest', { requestId: message.params.requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'image/webp' }, { name: 'Access-Control-Allow-Origin', value: '*' }], body }, message.sessionId)
+    })
+    await send('Fetch.enable', { patterns })
+  }
   await viewport(locale === 'en' ? 390 : 1280)
   await send('Browser.setPermission', { permission: { name: 'geolocation' }, setting: 'denied', origin: base })
   await send('Page.navigate', { url: `${base}/${locale}/onboarding` })
@@ -53,6 +63,7 @@ await browserJourney(base, async ({ send, evaluate, wait, click, viewport, reque
   for(const target of (await send('Target.getTargets')).targetInfos.filter(t=>t.type==='service_worker'&&t.url.startsWith(base))) {
     const {sessionId}=await send('Target.attachToTarget',{targetId:target.targetId,flatten:true})
     workers.push(sessionId);await send('Network.enable',{},sessionId)
+    if (locale === 'de') await send('Fetch.enable', { patterns }, sessionId)
   }
   assert.ok(workers.length)
   // Hold the actual downloader's fetches until Cancel is clicked, without replacing responses.
@@ -88,7 +99,7 @@ await browserJourney(base, async ({ send, evaluate, wait, click, viewport, reque
   assert.deepEqual(complete.urls,pack.urls); assert.equal(complete.ok,pack.urls.length)
   assert.deepEqual(complete.names,[pack.cache]);assert.equal(complete.marker.version,2);assert.deepEqual(complete.marker.urls,pack.urls)
   const leads=[...requests.values()].filter(r=>pack.urls.includes(r.url))
-  console.log(JSON.stringify({explicitPack:{locale,region:'Sonneberg',taxa:pack.taxa,imageLess:pack.withoutImage,uniqueLeads:pack.urls.length,estimate,storedResponseBytes:complete.bytes,pageAttempts:leads.filter(r=>!r.worker).length,upstreamCompleted:leads.filter(r=>!r.cached&&r.completed).length,upstreamEncodedBytes:leads.filter(r=>!r.cached).reduce((n,r)=>n+r.bytes,0),measurement:'incremental cancel/quota/transport/resume; cached SW responses excluded',cancelledAfter:cancelled.urls.length}}))
+  console.log(JSON.stringify({explicitPack:{locale,mediaMode,region:'Sonneberg',taxa:pack.taxa,imageLess:pack.withoutImage,uniqueLeads:pack.urls.length,estimate,storedResponseBytes:complete.bytes,pageAttempts:leads.filter(r=>!r.worker).length,upstreamCompleted:leads.filter(r=>!r.cached&&r.completed).length,upstreamEncodedBytes:leads.filter(r=>!r.cached).reduce((n,r)=>n+r.bytes,0),measurement:'incremental cancel/quota/transport/resume; cached SW responses excluded',cancelledAfter:cancelled.urls.length}}))
   await evaluate(`(async()=>{const p=${JSON.stringify(pack)};await(await caches.open(p.cache)).delete(p.urls[0]);if(await caches.has('dex-images'))await(await caches.open('dex-images')).delete(p.urls[0]);document.dispatchEvent(new Event('visibilitychange'))})()`)
   await wait(`${q('[data-testid=offline-download]')}.dataset.status==='idle'`, 'evicted response invalidates readiness')
   await click('[data-testid=offline-download-button]');await wait(`${q('[data-testid=offline-download]')}.dataset.status==='ready'`, 'eviction repairs',120000)

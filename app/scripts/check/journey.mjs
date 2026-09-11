@@ -71,6 +71,7 @@ export async function browserJourney(base, run) {
       await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
     }
     await send('Page.enable'); await send('Network.enable')
+    if (process.env.BROWSER_JOURNEY_ID) await send('Network.setCookie', { name: 'dex_id', value: process.env.BROWSER_JOURNEY_ID, url: base, httpOnly: true, sameSite: 'Lax' })
     await send('Network.setBlockedURLs', { urls: ['*api.gbif.org/*', '*tile.openstreetmap.org/*', `${base}/api/tiles/*`] })
     await run({ send, evaluate, wait, click, key, viewport, touchNext, requests, listeners })
   } finally { ws?.close(); await stopOwnedProcess(proc, profile) }

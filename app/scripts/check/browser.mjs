@@ -10,6 +10,7 @@ const port = process.env.BROWSER_PORT || '3002'
 if (!/^\d+$/.test(port) || +port < 1024 || +port > 65535) throw new Error('Invalid BROWSER_PORT')
 const base = `http://localhost:${port}`
 const identityId = randomUUID()
+const ownedIdentities = [identityId]
 process.env.BROWSER_IDENTITY_ID = identityId
 const fullCatalogue = process.env.UX_FULL_CATALOGUE === '1'
 // Give the current month's preview taxon two distinct local images. The older non-lead catches
@@ -33,7 +34,7 @@ try {
   await fixtureDb.query(`INSERT INTO "Sighting" (id, "identityId", "taxonId", at, lat, lng, place, note, evidence, wildness, "createdAt") VALUES ($1, $3, $2, NOW(), NULL, NULL, 'Private fixture place', 'Private fixture note', 'claimed', 'wild', NOW())`, [analyticsSightingId, demo.taxonId, identityId])
   // Reviewed galleries fail closed for unreviewed inserted rows. Temporarily remove only this
   // demo's visibility decisions, preserving exact rows for restoration after all browsers exit.
-  ;({ rows: previewVisibility } = await fixtureDb.query('DELETE FROM "ReferenceAssetVisibility" WHERE "taxonId" = $1 RETURNING *', [demo.taxonId]))
+  ;({ rows: previewVisibility } = await fixtureDb.query('DELETE FROM "ReferenceAssetVisibility" WHERE "taxonId" = $1 RETURNING to_json("ReferenceAssetVisibility") AS snapshot', [demo.taxonId]))
   const { rows: existingPreviewAssets } = await fixtureDb.query(`SELECT id, position FROM "Asset" WHERE "taxonId" = $1 ORDER BY id`, [demo.taxonId])
   shiftedPreviewAssets = existingPreviewAssets
   if (shiftedPreviewAssets.length) {
@@ -67,7 +68,7 @@ try {
     if (reserved.length) throw new Error('Reserved browser catalogue already exists')
     ;({ rows: oldMainz } = await fixtureDb.query(`SELECT id, "canonicalKey", "countryCode" FROM "Region" WHERE name = 'Mainz-Bingen'`))
     ;({ rows: oldRegistries } = await fixtureDb.query(`SELECT id, active FROM "RegionRegistryVersion" WHERE "countryCode" = 'DE' AND active`))
-    ;({ rows: oldCatalogues } = await fixtureDb.query(`SELECT id, status, "updatedAt" FROM "CatalogueVersion" WHERE "countryCode" = 'DE' AND status = 'active'`))
+    ;({ rows: oldCatalogues } = await fixtureDb.query(`SELECT id, status, "updatedAt"::text FROM "CatalogueVersion" WHERE "countryCode" = 'DE' AND status = 'active'`))
     await fixtureDb.query(`UPDATE "CatalogueVersion" SET status = 'retired' WHERE id = ANY($1::text[])`, [oldCatalogues.map(row => row.id)])
     await fixtureDb.query(`UPDATE "RegionRegistryVersion" SET active = false WHERE id = ANY($1::text[])`, [oldRegistries.map(row => row.id)])
     const { rows: [mainz] } = await fixtureDb.query(`UPDATE "Region" SET "canonicalKey" = 'de-krg-07339', "countryCode" = 'DE' WHERE name = 'Mainz-Bingen' RETURNING id, name`)
@@ -94,11 +95,18 @@ try {
   throw error
 } finally { await fixtureDb.end() }
 const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', port], { stdio: 'inherit', env: { ...process.env, VERCEL: '1', VERCEL_ENV: 'production', VERCEL_TARGET_ENV: 'production', BLOB_READ_WRITE_TOKEN: '', PHOTO_DIR: '/tmp/dex-check-photos', ANTHROPIC_API_KEY: 'check-only', ANTHROPIC_BASE_URL: 'http://127.0.0.1:9', RESEND_API_KEY: 'check-only', RESEND_BASE_URL: 'http://127.0.0.1:9', WEBAUTHN_RP_ID: 'localhost', WEBAUTHN_ORIGIN: base, WEBAUTHN_SECRET: 'check-only-secret-with-at-least-32-characters' } })
-const run = (script, args) => new Promise((resolve, reject) => {
-  const child = spawn(process.execPath, [script, ...args], { stdio: 'inherit' })
-  child.on('error', reject)
-  child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`${script} exited ${code}`)))
-})
+const run = async (script, args) => {
+  const journeyIdentity = randomUUID()
+  const ownerDb = new pg.Client({ connectionString: database.href })
+  await ownerDb.connect()
+  try { await ownerDb.query('INSERT INTO "Identity" (id) VALUES ($1)', [journeyIdentity]); ownedIdentities.push(journeyIdentity) }
+  finally { await ownerDb.end() }
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [script, ...args], { stdio: 'inherit', env: { ...process.env, BROWSER_JOURNEY_ID: journeyIdentity } })
+    child.on('error', reject)
+    child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`${script} exited ${code}`)))
+  })
+}
 try {
   let ready = false
   for (let i = 0; i < 100; i++) {
@@ -116,8 +124,7 @@ try {
     for (const locale of ['en', 'de']) await run('scripts/check/full-offline.mjs', [base, locale])
   }
   await run('scripts/check/analytics.mjs', [base])
-  const identity = await fetch(`${base}/api/trpc/identity.me`).then((r) => r.json()).then((j) => j.result.data.json.id)
-  await run('scripts/check/offline.mjs', [base, identity])
+  await run('scripts/check/offline.mjs', [base, identityId])
 } finally {
   await stopOwnedProcess(server)
   const cleanup = new pg.Client({ connectionString: database.href })
@@ -127,8 +134,8 @@ try {
     await cleanup.query(`DELETE FROM "Sighting" WHERE id = $1`, [analyticsSightingId])
     await cleanup.query(`DELETE FROM "Asset" WHERE id = ANY($1::text[])`, [previewAssetIds])
     for (const asset of shiftedPreviewAssets) await cleanup.query(`UPDATE "Asset" SET position = $1 WHERE id = $2`, [asset.position, asset.id])
-    for (const row of previewVisibility) await cleanup.query('INSERT INTO "ReferenceAssetVisibility" SELECT * FROM json_populate_record(NULL::"ReferenceAssetVisibility", $1::json)', [JSON.stringify(row)])
-    await cleanup.query('DELETE FROM "Identity" WHERE id = $1', [identityId])
+    for (const row of previewVisibility) await cleanup.query('INSERT INTO "ReferenceAssetVisibility" SELECT * FROM json_populate_record(NULL::"ReferenceAssetVisibility", $1::json)', [JSON.stringify(row.snapshot)])
+    await cleanup.query('DELETE FROM "Identity" WHERE id = ANY($1::text[])', [ownedIdentities])
     if (!fullCatalogue) {
       await cleanup.query(`DELETE FROM "CatalogueTaxon" WHERE "catalogueVersionId" = 'browser-catalogue-de'`)
       await cleanup.query(`DELETE FROM "CatalogueRegionBuild" WHERE "catalogueVersionId" = 'browser-catalogue-de'`)

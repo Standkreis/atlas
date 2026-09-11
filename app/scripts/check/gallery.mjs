@@ -20,9 +20,11 @@ const assetId = (count, position) => `00000000-0038-4001-${String(count).padStar
 const client = new pg.Client({ connectionString: database.toString() })
 await client.connect()
 try {
+  await client.query('BEGIN')
   for (const [shape, key] of Object.entries(keys)) {
     const count = shape === 'zero' ? 0 : shape === 'one' ? 1 : shape === 'two' ? 2 : 12
-    await client.query('DELETE FROM "Taxon" WHERE "id" = $1 OR "gbifKey" = $2', [taxonId(count), key])
+    const { rows } = await client.query('SELECT id FROM "Taxon" WHERE "id" = $1 OR "gbifKey" = $2', [taxonId(count), key])
+    assert.equal(rows.length, 0, 'reserved gallery identity must be absent; never overwrite existing rows')
     await client.query(`INSERT INTO "Taxon" ("id", "gbifKey", "sciName", "commonNames", "rank", "tile", "updatedAt")
       VALUES ($1, $2, $3, $4::jsonb, 'species', 'bird', now())
       ON CONFLICT ("gbifKey") DO UPDATE SET "sciName" = excluded."sciName", "commonNames" = excluded."commonNames"`,
@@ -35,7 +37,9 @@ try {
       [assetId(count, position), position, `https://gallery.test/${broken ? 'broken' : `${count}-${position + 1}`}.svg`, `Gallery author ${count}-${position + 1}`, `https://gallery.test/source/${count}-${position + 1}`, `Gallery image ${position + 1}`, taxonId(count)])
     }
   }
-} finally { await client.end() }
+  await client.query('COMMIT')
+} catch (error) { await client.query('ROLLBACK'); throw error }
+finally { await client.end() }
 
 const profile = mkdtempSync(join(tmpdir(), 'dex-gallery-'))
 const evidence = process.env.GALLERY_EVIDENCE_DIR || ''
@@ -106,6 +110,7 @@ try {
   }
 
   await call('Page.enable')
+  if (process.env.BROWSER_JOURNEY_ID) await call('Network.setCookie', { name: 'dex_id', value: process.env.BROWSER_JOURNEY_ID, url: base, httpOnly: true, sameSite: 'Lax' })
   await call('Fetch.enable', { patterns: [{ urlPattern: 'https://gallery.test/*', requestStage: 'Request' }] })
   await call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] })
   await call('Emulation.setDeviceMetricsOverride', { width: 360, height: 800, deviceScaleFactor: 1, mobile: true })

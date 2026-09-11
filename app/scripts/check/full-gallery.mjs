@@ -18,7 +18,7 @@ try {
       ORDER BY t."gbifKey" LIMIT 20`, [count])
     let selected
     for (const row of rows) {
-      const response = await fetch(`${base}/api/trpc/taxon.page?input=${encodeURIComponent(JSON.stringify({ json: { gbifKey: row.gbifKey } }))}`).then(r => r.json())
+      const response = await fetch(`${base}/api/trpc/taxon.page?input=${encodeURIComponent(JSON.stringify({ json: { gbifKey: row.gbifKey } }))}`, { headers: process.env.BROWSER_JOURNEY_ID ? { cookie: `dex_id=${process.env.BROWSER_JOURNEY_ID}` } : {} }).then(r => r.json())
       const assets = response.result?.data?.json?.assets?.filter(a => a.kind === 'image')
       if (assets?.length === count) { selected = { ...row, count, assets }; break }
     }

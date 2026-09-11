@@ -148,8 +148,10 @@ try {
   console.log(JSON.stringify(result, null, 2))
 } finally {
   if (catalogueDb) {
-    for (const row of rolledBack) await catalogueDb.query(`UPDATE "CatalogueVersion" SET status = 'active'::"CatalogueStatus", "updatedAt" = $2 WHERE id = $1`, [row.id, row.updatedAt])
-    await catalogueDb.end()
+    try {
+      for (const row of rolledBack) await catalogueDb.query(`UPDATE "CatalogueVersion" SET status = 'active'::"CatalogueStatus", "updatedAt" = $2 WHERE id = $1`, [row.id, row.updatedAt])
+    } catch (error) { console.error('Catalogue restoration failed:', error); process.exitCode = 1 }
+    finally { await catalogueDb.end() }
   }
   ws?.close()
   await stopOwnedProcess(chrome, profile)
