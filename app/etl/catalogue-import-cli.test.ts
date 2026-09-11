@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { dirname, resolve } from 'node:path'
 import { catalogueImportDigest } from './catalogue-import-json'
 import {
+  catalogueImportCodeState,
   catalogueImportDatabaseTarget,
   parseCatalogueImportExecutionConfig,
   parseCatalogueImportExecutionManifest,
@@ -127,6 +130,7 @@ describe('catalogue import operational CLI', () => {
 
   it('classifies only loopback dex_check databases as disposable and never exposes credentials', () => {
     expect(catalogueImportDatabaseTarget('postgresql://secret:password@127.0.0.1:5434/dex_check_cutover')).toEqual({ target: localTarget, disposableLocal: true })
+    expect(catalogueImportDatabaseTarget('postgresql://secret:password@127.0.0.1:5434/dex_check_cutover?sslmode=require&channel_binding=require')).toEqual({ target: localTarget, disposableLocal: true })
     expect(catalogueImportDatabaseTarget('postgresql://secret:password@db.example.test/dex')).toEqual({
       target: { hostname: 'db.example.test', port: '5432', database: 'dex' }, disposableLocal: false,
     })
@@ -137,8 +141,34 @@ describe('catalogue import operational CLI', () => {
     const fake = runtime()
     await expect(runCatalogueImportCli(['plan', '--config', '/config.json', '--receipt', '/receipt.jsonl', '--plan-record', '/plan-record.json'], { runtime: fake.value, env: {} }))
       .rejects.toThrow('explicitly configured DATABASE_URL')
-    await runCatalogueImportCli(['code-pin'], { runtime: fake.value, env: {}, cwd: '/chosen' })
-    expect(fake.value.codeState).toHaveBeenLastCalledWith('/chosen')
+    await runCatalogueImportCli(['code-pin'], { runtime: fake.value, env: {} })
+    expect(fake.value.codeState).toHaveBeenLastCalledWith()
+  })
+
+  it.each([
+    'postgresql://dex:dex@127.0.0.1:5434/dex_check_cutover?host=remote.example.test',
+    'postgresql://dex:dex@127.0.0.1:5434/dex_check_cutover?hostaddr=203.0.113.1',
+    'postgresql://dex:dex@127.0.0.1:5434/dex_check_cutover?port=6543',
+    'postgresql://dex:dex@127.0.0.1:5434/dex_check_cutover?database=production',
+    'postgresql://dex:dex@127.0.0.1:5434/dex_check_cutover?dbname=production',
+    'postgresql://dex:dex@127.0.0.1:5434/dex_check_cutover?options=-csearch_path%3Dpublic',
+    'postgresql://dex:dex@127.0.0.1:5434/dex_check_cutover?user=other',
+    'postgresql://dex:dex@127.0.0.1:5434/dex_check_cutover?password=other',
+  ])('rejects connection-routing query overrides before connecting: %s', async (databaseUrl) => {
+    const fake = runtime()
+    await expect(runCatalogueImportCli(
+      ['plan', '--config', '/config.json', '--receipt', '/receipt.jsonl', '--plan-record', '/plan-record.json'],
+      { runtime: fake.value, env: { DATABASE_URL: databaseUrl } },
+    )).rejects.toThrow('unsupported, duplicate, or empty connection parameter')
+    expect(fake.value.connect).not.toHaveBeenCalled()
+  })
+
+  it('derives the default code pin from the executable checkout and rejects another module path', async () => {
+    const state = await catalogueImportCodeState()
+    expect(state.head).toMatch(/^[a-f\d]{40}$/)
+    expect(state.root).toBe(resolve(dirname(fileURLToPath(import.meta.url)), '../..'))
+    await expect(catalogueImportCodeState(pathToFileURL(resolve(state.root, 'app/etl/catalogue-import-cli.test.ts')).href))
+      .rejects.toThrow('executable does not match')
   })
 
   it('plans read-only, then durably writes the receipt before its reviewed plan record', async () => {

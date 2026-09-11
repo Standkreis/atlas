@@ -49,6 +49,7 @@ describe('catalogue import receipt files', () => {
 
     const decoded = await readCatalogueReceiptFile(path, {
       sha256: written.sha256,
+      bytes: written.bytes,
       receiptFingerprint: written.receiptFingerprint,
     })
     expect(decoded.receipt).toEqual(receipt())
@@ -60,19 +61,21 @@ describe('catalogue import receipt files', () => {
     const directory = await mkdtemp(join(tmpdir(), 'catalogue-receipt-drift-'))
     const path = join(directory, 'receipt.jsonl')
     const written = await writeCatalogueReceiptFile(path, receipt())
-    await expect(readCatalogueReceiptFile(path, { sha256: digest('a'), receiptFingerprint: written.receiptFingerprint }))
+    await expect(readCatalogueReceiptFile(path, { sha256: written.sha256, bytes: written.bytes - 1, receiptFingerprint: written.receiptFingerprint }))
+      .rejects.toThrow('file type or byte count mismatch')
+    await expect(readCatalogueReceiptFile(path, { sha256: digest('a'), bytes: written.bytes, receiptFingerprint: written.receiptFingerprint }))
       .rejects.toThrow('file SHA-256 mismatch')
-    await expect(readCatalogueReceiptFile(path, { sha256: written.sha256, receiptFingerprint: digest('b') }))
+    await expect(readCatalogueReceiptFile(path, { sha256: written.sha256, bytes: written.bytes, receiptFingerprint: digest('b') }))
       .rejects.toThrow('footer mismatch')
 
     const original = await readFile(path, 'utf8')
     const duplicate = join(directory, 'duplicate.jsonl')
     await writeFile(duplicate, original.replace('"type":"header"', '"type":"header","type":"header"'))
-    await expect(readCatalogueReceiptFile(duplicate, { sha256: written.sha256, receiptFingerprint: written.receiptFingerprint }))
+    await expect(readCatalogueReceiptFile(duplicate, { sha256: written.sha256, bytes: (await stat(duplicate)).size, receiptFingerprint: written.receiptFingerprint }))
       .rejects.toThrow('not canonical JSON')
     const spaced = join(directory, 'spaced.jsonl')
     await writeFile(spaced, original.replace('{', '{ '))
-    await expect(readCatalogueReceiptFile(spaced, { sha256: written.sha256, receiptFingerprint: written.receiptFingerprint }))
+    await expect(readCatalogueReceiptFile(spaced, { sha256: written.sha256, bytes: (await stat(spaced)).size, receiptFingerprint: written.receiptFingerprint }))
       .rejects.toThrow('not canonical JSON')
   })
 

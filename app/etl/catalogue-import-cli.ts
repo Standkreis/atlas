@@ -1,10 +1,10 @@
 /** Explicit, file-backed operator CLI for the checked Germany catalogue cutover. */
 import { createHash } from 'node:crypto'
 import { execFile as execFileCallback } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
+import { readFile, realpath } from 'node:fs/promises'
 import { promisify } from 'node:util'
-import { pathToFileURL } from 'node:url'
-import { resolve } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { dirname, resolve } from 'node:path'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { z } from 'zod'
 import { PrismaClient } from '../src/generated/prisma/client'
@@ -85,11 +85,11 @@ export const parseCatalogueImportPlanRecord = (value: unknown) => planRecordSche
 export const parseCatalogueImportExecutionManifest = (value: unknown) => executionManifestSchema.parse(value)
 
 type Database = PrismaClient
-type CodeState = Readonly<{ head: string; trackedClean: boolean; root: string }>
+export type CatalogueImportCodeState = Readonly<{ head: string; trackedClean: boolean; root: string }>
 type ParsedJson<T> = Readonly<{ value: T; sha256: string; bytes: number; contentDigest: string }>
 
 export type CatalogueImportCliRuntime = Readonly<{
-  codeState(cwd: string): Promise<CodeState>
+  codeState(): Promise<CatalogueImportCodeState>
   connect(connectionString: string): Promise<{ db: Database; disconnect(): Promise<void> }>
   readJson<T>(path: string, schema: z.ZodType<T>, expected?: ImportEvidenceFile): Promise<ParsedJson<T>>
   validateSource(input: CatalogueImportBundleInput): ReturnType<typeof validateCatalogueImportBundle>
@@ -113,6 +113,20 @@ export function catalogueImportDatabaseTarget(connectionString: string): { targe
   if (!['postgres:', 'postgresql:'].includes(url.protocol) || !url.hostname || !url.pathname.startsWith('/')) {
     throw new Error('DATABASE_URL is not a valid PostgreSQL URL')
   }
+  if (url.hash) throw new Error('DATABASE_URL fragments are not allowed')
+  const queryNames = new Set<string>()
+  for (const [name, value] of url.searchParams) {
+    if (!['sslmode', 'channel_binding'].includes(name) || queryNames.has(name) || !value) {
+      throw new Error('DATABASE_URL contains an unsupported, duplicate, or empty connection parameter')
+    }
+    queryNames.add(name)
+    if (name === 'sslmode' && !['disable', 'prefer', 'require', 'verify-ca', 'verify-full', 'no-verify'].includes(value)) {
+      throw new Error('DATABASE_URL sslmode is invalid')
+    }
+    if (name === 'channel_binding' && !['disable', 'prefer', 'require'].includes(value)) {
+      throw new Error('DATABASE_URL channel_binding is invalid')
+    }
+  }
   let database: string
   try { database = decodeURIComponent(url.pathname.slice(1)) } catch { throw new Error('DATABASE_URL database name is invalid') }
   if (!database || database.includes('/')) throw new Error('DATABASE_URL database name is invalid')
@@ -122,8 +136,13 @@ export function catalogueImportDatabaseTarget(connectionString: string): { targe
   return { target, disposableLocal }
 }
 
-async function defaultCodeState(cwd: string): Promise<CodeState> {
-  const root = (await execFile('git', ['rev-parse', '--show-toplevel'], { cwd })).stdout.trim()
+/** Resolve code identity from this executable module, never from an operator-selected cwd. */
+export async function catalogueImportCodeState(moduleUrl = import.meta.url): Promise<CatalogueImportCodeState> {
+  let modulePath: string
+  try { modulePath = await realpath(fileURLToPath(moduleUrl)) } catch { throw new Error('catalogue import executable is not a real local file') }
+  const root = await realpath((await execFile('git', ['rev-parse', '--show-toplevel'], { cwd: dirname(modulePath) })).stdout.trim())
+  const expectedModule = await realpath(resolve(root, 'app/etl/catalogue-import-cli.ts')).catch(() => '')
+  if (expectedModule !== modulePath) throw new Error('catalogue import executable does not match app/etl/catalogue-import-cli.ts in its Git checkout')
   const head = (await execFile('git', ['rev-parse', 'HEAD'], { cwd: root })).stdout.trim().toLowerCase()
   if (!COMMIT.test(head)) throw new Error('Git HEAD is not a full SHA-1 commit')
   const status = (await execFile('git', ['status', '--porcelain=v1', '--untracked-files=no'], { cwd: root })).stdout
@@ -145,7 +164,7 @@ async function defaultReadJson<T>(path: string, schema: z.ZodType<T>, expected?:
 }
 
 const defaultRuntime: CatalogueImportCliRuntime = {
-  codeState: defaultCodeState,
+  codeState: catalogueImportCodeState,
   async connect(connectionString) {
     const db = new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
     return { db, disconnect: () => db.$disconnect() }
@@ -189,7 +208,7 @@ function same(actual: unknown, expected: unknown, label: string) {
   if (catalogueImportDigest(actual) !== catalogueImportDigest(expected)) throw new Error(`${label} mismatch`)
 }
 
-function assertCode(config: CatalogueImportExecutionConfig, code: CodeState, requireClean: boolean) {
+function assertCode(config: CatalogueImportExecutionConfig, code: CatalogueImportCodeState, requireClean: boolean) {
   if (code.head !== config.expectedCommit) throw new Error('checked import expectedCommit does not match Git HEAD')
   if (requireClean && !code.trackedClean) throw new Error('checked import requires a clean tracked worktree before writing')
 }
@@ -201,7 +220,7 @@ function receiptFileRecord(descriptor: CatalogueReceiptFileDescriptor) {
   }
 }
 
-function assertPlanRecord(record: CatalogueImportPlanRecord, config: CatalogueImportExecutionConfig, configDigest: string, code: CodeState, target: CatalogueImportTarget) {
+function assertPlanRecord(record: CatalogueImportPlanRecord, config: CatalogueImportExecutionConfig, configDigest: string, code: CatalogueImportCodeState, target: CatalogueImportTarget) {
   if (record.codeHead !== code.head || record.configDigest !== configDigest || record.operationId !== config.operationId || record.activationAt !== config.activationAt) throw new Error('plan record does not bind the config and code')
   same(record.target, target, 'plan record target')
 }
@@ -210,7 +229,7 @@ function assertExecutionManifest(
   manifest: CatalogueImportExecutionManifest | undefined,
   action: 'apply' | 'recover',
   disposableLocal: boolean,
-  bindings: { code: CodeState; configDigest: string; target: CatalogueImportTarget; planRecordDigest: string; planRecord: CatalogueImportPlanRecord; now: Date },
+  bindings: { code: CatalogueImportCodeState; configDigest: string; target: CatalogueImportTarget; planRecordDigest: string; planRecord: CatalogueImportPlanRecord; now: Date },
 ) {
   if (disposableLocal && !manifest) return
   if (!manifest) throw new Error('non-disposable target requires a separate owner-approved execution manifest; the operator must independently verify its human approval')
@@ -227,7 +246,7 @@ function assertExecutionManifest(
 function assertPlanExecutionManifest(
   manifest: CatalogueImportExecutionManifest | undefined,
   disposableLocal: boolean,
-  bindings: { code: CodeState; configDigest: string; target: CatalogueImportTarget; now: Date },
+  bindings: { code: CatalogueImportCodeState; configDigest: string; target: CatalogueImportTarget; now: Date },
 ) {
   if (disposableLocal && !manifest) return
   if (!manifest) throw new Error('non-disposable target plan requires a separate owner-approved execution manifest; the operator must independently verify its human approval')
@@ -256,16 +275,17 @@ async function buildPlan(config: CatalogueImportExecutionConfig, db: Database, r
   return { validated, plan, receipt }
 }
 
-async function loadPlanBindings(flags: ReadonlyMap<string, string>, configPath: string, connectionString: string, cwd: string, runtime: CatalogueImportCliRuntime) {
+async function loadPlanBindings(flags: ReadonlyMap<string, string>, configPath: string, connectionString: string, runtime: CatalogueImportCliRuntime) {
   const configFile = await loadConfig(configPath, runtime)
   const config = configFile.value
-  const code = await runtime.codeState(cwd)
+  const code = await runtime.codeState()
   assertCode(config, code, true)
   const { target, disposableLocal } = catalogueImportDatabaseTarget(connectionString)
   const planRecordFile = await runtime.readJson(required(flags, 'plan-record'), planRecordSchema)
   assertPlanRecord(planRecordFile.value, config, configFile.contentDigest, code, target)
   const receipt = await runtime.readReceipt(required(flags, 'receipt'), {
     sha256: planRecordFile.value.receiptFile.sha256,
+    bytes: planRecordFile.value.receiptFile.bytes,
     receiptFingerprint: planRecordFile.value.receiptFingerprint,
   })
   same(receiptFileRecord(receipt.descriptor), planRecordFile.value.receiptFile, 'receipt file descriptor')
@@ -285,14 +305,13 @@ export const CATALOGUE_IMPORT_CLI_USAGE = [
 ].join('\n')
 
 /** Command runner is injectable so tests never connect to or mutate a real database. */
-export async function runCatalogueImportCli(argv: readonly string[], options: { runtime?: CatalogueImportCliRuntime; env?: { DATABASE_URL?: string }; cwd?: string } = {}) {
+export async function runCatalogueImportCli(argv: readonly string[], options: { runtime?: CatalogueImportCliRuntime; env?: { DATABASE_URL?: string } } = {}) {
   const runtime = options.runtime ?? defaultRuntime
   const env = options.env ?? process.env
-  const cwd = options.cwd ?? process.cwd()
   const [command, ...args] = argv
   if (command === 'code-pin') {
     if (args.length) throw new Error(CATALOGUE_IMPORT_CLI_USAGE)
-    const code = await runtime.codeState(cwd)
+    const code = await runtime.codeState()
     runtime.stdout(JSON.stringify({ schemaVersion: 1, kind: 'catalogue-import-code-pin', head: code.head, trackedClean: code.trackedClean }))
     return code
   }
@@ -307,7 +326,7 @@ export async function runCatalogueImportCli(argv: readonly string[], options: { 
 
   if (command === 'plan') {
     const configFile = await loadConfig(configPath, runtime)
-    const code = await runtime.codeState(cwd)
+    const code = await runtime.codeState()
     assertCode(configFile.value, code, true)
     const { target, disposableLocal } = catalogueImportDatabaseTarget(connectionString)
     const manifestPath = flags.get('execution-manifest')
@@ -316,9 +335,9 @@ export async function runCatalogueImportCli(argv: readonly string[], options: { 
     const connection = await runtime.connect(connectionString)
     try {
       const built = await buildPlan(configFile.value, connection.db, runtime)
-      assertCode(configFile.value, await runtime.codeState(cwd), true)
+      assertCode(configFile.value, await runtime.codeState(), true)
       const receiptFile = await runtime.writeReceipt(required(flags, 'receipt'), built.receipt)
-      assertCode(configFile.value, await runtime.codeState(cwd), true)
+      assertCode(configFile.value, await runtime.codeState(), true)
       const planRecord: CatalogueImportPlanRecord = {
         schemaVersion: 1, kind: 'catalogue-import-plan-record', codeHead: code.head,
         configDigest: configFile.contentDigest, target, operationId: configFile.value.operationId,
@@ -332,7 +351,7 @@ export async function runCatalogueImportCli(argv: readonly string[], options: { 
     } finally { await connection.disconnect() }
   }
 
-  const bindings = await loadPlanBindings(flags, configPath, connectionString, cwd, runtime)
+  const bindings = await loadPlanBindings(flags, configPath, connectionString, runtime)
   assertExecutionManifest(bindings.manifest, command as 'apply' | 'recover', bindings.disposableLocal, {
     code: bindings.code, configDigest: bindings.configFile.contentDigest, target: bindings.target,
     planRecordDigest: bindings.planRecordFile.contentDigest, planRecord: bindings.planRecordFile.value, now: runtime.now(),
@@ -340,7 +359,7 @@ export async function runCatalogueImportCli(argv: readonly string[], options: { 
   const connection = await runtime.connect(connectionString)
   try {
     if (command === 'recover') {
-      assertCode(bindings.config, await runtime.codeState(cwd), true)
+      assertCode(bindings.config, await runtime.codeState(), true)
       const result = await runtime.recover(connection.db, { receipt: bindings.receipt.receipt })
       runtime.stdout(JSON.stringify({ command, target: bindings.target, operationId: result.operationId, receiptFingerprint: result.fingerprint }))
       return result
@@ -350,7 +369,7 @@ export async function runCatalogueImportCli(argv: readonly string[], options: { 
       throw new Error('regenerated reviewed plan does not match the approved receipt pins')
     }
     await built.validated.assertReleaseEvidenceStillValid(runtime.now())
-    assertCode(bindings.config, await runtime.codeState(cwd), true)
+    assertCode(bindings.config, await runtime.codeState(), true)
     const releaseRecord = {
       schemaVersion: 1, kind: 'catalogue-import-release-intent', recordedAt: runtime.now().toISOString(),
       codeHead: bindings.code.head, configDigest: bindings.configFile.contentDigest, target: bindings.target,
@@ -361,7 +380,7 @@ export async function runCatalogueImportCli(argv: readonly string[], options: { 
       note: 'Supplementary pre-apply validation record; it is not evidence of human approval or successful application.',
     }
     const releaseFile = await runtime.writeRecord(required(flags, 'release-record'), releaseRecord)
-    assertCode(bindings.config, await runtime.codeState(cwd), true)
+    assertCode(bindings.config, await runtime.codeState(), true)
     const result = await runtime.apply(connection.db, { validated: built.validated, plan: built.plan, receipt: bindings.receipt.receipt })
     runtime.stdout(JSON.stringify({ command, target: bindings.target, operationId: result.operationId, receiptFingerprint: result.fingerprint, releaseRecordSha256: releaseFile.sha256 }))
     return { receipt: result, releaseFile }

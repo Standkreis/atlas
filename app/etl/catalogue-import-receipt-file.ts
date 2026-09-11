@@ -1,7 +1,7 @@
 /** Owner-only, streaming receipt files for the checked catalogue cutover. */
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { open, unlink } from 'node:fs/promises'
+import { open, stat, unlink } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { catalogueImportDigest, catalogueJsonChunks } from './catalogue-import-json'
 import type { CatalogueApplyReceipt } from './catalogue-import-store'
@@ -97,7 +97,7 @@ function assertReceiptEnvelope(receipt: CatalogueApplyReceipt) {
 async function writeBuffer(handle: Awaited<ReturnType<typeof open>>, buffer: Buffer) {
   let offset = 0
   while (offset < buffer.length) {
-    const { bytesWritten } = await handle.write(buffer, offset)
+    const { bytesWritten } = await handle.write(buffer, offset, buffer.length - offset, null)
     if (!bytesWritten) throw new Error('catalogue receipt write made no progress')
     offset += bytesWritten
   }
@@ -217,7 +217,7 @@ function frozen<T>(value: T, seen = new Set<object>()): T {
 /** Stream, strictly decode, and independently verify both an exact receipt file and its payload. */
 export async function readCatalogueReceiptFile(
   path: string,
-  expected: { sha256: string; receiptFingerprint: string; maxLineBytes?: number },
+  expected: { sha256: string; bytes: number; receiptFingerprint: string; maxLineBytes?: number },
 ): Promise<{ receipt: CatalogueApplyReceipt; descriptor: CatalogueReceiptFileDescriptor }> {
   const expectedFileSha = sha256(expected.sha256, 'expected receipt file SHA-256')
   const expectedReceiptFingerprint = sha256(expected.receiptFingerprint, 'expected receipt fingerprint')
@@ -226,6 +226,9 @@ export async function readCatalogueReceiptFile(
     throw new Error('receipt maxLineBytes must be between 1 KiB and 64 MiB')
   }
   const absolute = resolve(path)
+  const expectedBytes = integer(expected.bytes, 'expected receipt file bytes')
+  const metadata = await stat(absolute)
+  if (!metadata.isFile() || metadata.size !== expectedBytes) throw new Error('catalogue receipt file type or byte count mismatch')
   const fileHash = createHash('sha256')
   const streamHash = createHash('sha256')
   let pending = Buffer.alloc(0), bytes = 0, lineNumber = 0
@@ -272,6 +275,7 @@ export async function readCatalogueReceiptFile(
   for await (const chunk of createReadStream(absolute)) {
     const buffer = chunk as Buffer
     fileHash.update(buffer); bytes += buffer.length
+    if (bytes > expectedBytes) throw new Error('catalogue receipt file byte count changed while reading')
     pending = pending.length ? Buffer.concat([pending, buffer]) : Buffer.from(buffer)
     let newline: number
     while ((newline = pending.indexOf(0x0a)) >= 0) {
@@ -282,6 +286,7 @@ export async function readCatalogueReceiptFile(
   }
   if (pending.length) throw new Error('catalogue receipt must end with LF')
   if (!header || !footer) throw new Error('catalogue receipt lacks its header or footer')
+  if (bytes !== expectedBytes) throw new Error('catalogue receipt file byte count changed while reading')
   const actualFileSha = fileHash.digest('hex')
   if (actualFileSha !== expectedFileSha) throw new Error('catalogue receipt file SHA-256 mismatch')
   const receipt = {
