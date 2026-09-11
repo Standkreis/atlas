@@ -80,7 +80,7 @@ full object as the `value` of:
 }
 ```
 
-to `PATCH /v1/security/firewall/config?projectId=...`. The installed CLI's
+to `PATCH /v1/security/firewall/config/draft?projectId=...`. The installed CLI's
 `--yes` accepts the create confirmation but does **not** publish: its
 `offerAutoPublish` auto-publishes only in an interactive TTY when prompts were
 not skipped. `firewall publish --yes` is therefore the distinct activation
@@ -110,9 +110,12 @@ conditions.
 umask 077
 VERCEL_CLI=/Users/svenreiser/.npm/_npx/10fdc7ef9e7933e1/node_modules/.bin/vercel
 PROJECT_ID=prj_QkDLo33iixnovjvg5ozYMwBzen9e
+TEAM_ID=team_4rVdNuX63Z4XJLBmTsz8GUUa
 TEAM_SCOPE=standkreis
 RULE_NAME='Germany catalogue cutover - deny all HTTP'
 RULE_FILE=/private/reviewed/germany-catalogue-cutover-deny.json
+FIREWALL_ENABLE_FILE=/private/reviewed/firewall-enable.json
+FIREWALL_RESTORE_FILE=/private/reviewed/firewall-restore-disabled.json
 
 "$VERCEL_CLI" firewall status --json --project "$PROJECT_ID" --scope "$TEAM_SCOPE"
 "$VERCEL_CLI" firewall rules list --expand --json --project "$PROJECT_ID" --scope "$TEAM_SCOPE"
@@ -123,19 +126,32 @@ RULE_FILE=/private/reviewed/germany-catalogue-cutover-deny.json
 
 Require the observed baseline above. Then stage, but do not yet publish:
 
+The reviewed owner-only enable file contains exactly
+`{"action":"firewallEnabled","id":null,"value":true}`; the restore file
+contains exactly `{"action":"firewallEnabled","id":null,"value":false}`.
+The installed CLI's draft-change formatter recognizes this boolean action;
+its `api --generate=curl` mode confirmed the request shape without execution.
+The public generated API example incorrectly pairs the discriminator with a
+neighboring rule-object schema, so do not copy that example or infer that
+`rules.insert` alone enables an unconfigured firewall. Stage the explicit
+enable and rule insertion, then require the actual draft projection below.
+
 ```sh
+"$VERCEL_CLI" api "/v1/security/firewall/config/draft?projectId=$PROJECT_ID&teamId=$TEAM_ID" --scope "$TEAM_SCOPE" -X PATCH --input "$FIREWALL_ENABLE_FILE"
 RULE_JSON=$(jq -c . "$RULE_FILE")
 "$VERCEL_CLI" firewall rules add --project "$PROJECT_ID" --scope "$TEAM_SCOPE" --json "$RULE_JSON" --yes
 "$VERCEL_CLI" firewall rules list --expand --json --project "$PROJECT_ID" --scope "$TEAM_SCOPE"
 "$VERCEL_CLI" firewall diff --json --project "$PROJECT_ID" --scope "$TEAM_SCOPE"
 ```
 
-Require one enabled rule in the draft, exact equality of its projected
+Require `firewallEnabled:true` and one enabled rule in the draft, exact equality of its projected
 `name`/`description`/`active`/`conditionGroup` with `RULE_FILE`,
 `.action.mitigate.action == "deny"`, no non-null duration/bypass/rate-limit/
 redirect action, and position zero. Because the approved baseline has no
-other rule, the insert is necessarily highest priority. If another rule or
-draft now exists, stop; do not silently reorder or publish it. If the stage
+other rule, the insert is necessarily highest priority. The diff must contain
+only the explicit enable and this rule insertion. If an unrelated change now
+exists, or enabled-state/rule equality cannot be proven, stop before publish;
+do not silently reorder or publish it. If the stage
 itself must be abandoned, first prove no unrelated draft appeared, then use
 `firewall discard --yes`.
 
@@ -195,37 +211,42 @@ gate/drain time, the transaction and post-commit verification—not only the
 
 After the importer and an independent direct-database audit prove the intended
 committed state and safe gate state, resolve the exact rule ID from the active
-configuration. Stage only its removal:
+configuration. Stage its removal and restoration of the original disabled state:
 
 ```sh
 RULE_ID=$("$VERCEL_CLI" firewall rules list --json --project "$PROJECT_ID" --scope "$TEAM_SCOPE" | jq -er --arg name "$RULE_NAME" '.rules[] | select(.name == $name) | .id')
 "$VERCEL_CLI" firewall rules remove "$RULE_ID" --yes --project "$PROJECT_ID" --scope "$TEAM_SCOPE"
+"$VERCEL_CLI" api "/v1/security/firewall/config/draft?projectId=$PROJECT_ID&teamId=$TEAM_ID" --scope "$TEAM_SCOPE" -X PATCH --input "$FIREWALL_RESTORE_FILE"
 "$VERCEL_CLI" firewall diff --json --project "$PROJECT_ID" --scope "$TEAM_SCOPE"
 ```
 
-Require that the draft contains only removal of `RULE_ID`, then publish:
+Require that the draft contains only removal of `RULE_ID` and
+`firewallEnabled:false`, then publish:
 
 ```sh
 "$VERCEL_CLI" firewall publish --yes --project "$PROJECT_ID" --scope "$TEAM_SCOPE"
 ```
 
-Require zero custom rules, zero bypasses, no draft, and successful health and
+Require `firewallEnabled:false`, zero custom rules, zero bypasses, no draft, and successful health and
 reviewed smoke journeys on Production and Preview. The initial baseline had no
 active config/version, so do not falsely describe this as activation of a
 pre-existing baseline version; the supported normal revert is remove and
-publish, followed by the zero-rule semantic check.
+publish, followed by the disabled/zero-rule semantic check.
 
 If service reopening fails or data state becomes uncertain, immediately
-re-activate the retained deny version while database maintenance remains
-closed. With an owner-only file containing exactly `{}` at
-`/private/reviewed/empty-object.json`:
+re-activate the retained deny version. A successful apply has already reopened
+the database gate; do not assume it is still maintenance-closed. An owner-only
+file at `/private/reviewed/empty-object.json` contains exactly `{}`, matching
+the installed CLI's `activateFirewallConfig` request body:
 
 ```sh
 "$VERCEL_CLI" api "/v1/security/firewall/config/$DENY_CONFIG_VERSION/activate?projectId=$PROJECT_ID" --scope "$TEAM_SCOPE" -X POST --input /private/reviewed/empty-object.json
 ```
 
-Then re-verify the 403 fence and investigate; do not announce success or retry
-the import blindly.
+Then re-verify the 403 fence, drain requests/direct writers and inspect the
+actual database state. If the approved guarded inverse is safe, its own
+operation reacquires/closes the database gate and verifies its admission drain.
+Do not override another gate owner, announce success or retry the import blindly.
 
 ## Approval contract
 
