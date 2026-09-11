@@ -381,8 +381,16 @@ try {
   await wait(selector('[data-testid=empty]'), 'successful empty journal after retry')
   await click('[data-testid=tab-dex]')
   await wait(selector('[data-testid=grid] a'))
-  const progressSpeciesUrl = await evaluate(`${selector('[data-testid=grid] a')}.href`)
-  await click('[data-testid=grid] a')
+  const progressSpeciesUrl = await evaluate(`(() => {
+    const queries=JSON.parse(localStorage.getItem('dex.queries')).json.clientState.queries;
+    for(const row of queries.flatMap(q=>q.state.data?.species??[])) {
+      const link=document.querySelector('[data-testid=grid] [data-taxon="'+row.taxonId+'"] a');
+      if(row.tile==='bird'&&link)return link.href;
+    }
+    return null;
+  })()`)
+  assert.ok(progressSpeciesUrl, 'a visible catalogue bird supports a genuine captive-exclusion sample')
+  await evaluate(`[...document.querySelectorAll('[data-testid=grid] a')].find(a=>a.href===${JSON.stringify(progressSpeciesUrl)}).click()`)
   await click('[data-testid=study]')
   await wait(`${selector('[data-testid=study]')}.getAttribute('aria-pressed') === 'true'`, 'study is saved without location')
   await click('[data-testid=log]')
@@ -488,8 +496,10 @@ try {
       await wait(`!${selector('[data-testid=log-save]')}`, 'repeat sighting accepted')
       const acknowledgedId = await evaluate(`new URL(location.href).searchParams.get('again')`)
       assert.ok(acknowledgedId, 'repeat sighting has a stable result ID')
-      await wait(`fetch('/api/trpc/journal.get?input='+encodeURIComponent(JSON.stringify({json:{id:${JSON.stringify(acknowledgedId)}}})))
-        .then(r=>r.json()).then(r=>{const s=r.result?.data?.json;return s?.lat===${sample.latitude}&&s?.lng===${sample.longitude}&&s?.wildness===${JSON.stringify(sample.wildness === 'kept' ? 'captive' : 'wild')}})`, 'server acknowledges this exact sighting, point and wildness')
+      const readSighting = `fetch('/api/trpc/journal.get?input='+encodeURIComponent(JSON.stringify({json:{id:${JSON.stringify(acknowledgedId)}}}))).then(r=>r.json()).then(r=>r.result?.data?.json)`
+      await wait(readSighting, 'server acknowledges this exact sighting')
+      const actualSighting = await evaluate(`(${readSighting}).then(s=>({lat:s.lat,lng:s.lng,wildness:s.wildness}))`)
+      assert.deepEqual(actualSighting, { lat: sample.latitude, lng: sample.longitude, wildness: sample.wildness === 'kept' ? 'captive' : 'wild' }, 'acknowledged point and wildness match the intended sample')
       await send('Page.navigate', { url: `${base}/${locale}/you` })
       await wait(`${selector('[data-testid=germany-sightings] dd')}?.textContent.trim() === ${JSON.stringify(sample.german)}`, 'only German wild land observations count territorially')
       assert.equal(await evaluate(`${selector('[data-testid=germany-discovered] dd')}.textContent.trim()`), '1')
