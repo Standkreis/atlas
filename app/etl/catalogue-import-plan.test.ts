@@ -125,6 +125,9 @@ describe('buildReviewedGalleryPlan', () => {
 
   it('canonicalizes scalar PostgreSQL timestamps without changing the UTC instant', () => {
     expect(cataloguePostgresTimestamp('2026-09-11T12:00:00.123Z')).toBe('2026-09-11T12:00:00.123')
+    expect(cataloguePostgresTimestamp('2026-09-11T12:00:00.100Z')).toBe('2026-09-11T12:00:00.1')
+    expect(cataloguePostgresTimestamp('2026-09-11T12:00:00.120Z')).toBe('2026-09-11T12:00:00.12')
+    expect(cataloguePostgresTimestamp('2026-09-11T12:00:00.010Z')).toBe('2026-09-11T12:00:00.01')
     expect(cataloguePostgresTimestamp('2026-09-11T14:00:00.123+02:00')).toBe('2026-09-11T12:00:00.123')
     expect(cataloguePostgresTimestamp('2026-09-11T12:00:00')).toBe('2026-09-11T12:00:00')
     expect(cataloguePostgresTimestamp(new Date('2026-09-11T12:00:00.123Z'))).toBe('2026-09-11T12:00:00.123')

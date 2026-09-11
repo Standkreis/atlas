@@ -260,7 +260,10 @@ const requiredString = (value: unknown, label: string) => {
 
 /** Canonical scalar form returned by PostgreSQL `TIMESTAMP(3)` through `to_jsonb`. */
 export function cataloguePostgresTimestamp(value: unknown, label = 'catalogue timestamp') {
-  try { return referenceTimestampUtc(value).replace(/\.000Z$/, '').replace(/Z$/, '') }
+  try {
+    return referenceTimestampUtc(value).replace(/Z$/, '')
+      .replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0{3}$/, '')
+  }
   catch { throw new Error(`${label} is invalid`) }
 }
 
