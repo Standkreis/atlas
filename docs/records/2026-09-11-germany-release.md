@@ -199,7 +199,57 @@ Preview probes also returned explicit WAF denial. Complete proof was recorded at
 authenticated before/after evidence and verification record were independently hash-checked and
 flushed into owner-only persistent storage. The prior attempt's target backup is not reused.
 [Second-window proof](https://github.com/Standkreis/atlas/issues/29#issuecomment-5640784290)
-records this execution boundary. Fresh backup, apply and production acceptance are still pending.
+records this execution boundary.
+
+The fresh read-only backup completed at **21:52:20.585 UTC**, with 9,569,680 bytes and SHA-256
+`be941bfd83c87acafc52597a6c2594a635d49c9bea9e14779ad205b4e812103f`. It restored to a new local
+PG18 clone; all 34 public-table row counts and digests exactly matched production. At
+**22:00:41.368 UTC**, independent full-receipt verification proved both the new backup and live
+target match the receipt's complete 31-table baseline `226059543c727306684c9871af7c1af9fdeb2d0ca4d708c89d80fcdc1939eebf`.
+This matches the earlier snapshot as an observed result, not by reusing its checkpoint.
+
+| Second-attempt binding | Value |
+| --- | --- |
+| Operation | `germany-29-production-20260911-02` |
+| Configuration digest | `64c5a6906841c460180d6f8de082c3a4464752d95c673be82e7e77ec4d961f75` |
+| Plan fingerprint | `8b32349a907ee93b01406342bb8af2daefed0299b4d0cdbdf9b2c31dfdc66a8b` |
+| Receipt fingerprint | `5777b54ea52e7a97a5334908e1a620c06367f392a19ad20b17262e640bf3472e` |
+| Receipt file SHA-256 | `b6ec628891cc4098388384484a3932de0221a87fec57edbe49cadecbcbe355f6` |
+| Receipt size/scope | 634,051,078 bytes; 873,556 mutations; 16 protected scopes |
+
+The plan preserves the approved 362 regions, 6,874 taxa and 36,338 eligible images: 1,241 existing
+references reused, 35,097 Assets inserted, 313 retained hidden references and 6,874 gallery receipts.
+Nine checkpoint/config/plan/receipt/approval files were independently hash-checked and fsynced in
+persistent owner-only storage before apply. The final activity check found no other database
+sessions and zero admissions; post-fence application logs remained empty across the hourly cron
+boundary. Read-only monitoring began at **22:02:20.364 UTC** alongside the checked apply.
+[Exact apply binding](https://github.com/Standkreis/atlas/issues/29#issuecomment-5641128403).
+
+### 🛠️ Second production attempt: safely aborted
+
+The apply again exceeded the aggregate Prisma deadline: **600,000 ms configured, 612,833 ms
+elapsed**, reported by `$executeRawUnsafe`. The monitor observed storage growth to 406,716,416
+bytes with zero admissions; those physical bytes did not prove commit. A read-only activity sample
+showed `ClientRead` rather than a lock wait, consistent with transfer/client overhead but not a
+complete network diagnosis.
+
+After the importer and monitor exited, an independent complete-receipt and 31-table readback at
+**22:19:10.283 UTC** proved exact equality with the fresh before-state fingerprint
+`226059543c727306684c9871af7c1af9fdeb2d0ca4d708c89d80fcdc1939eebf`. No catalogue transformation
+committed. Rollback-proof SHA-256: `b446f16bb9cd0e6e58eed6c1bbe89c4bf5332b0ecffb9c8fb291090c7378a559`.
+
+Root and an independent reviewer checked the short abort wrapper. With the failed PID absent,
+zero other database clients, fresh exact proof, live fence and matching drained gate owner, it
+reopened the gate at **22:20:23.263 UTC**. The exact maintenance rule was removed and the original
+disabled/zero-rule semantics restored in published configuration **3**, with no draft. At
+**22:22:04.626 UTC**, public Production and current/old authenticated Preview health were all
+200 with the expected builds; public Production remained `mtxfring`.
+
+The [second abort record](https://github.com/Standkreis/atlas/issues/29#issuecomment-5641309302)
+separates evidence from diagnosis. Backup/receipt and nine further failure/rollback/restoration
+artifacts are hash-verified and fsynced in private persistent recovery storage. Existing service
+is available; the nationwide catalogue is still not activated. Further transfer remediation and
+a fresh checked attempt are required before this release record can be adopted.
 
 The actual fence/drain, fresh backup/restore, exact-bound production plan/apply, independent audit,
 reopening and deployed browser/media/audio/offline/analytics smoke evidence must replace this pending
