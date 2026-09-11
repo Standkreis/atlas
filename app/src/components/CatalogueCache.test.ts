@@ -196,4 +196,12 @@ describe('catalogue-aware persisted queries', () => {
     expect(transitions).toEqual(['v2'])
     watcher.unsubscribe()
   })
+
+  it('repeats transition cleanup for an unchanged authoritative rollback marker', async () => {
+    const { qc, watcher, transitions, version } = watched(null)
+    await qc.fetchQuery({ queryKey: key(['identity', 'me']), queryFn: async () => ({ id: 'me', catalogueVersion: null }) })
+    expect(version()).toBeNull()
+    expect(transitions).toEqual([null])
+    watcher.unsubscribe()
+  })
 })

@@ -102,8 +102,11 @@ export function watchCatalogueCache(qc: QueryClient, options: CatalogueWatcherOp
       transition(adopted, event.query)
     } else if (authoritative) {
       // A repeated handshake also cleans values restored or inserted without a known request
-      // generation, while preserving valid fresh empty/unversioned responses.
+      // generation, while preserving valid fresh empty/unversioned responses. Pack cleanup is
+      // repeated too: an outgoing page may write the marker and unload before its async cache
+      // deletion finishes, so the incoming page must complete the idempotent transition work.
       reconcile(adopted, event.query)
+      if (adopted !== undefined) options.onTransition?.(adopted)
     } else if (!compatible(event.query, previous)) {
       qc.removeQueries({ predicate: (query) => query === event.query })
     }
