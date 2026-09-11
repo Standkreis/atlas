@@ -34,12 +34,17 @@ function byId(snapshot: TargetCatalogueSnapshot, name: string, id: string) {
   return row
 }
 
-function plan(snapshot: TargetCatalogueSnapshot, mutations: readonly PlannedCatalogueRowMutation[], protectedTables: readonly string[] = []): CatalogueTargetPlan {
+function plan(
+  snapshot: TargetCatalogueSnapshot,
+  mutations: readonly PlannedCatalogueRowMutation[],
+  protectedTables: readonly string[] = [],
+  identifiers?: Readonly<{ catalogueVersionId: string, registryVersionId: string }>,
+): CatalogueTargetPlan {
   const protectedScopes = protectedTables.map((name) => catalogueProtectionScope(name, table(snapshot, name)))
   const unsigned = {
     schemaVersion: 1,
-    catalogueVersionId: `catalogue-${randomUUID()}`,
-    registryVersionId: `registry-${randomUUID()}`,
+    catalogueVersionId: identifiers?.catalogueVersionId ?? `catalogue-${randomUUID()}`,
+    registryVersionId: identifiers?.registryVersionId ?? `registry-${randomUUID()}`,
     sourceEvidence,
     targetSnapshotFingerprint: catalogueTargetSnapshotFingerprint(snapshot),
     mappings: { taxonIdBySourceId: new Map(), regionIdBySourceId: new Map(), sourceAssetIdToTargetId: new Map() },
@@ -99,6 +104,8 @@ afterEach(async () => {
   await db.identity.deleteMany({ where: { id: { in: [...ids] } } })
   await db.region.deleteMany({ where: { id: { in: [...ids] } } })
   await db.taxon.deleteMany({ where: { id: { in: [...ids] } } })
+  await db.catalogueVersion.deleteMany({ where: { id: { in: [...ids] } } })
+  await db.regionRegistryVersion.deleteMany({ where: { id: { in: [...ids] } } })
   ids.clear(); assertStillValid.mockClear()
 })
 
@@ -131,6 +138,116 @@ describe('checked catalogue import store', () => {
     expect(await db.filter.findUniqueOrThrow({ where: { identityId: f.identityId } })).toMatchObject({ regionId: f.oldRegionId, regionIds: [f.oldRegionId] })
     expect(await db.identity.findUnique({ where: { id: f.identityId } })).not.toBeNull()
     expect(await readCatalogueCutoverState(db)).toMatchObject({ state: 'open', activeWrites: 0 })
+  })
+
+  it('retires active registry and catalogue rows before activating successors, including during recovery', async () => {
+    const oldRegistryId = randomUUID(), newRegistryId = randomUUID(), oldCatalogueId = randomUUID(), newCatalogueId = randomUUID()
+    ;[oldRegistryId, newRegistryId, oldCatalogueId, newCatalogueId].forEach((id) => ids.add(id))
+    const countryCode = `test-${randomUUID()}`
+    await db.regionRegistryVersion.createMany({ data: [
+      {
+        id: oldRegistryId,
+        countryCode,
+        version: `old-${randomUUID()}`,
+        artifactSha256: 'a'.repeat(64),
+        expectedRegions: 1,
+        expectedSourceUnits: 1,
+        active: true,
+        activatedAt: new Date('2026-09-10T00:00:00.000Z'),
+      },
+      {
+        id: newRegistryId,
+        countryCode,
+        version: `new-${randomUUID()}`,
+        artifactSha256: 'b'.repeat(64),
+        expectedRegions: 1,
+        expectedSourceUnits: 1,
+      },
+    ] })
+    const completeCatalogue = {
+      countryCode,
+      inputFingerprint: 'c'.repeat(64),
+      sourceFingerprint: 'd'.repeat(64),
+      responseFingerprint: 'e'.repeat(64),
+      unionFingerprint: 'f'.repeat(64),
+      plausibleRulesVersion: 1,
+      tileMappingVersion: 1,
+      observationWindowVersion: 1,
+      yearFrom: 2021,
+      yearTo: 2025,
+      occurrencePredicates: { fixture: true },
+      expectedRegions: 1,
+      completedRegions: 1,
+      unionTaxa: 1,
+      generatedAt: new Date('2026-09-10T00:00:00.000Z'),
+      auditedAt: new Date('2026-09-10T01:00:00.000Z'),
+    } as const
+    await db.catalogueVersion.createMany({ data: [
+      {
+        ...completeCatalogue,
+        id: oldCatalogueId,
+        runKey: `old-${randomUUID()}`,
+        registryVersionId: oldRegistryId,
+        status: 'active',
+        activatedAt: new Date('2026-09-10T02:00:00.000Z'),
+      },
+      {
+        ...completeCatalogue,
+        id: newCatalogueId,
+        runKey: `new-${randomUUID()}`,
+        registryVersionId: newRegistryId,
+        status: 'audited',
+      },
+    ] })
+    const snapshot = await snapshotCatalogueTarget(db)
+    const oldRegistry = byId(snapshot, 'RegionRegistryVersion', oldRegistryId)
+    const newRegistry = byId(snapshot, 'RegionRegistryVersion', newRegistryId)
+    const oldCatalogue = byId(snapshot, 'CatalogueVersion', oldCatalogueId)
+    const newCatalogue = byId(snapshot, 'CatalogueVersion', newCatalogueId)
+    const mutations: PlannedCatalogueRowMutation[] = [
+      {
+        phase: 'publish',
+        table: 'RegionRegistryVersion',
+        key: { id: oldRegistryId },
+        before: oldRegistry,
+        after: { ...oldRegistry, active: false },
+      },
+      {
+        phase: 'publish',
+        table: 'RegionRegistryVersion',
+        key: { id: newRegistryId },
+        before: newRegistry,
+        after: { ...newRegistry, active: true, activatedAt: oldRegistry.activatedAt },
+      },
+      {
+        phase: 'publish',
+        table: 'CatalogueVersion',
+        key: { id: oldCatalogueId },
+        before: oldCatalogue,
+        after: { ...oldCatalogue, status: 'retired' },
+      },
+      {
+        phase: 'publish',
+        table: 'CatalogueVersion',
+        key: { id: newCatalogueId },
+        before: newCatalogue,
+        after: { ...newCatalogue, status: 'active', activatedAt: oldCatalogue.activatedAt },
+      },
+    ]
+    const targetPlan = plan(snapshot, mutations, [], { catalogueVersionId: newCatalogueId, registryVersionId: newRegistryId })
+    const applyReceipt = receipt(targetPlan)
+
+    await applyCatalogueTargetPlan(db, { validated, plan: targetPlan, receipt: applyReceipt })
+    expect(await db.regionRegistryVersion.findUniqueOrThrow({ where: { id: oldRegistryId } })).toMatchObject({ active: false })
+    expect(await db.regionRegistryVersion.findUniqueOrThrow({ where: { id: newRegistryId } })).toMatchObject({ active: true })
+    expect(await db.catalogueVersion.findUniqueOrThrow({ where: { id: oldCatalogueId } })).toMatchObject({ status: 'retired' })
+    expect(await db.catalogueVersion.findUniqueOrThrow({ where: { id: newCatalogueId } })).toMatchObject({ status: 'active' })
+
+    await recoverCatalogueTarget(db, { receipt: applyReceipt })
+    expect(await db.regionRegistryVersion.findUniqueOrThrow({ where: { id: oldRegistryId } })).toMatchObject({ active: true })
+    expect(await db.regionRegistryVersion.findUniqueOrThrow({ where: { id: newRegistryId } })).toMatchObject({ active: false })
+    expect(await db.catalogueVersion.findUniqueOrThrow({ where: { id: oldCatalogueId } })).toMatchObject({ status: 'active' })
+    expect(await db.catalogueVersion.findUniqueOrThrow({ where: { id: newCatalogueId } })).toMatchObject({ status: 'audited' })
   })
 
   it('leaves maintenance closed and writes nothing while an admitted write has not drained', async () => {

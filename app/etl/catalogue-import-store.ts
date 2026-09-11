@@ -335,6 +335,17 @@ async function applyMutationBatch(tx: Tx, mutations: readonly PlannedCatalogueRo
   await upsertRows(tx, table, mutations.map((mutation) => mutation.after).filter((row): row is CatalogueTargetRow => row !== null))
 }
 
+function activates(table: 'RegionRegistryVersion' | 'CatalogueVersion', row: CatalogueTargetRow) {
+  return table === 'RegionRegistryVersion' ? row.active === true : row.status === 'active'
+}
+
+/** The old active row must retire before its partial-unique-index successor activates. */
+async function publishActiveSwap(tx: Tx, mutations: readonly PlannedCatalogueRowMutation[], table: 'RegionRegistryVersion' | 'CatalogueVersion', side: 'before' | 'after') {
+  const rows = mutations.map((mutation) => mutation[side]).filter((row): row is CatalogueTargetRow => row !== null)
+  await upsertRows(tx, table, rows.filter((row) => !activates(table, row)))
+  await upsertRows(tx, table, rows.filter((row) => activates(table, row)))
+}
+
 async function applyMutations(tx: Tx, mutations: readonly PlannedCatalogueRowMutation[]) {
   for (const entry of CATALOGUE_APPLY_ORDER.filter((entry) => entry.phase === 'materialize')) {
     await applyMutationBatch(tx, matching(mutations, entry.phase, entry.table), entry.table)
@@ -348,7 +359,9 @@ async function applyMutations(tx: Tx, mutations: readonly PlannedCatalogueRowMut
   await upsertRows(tx, 'Plausibility', plausibility.map((mutation) => mutation.after).filter((row): row is CatalogueTargetRow => row !== null))
   await upsertRows(tx, 'Lookalike', lookalikes.map((mutation) => mutation.after).filter((row): row is CatalogueTargetRow => row !== null))
   for (const entry of CATALOGUE_APPLY_ORDER.filter((entry) => entry.phase === 'publish' && !['Plausibility', 'Lookalike'].includes(entry.table))) {
-    await applyMutationBatch(tx, matching(mutations, entry.phase, entry.table), entry.table)
+    const rows = matching(mutations, entry.phase, entry.table)
+    if (entry.table === 'RegionRegistryVersion' || entry.table === 'CatalogueVersion') await publishActiveSwap(tx, rows, entry.table, 'after')
+    else await applyMutationBatch(tx, rows, entry.table)
   }
 }
 
@@ -598,7 +611,8 @@ async function recoverMutations(tx: Tx, mutations: readonly PlannedCatalogueRowM
   for (const entry of [...CATALOGUE_APPLY_ORDER].reverse().filter((entry) => entry.phase === 'publish' && !['Plausibility', 'Lookalike'].includes(entry.table))) {
     const rows = matching(mutations, entry.phase, entry.table)
     await deleteRows(tx, entry.table, rows.filter((mutation) => !mutation.before).map((mutation) => mutation.key))
-    await upsertRows(tx, entry.table, rows.map((mutation) => mutation.before).filter((row): row is CatalogueTargetRow => row !== null))
+    if (entry.table === 'RegionRegistryVersion' || entry.table === 'CatalogueVersion') await publishActiveSwap(tx, rows, entry.table, 'before')
+    else await upsertRows(tx, entry.table, rows.map((mutation) => mutation.before).filter((row): row is CatalogueTargetRow => row !== null))
   }
   const plausibility = matching(mutations, 'publish', 'Plausibility')
   const lookalikes = matching(mutations, 'publish', 'Lookalike')
