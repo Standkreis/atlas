@@ -17,9 +17,11 @@ const fullCatalogue = process.env.UX_FULL_CATALOGUE === '1'
 // Explicit scoped reruns retain the same guarded setup/restoration. An unset selector runs
 // every gate; scoped output must never be reported as a successful full browser suite.
 const scenarios = process.env.BROWSER_SCENARIOS?.split(',')
+const locales = process.env.BROWSER_LOCALES?.split(',') ?? ['en', 'de']
 const supported = ['ux', 'scan-transition', 'gallery', 'analytics', 'offline', 'full-gallery', 'full-offline']
 if (scenarios?.some(name => !supported.includes(name) || (name.startsWith('full-') && !fullCatalogue))) throw new Error('Invalid BROWSER_SCENARIOS selection')
-if (scenarios) console.log(JSON.stringify({ scopedBrowserRun: scenarios }))
+if (locales.some(locale => !['en', 'de'].includes(locale))) throw new Error('Invalid BROWSER_LOCALES selection')
+if (scenarios || process.env.BROWSER_LOCALES) console.log(JSON.stringify({ scopedBrowserRun: scenarios ?? supported.filter(name => fullCatalogue || !name.startsWith('full-')), locales, fullGalleryLocales: ['en', 'de'] }))
 // Give the current month's preview taxon two distinct local images. The older non-lead catches
 // regressions to createdAt ordering, and its URL is a byte-request sentinel in the browser audit.
 const previewAssetIds = ['00000000-0000-4000-8100-000000000000', '00000000-0000-4000-8100-000000000001']
@@ -131,8 +133,8 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 200))
   }
   if (!ready) throw new Error('Production server did not become ready')
-  for (const locale of ['en', 'de']) await run('scripts/check/ux.mjs', [base, locale])
-  for (const locale of ['en', 'de']) await run('scripts/check/scan-transition.mjs', [base, locale])
+  for (const locale of locales) await run('scripts/check/ux.mjs', [base, locale])
+  for (const locale of locales) await run('scripts/check/scan-transition.mjs', [base, locale])
   await run('scripts/check/gallery.mjs', [base])
   await run('scripts/check/analytics.mjs', [base])
   await run('scripts/check/offline.mjs', [base, identityId])
@@ -151,7 +153,7 @@ try {
     } catch (error) { await restore.query('ROLLBACK'); throw error }
     finally { await restore.end() }
     await run('scripts/check/full-gallery.mjs', [base])
-    for (const locale of ['en', 'de']) await run('scripts/check/full-offline.mjs', [base, locale])
+    for (const locale of locales) await run('scripts/check/full-offline.mjs', [base, locale])
   }
 } finally {
   await stopOwnedProcess(server)

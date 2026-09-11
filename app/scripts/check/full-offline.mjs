@@ -122,6 +122,7 @@ await browserJourney(base, async ({ send, evaluate, wait, click, viewport, reque
   const complete = await state()
   assert.equal(complete.status, 'ready', `actual explicit download: ${complete.line}`)
   assert.deepEqual(complete.urls,pack.urls); assert.equal(complete.ok,pack.urls.length)
+  if (locale === 'de') assert.equal(complete.bytes, pack.urls.length * readFileSync(new URL('../../public/onboarding/bird.webp', import.meta.url)).length, 'translated run stores only declared deterministic local image bytes')
   assert.deepEqual(complete.names,[pack.cache]);assert.equal(complete.marker.version,2);assert.deepEqual(complete.marker.urls,pack.urls)
   const leads=[...requests.values()].filter(r=>pack.urls.includes(r.url))
   console.log(JSON.stringify({ explicitPack: {

@@ -71,7 +71,7 @@ await browserJourney(base, async ({ send, evaluate, wait, click, key, viewport, 
       await credit(0)
       if (count === 1) assert.equal(await evaluate(`document.querySelectorAll('[data-testid=gallery-next], [data-testid=gallery-position]').length`), 0)
       else {
-        const position = n => wait(`${q('[data-testid=gallery-position]')}.textContent === ${JSON.stringify(locale === 'en' ? `Image ${n} of ${count}` : `Bild ${n} von ${count}`)}`)
+        const position = n => wait(`${q('[data-testid=gallery-position]')}.textContent === ${JSON.stringify(locale === 'en' ? `Image ${n} of ${count}` : `Bild ${n} von ${count}`)} && Math.abs(${q('[data-testid=slider]')}.scrollLeft - ${n - 1} * ${q('[data-testid=slider]')}.clientWidth) < 1`, 'announced position and physical slide settle together')
         assert.equal(await evaluate(`${q('[data-testid=gallery-position]')}.getAttribute('aria-live')`), 'polite')
         assert.ok(await evaluate(`[...document.querySelectorAll('[data-testid=gallery-next], [data-testid=gallery-previous], [data-testid=slider-info]')].every(b=>b.getBoundingClientRect().width>=44&&b.getBoundingClientRect().height>=44)`))
         if (width === 390) { await touchNext(); await position(2) }
