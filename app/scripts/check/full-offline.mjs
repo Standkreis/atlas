@@ -20,6 +20,8 @@ await browserJourney(base, async ({ send, evaluate, wait, click, viewport, reque
   const mediaMode = locale === 'de' ? 'deterministic local image bytes' : 'actual CDN responses'
   const patterns = [{ urlPattern: 'https://*', resourceType: 'Image' }, { urlPattern: 'https://*', resourceType: 'Fetch' }]
   if (locale === 'de') {
+    // Keep page media in the interceptor until the newly installed worker is attached too.
+    await send('Network.setBypassServiceWorker', { bypass: true })
     const body = readFileSync(new URL('../../public/onboarding/bird.webp', import.meta.url)).toString('base64')
     listeners.add(message => {
       if (message.method === 'Fetch.requestPaused') void send('Fetch.fulfillRequest', { requestId: message.params.requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'image/webp' }, { name: 'Access-Control-Allow-Origin', value: '*' }], body }, message.sessionId)
@@ -87,6 +89,7 @@ await browserJourney(base, async ({ send, evaluate, wait, click, viewport, reque
     if (locale === 'de') await send('Fetch.enable', { patterns }, sessionId)
   }
   assert.ok(workers.length)
+  if (locale === 'de') await send('Network.setBypassServiceWorker', { bypass: false })
   // Hold the actual downloader's fetches until Cancel is clicked, without replacing responses.
   await evaluate(`(() => { const original=window.fetch; window.__releasePack=null; const gate=new Promise(r=>window.__releasePack=r); const urls=${JSON.stringify(pack.urls)}; window.fetch=async(...args)=>{if(urls.includes(String(args[0])))await gate;return original(...args)};window.__restorePackFetch=()=>{window.fetch=original} })()`)
   requests.clear()

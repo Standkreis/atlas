@@ -19,6 +19,7 @@ const chrome = spawn(executable, ['--headless=new', '--disable-gpu', '--remote-d
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 let ws
 let catalogueDb
+let catalogueFailure
 let rolledBack = []
 try {
   const port = await ownedDebugPort(chrome, profile)
@@ -45,6 +46,7 @@ try {
   const { sessionId } = await call('Target.attachToTarget', { targetId: page.targetId, flatten: true })
   const send = (method, params = {}) => call(method, params, sessionId)
   const evaluate = async expression => {
+    if (catalogueFailure) throw catalogueFailure
     const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })
     if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text)
     return result.result?.value
@@ -100,9 +102,11 @@ try {
     return { catalogueVersion: me.catalogueVersion, regionId, legacyRows: legacy.length, versionedRows: versioned.taxa.length, cacheName };
   })()`)
   catalogueDb = new pg.Client({ connectionString: database.toString() })
+  catalogueDb.on('error', error => { catalogueFailure = error })
   await catalogueDb.connect()
   const rollback = await catalogueDb.query(`UPDATE "CatalogueVersion" SET status = 'audited'::"CatalogueStatus" WHERE "countryCode" = 'DE' AND status = 'active'::"CatalogueStatus" RETURNING id, "updatedAt"::text`)
   rolledBack = rollback.rows
+  await catalogueDb.end()
   assert.ok(rolledBack.length > 0, 'browser rollback changes an active local catalogue')
   await send('Page.reload')
   let legacyObserved = false
@@ -148,10 +152,16 @@ try {
   console.log(JSON.stringify(result, null, 2))
 } finally {
   if (catalogueDb) {
+    const restore = new pg.Client({ connectionString: database.href })
+    restore.on('error', error => { console.error('Catalogue restoration connection failed:', error); process.exitCode = 1 })
     try {
-      for (const row of rolledBack) await catalogueDb.query(`UPDATE "CatalogueVersion" SET status = 'active'::"CatalogueStatus", "updatedAt" = $2 WHERE id = $1`, [row.id, row.updatedAt])
+      await restore.connect()
+      for (const row of rolledBack) await restore.query(`UPDATE "CatalogueVersion" SET status = 'active'::"CatalogueStatus", "updatedAt" = $2 WHERE id = $1`, [row.id, row.updatedAt])
     } catch (error) { console.error('Catalogue restoration failed:', error); process.exitCode = 1 }
-    finally { await catalogueDb.end() }
+    finally {
+      await restore.end().catch(error => { console.error('Catalogue restoration disconnect failed:', error); process.exitCode = 1 })
+      await catalogueDb.end().catch(error => { console.error('Catalogue check disconnect failed:', error); process.exitCode = 1 })
+    }
   }
   ws?.close()
   await stopOwnedProcess(chrome, profile)
