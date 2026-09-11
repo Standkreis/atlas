@@ -159,7 +159,81 @@ retained and flushed in owner-only persistent recovery storage. The existing app
 [Child #102](https://github.com/Standkreis/atlas/issues/102) owns the narrow aggregate-budget fix,
 tests and fresh full-size local rehearsal. A new exact-bound production attempt remains pending.
 
+### ✅ Bounded timeout fix and fresh full-size rehearsal
+
+[#102 / PR #103](https://github.com/Standkreis/atlas/pull/103) merged as
+`e96544e5eb90bde996b34fb58c1f0978491cfff3`; its tree exactly matches the checked issue head
+`2873418f35f7f3f89884c2c77cbd63910b94a2e5`. Only the importer aggregate budget changed to
+600 seconds. SQL statements remain bounded at 120 seconds, locks/acquisition at 30 seconds;
+short gate transactions, atomicity and preservation guards are unchanged.
+
+The complete application check passed against full local data: typecheck, lint (zero errors,
+six existing warnings), 590 unit tests, 13,769-page static export and production-server build.
+All 101 integration tests passed, including a real two-statement 122-second sequence followed
+by further SQL and an injected failure proving exact rollback with maintenance closed.
+
+A fresh local restore of the actual production backup then completed checked plan/apply/recovery.
+Independent audits proved every receipt-derived after-image and exact restoration of the original
+31-table fingerprint `226059543c727306684c9871af7c1af9fdeb2d0ca4d708c89d80fcdc1939eebf`.
+All 1,784 current original Assets and 24,954 original taxon IDs survived, including 34,104 protected
+nonempty rich values and 3,586 existing names. Both operations ended open and drained.
+
+Whole-CLI timings were 173.926 seconds for plan, 431.138 for apply and 151.695 for recovery.
+Two-second sampling bracketed maintenance at roughly 127/74 seconds, including nontransaction
+work; neither measure is a transaction-duration claim. Sampled peak across apply/recovery was
+650,483,391 bytes. The [acceptance review](https://github.com/Standkreis/atlas/issues/102#issuecomment-5640524613)
+retains exact audit hashes and current-head CI evidence. Production retry remains separately gated.
+
 The actual fence/drain, fresh backup/restore, exact-bound production plan/apply, independent audit,
 reopening and deployed browser/media/audio/offline/analytics smoke evidence must replace this pending
 section before #29 closes. Personal before-images, credentials, raw receipts and browser profiles
 remain owner-only outside Git. Epic #14 additionally needs its dedicated ADR close-out review.
+
+## 🔗 Completed issue/PR delivery trace
+
+The following 40 scoped issues are completed with their associated PRs merged. This is not a
+substitute for #29's production acceptance or Epic #14's outcome review, which remain pending.
+Issue #53 was cancelled, not delivered. Separate follow-up epics are outside this release.
+
+| Issue | Merged PR |
+| --- | --- |
+| [#15](https://github.com/Standkreis/atlas/issues/15) | [#30](https://github.com/Standkreis/atlas/pull/30) |
+| [#16](https://github.com/Standkreis/atlas/issues/16) | [#31](https://github.com/Standkreis/atlas/pull/31) |
+| [#17](https://github.com/Standkreis/atlas/issues/17) | [#32](https://github.com/Standkreis/atlas/pull/32) |
+| [#18](https://github.com/Standkreis/atlas/issues/18) | [#33](https://github.com/Standkreis/atlas/pull/33) |
+| [#19](https://github.com/Standkreis/atlas/issues/19) | [#50](https://github.com/Standkreis/atlas/pull/50) |
+| [#20](https://github.com/Standkreis/atlas/issues/20) | [#52](https://github.com/Standkreis/atlas/pull/52) |
+| [#21](https://github.com/Standkreis/atlas/issues/21) | [#56](https://github.com/Standkreis/atlas/pull/56) |
+| [#22](https://github.com/Standkreis/atlas/issues/22) | [#40](https://github.com/Standkreis/atlas/pull/40) |
+| [#23](https://github.com/Standkreis/atlas/issues/23) | [#43](https://github.com/Standkreis/atlas/pull/43) |
+| [#24](https://github.com/Standkreis/atlas/issues/24) | [#46](https://github.com/Standkreis/atlas/pull/46) |
+| [#25](https://github.com/Standkreis/atlas/issues/25) | [#54](https://github.com/Standkreis/atlas/pull/54) |
+| [#26](https://github.com/Standkreis/atlas/issues/26) | [#42](https://github.com/Standkreis/atlas/pull/42) |
+| [#27](https://github.com/Standkreis/atlas/issues/27) | [#48](https://github.com/Standkreis/atlas/pull/48) |
+| [#28](https://github.com/Standkreis/atlas/issues/28) | [#84](https://github.com/Standkreis/atlas/pull/84) |
+| [#34](https://github.com/Standkreis/atlas/issues/34) | [#39](https://github.com/Standkreis/atlas/pull/39) |
+| [#35](https://github.com/Standkreis/atlas/issues/35) | [#41](https://github.com/Standkreis/atlas/pull/41) |
+| [#36](https://github.com/Standkreis/atlas/issues/36) | [#44](https://github.com/Standkreis/atlas/pull/44) |
+| [#37](https://github.com/Standkreis/atlas/issues/37) | [#45](https://github.com/Standkreis/atlas/pull/45) |
+| [#38](https://github.com/Standkreis/atlas/issues/38) | [#51](https://github.com/Standkreis/atlas/pull/51) |
+| [#47](https://github.com/Standkreis/atlas/issues/47) | [#49](https://github.com/Standkreis/atlas/pull/49) |
+| [#57](https://github.com/Standkreis/atlas/issues/57) | [#58](https://github.com/Standkreis/atlas/pull/58) |
+| [#59](https://github.com/Standkreis/atlas/issues/59) | [#64](https://github.com/Standkreis/atlas/pull/64) |
+| [#60](https://github.com/Standkreis/atlas/issues/60) | [#66](https://github.com/Standkreis/atlas/pull/66) |
+| [#61](https://github.com/Standkreis/atlas/issues/61) | [#68](https://github.com/Standkreis/atlas/pull/68) |
+| [#62](https://github.com/Standkreis/atlas/issues/62) | [#69](https://github.com/Standkreis/atlas/pull/69) |
+| [#63](https://github.com/Standkreis/atlas/issues/63) | [#70](https://github.com/Standkreis/atlas/pull/70) |
+| [#65](https://github.com/Standkreis/atlas/issues/65) | [#81](https://github.com/Standkreis/atlas/pull/81) |
+| [#71](https://github.com/Standkreis/atlas/issues/71) | [#75](https://github.com/Standkreis/atlas/pull/75) |
+| [#72](https://github.com/Standkreis/atlas/issues/72) | [#76](https://github.com/Standkreis/atlas/pull/76) |
+| [#73](https://github.com/Standkreis/atlas/issues/73) | [#79](https://github.com/Standkreis/atlas/pull/79) |
+| [#74](https://github.com/Standkreis/atlas/issues/74) | [#80](https://github.com/Standkreis/atlas/pull/80) |
+| [#77](https://github.com/Standkreis/atlas/issues/77) | [#78](https://github.com/Standkreis/atlas/pull/78) |
+| [#85](https://github.com/Standkreis/atlas/issues/85) | [#90](https://github.com/Standkreis/atlas/pull/90) |
+| [#86](https://github.com/Standkreis/atlas/issues/86) | [#89](https://github.com/Standkreis/atlas/pull/89) |
+| [#87](https://github.com/Standkreis/atlas/issues/87) | [#88](https://github.com/Standkreis/atlas/pull/88) |
+| [#91](https://github.com/Standkreis/atlas/issues/91) | [#92](https://github.com/Standkreis/atlas/pull/92) |
+| [#94](https://github.com/Standkreis/atlas/issues/94) | [#96](https://github.com/Standkreis/atlas/pull/96) |
+| [#95](https://github.com/Standkreis/atlas/issues/95) | [#97](https://github.com/Standkreis/atlas/pull/97) |
+| [#98](https://github.com/Standkreis/atlas/issues/98) | [#99](https://github.com/Standkreis/atlas/pull/99) |
+| [#102](https://github.com/Standkreis/atlas/issues/102) | [#103](https://github.com/Standkreis/atlas/pull/103) |
