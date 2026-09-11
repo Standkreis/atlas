@@ -9,7 +9,7 @@ until the actual transfer and deployed journeys satisfy the release criteria.
 
 ## 📌 Reviewed release
 
-Executing code: `85c4a473ee65e9418eb5fb12d132ab0a9551ba77`, clean isolated checkout.
+First-attempt code: `85c4a473ee65e9418eb5fb12d132ab0a9551ba77`, clean isolated checkout.
 Its [main CI](https://github.com/Standkreis/atlas/actions/runs/34630602949) passed.
 Vercel Production deployment `dpl_2P7jqAbMYa2NQrkP4QbGymUbgcyE` is ready at that commit;
 public health returned build `mtx9ezd9`. Deployment readiness does not activate the catalogue.
@@ -155,7 +155,7 @@ was verified in the resulting configuration. By **20:29:14 UTC**, public Product
 
 [Execution and abort evidence](https://github.com/Standkreis/atlas/issues/29#issuecomment-5640268308)
 records the bindings. Backup, receipt, failed log, monitor and exact rollback/gate/WAF proofs are
-retained and flushed in owner-only persistent recovery storage. The existing app remains available.
+retained and flushed in owner-only persistent recovery storage. The existing app was restored.
 [Child #102](https://github.com/Standkreis/atlas/issues/102) owns the narrow aggregate-budget fix,
 tests and fresh full-size local rehearsal. A new exact-bound production attempt remains pending.
 
@@ -183,6 +183,23 @@ Two-second sampling bracketed maintenance at roughly 127/74 seconds, including n
 work; neither measure is a transaction-duration claim. Sampled peak across apply/recovery was
 650,483,391 bytes. The [acceptance review](https://github.com/Standkreis/atlas/issues/102#issuecomment-5640524613)
 retains exact audit hashes and current-head CI evidence. Production retry remains separately gated.
+
+### 🛡️ Second maintenance window
+
+The clean second-attempt release head is `e96544e5eb90bde996b34fb58c1f0978491cfff3`.
+[Main CI](https://github.com/Standkreis/atlas/actions/runs/34646762801) passed, and matching
+Production deployment `dpl_4L1VA3m7KuguCzywkpHvTUQpxwja` was Ready with health build `mtxfring`.
+The reviewed deny configuration was reactivated at **21:03:29.570 UTC**, from the exact
+disabled/zero-rule configuration2. No new rule semantics or protection bypass was introduced.
+
+The owner confirmed both current and old immutable Production health URLs were healthy before
+activation and returned 403 afterward. Root's public Production and authenticated current/old
+Preview probes also returned explicit WAF denial. Complete proof was recorded at
+**21:20:27.227 UTC**; the new 1,830-second drain ends **21:50:57.227 UTC**. The activation,
+authenticated before/after evidence and verification record were independently hash-checked and
+flushed into owner-only persistent storage. The prior attempt's target backup is not reused.
+[Second-window proof](https://github.com/Standkreis/atlas/issues/29#issuecomment-5640784290)
+records this execution boundary. Fresh backup, apply and production acceptance are still pending.
 
 The actual fence/drain, fresh backup/restore, exact-bound production plan/apply, independent audit,
 reopening and deployed browser/media/audio/offline/analytics smoke evidence must replace this pending
