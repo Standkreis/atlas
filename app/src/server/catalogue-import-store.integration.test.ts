@@ -25,6 +25,8 @@ import {
 } from '../../etl/catalogue-import-plan'
 import type { ValidatedCatalogueReleaseImport, ValidatedImportEvidence } from '../../etl/catalogue-import-validation'
 import { validateReleaseSpotReport, type ReleaseSpotContract } from '../../etl/catalogue-release-spots'
+import { CATALOGUE_WRITE_BATCH, CATALOGUE_KEY_BATCH } from '../../etl/catalogue-import-batches'
+import { withCatalogueTelemetry, type CatalogueTelemetryEvent } from '../../etl/catalogue-import-telemetry'
 
 const sourceEvidence: ValidatedImportEvidence = { files: [], tables: [], decodedFingerprint: '1'.repeat(64) }
 const assertStillValid = vi.fn(async () => undefined)
@@ -130,6 +132,62 @@ afterEach(async () => {
 afterAll(async () => { await db.$disconnect() })
 
 describe('checked catalogue import store', () => {
+  it('bounds Unicode writes and keyed reads, preserves exact snapshots through failed and successful apply/inverse', async () => {
+    const f = await fixture()
+    // Long, valid text primary keys make the real 4 MiB read boundary observable with few rows.
+    const newIds = Array.from({ length: 2_200 }, () => `${randomUUID()}-${'k'.repeat(1_970)}`)
+    newIds.forEach((id) => ids.add(id))
+    const oldRegion = byId(f.snapshot, 'Region', f.oldRegionId)
+    const mutations: PlannedCatalogueRowMutation[] = newIds.map((id, index) => ({
+      phase: 'materialize', table: 'Region', key: { id }, before: null,
+      after: { ...oldRegion, id, gadmGid: null, canonicalKey: null, name: `Größe 水 🦊 ${index}` },
+    }))
+    const targetPlan = plan(f.snapshot, mutations, ['Identity', 'Filter', 'Taxon', 'Asset'])
+    const applyReceipt = receipt(targetPlan), baseline = catalogueTargetSnapshotFingerprint(f.snapshot)
+    const events: CatalogueTelemetryEvent[] = []
+    const capture = <T>(work: () => Promise<T>) => withCatalogueTelemetry((event) => events.push(event), work)
+    const fail = async () => { throw new Error('injected multi-batch failure') }
+    await expect(capture(() => applyCatalogueTargetPlan(db, {
+      validated, plan: targetPlan, receipt: applyReceipt, faultInjection: { afterWrites: fail },
+    }))).rejects.toThrow('injected multi-batch failure')
+    expect(catalogueTargetSnapshotFingerprint(await snapshotCatalogueTarget(db))).toBe(baseline)
+    expect(await readCatalogueCutoverState(db)).toMatchObject({ state: 'maintenance', activeWrites: 0 })
+    await capture(() => applyCatalogueTargetPlan(db, { validated, plan: targetPlan, receipt: applyReceipt }))
+    const appliedSnapshot = await snapshotCatalogueTarget(db)
+    const applied = catalogueTargetSnapshotFingerprint(appliedSnapshot)
+    expect(applied).not.toBe(baseline)
+    const importedIds = new Set(newIds)
+    const keyedProtection = catalogueProtectionScope('Region', table(appliedSnapshot, 'Region').filter((row) => importedIds.has(row.id as string)), {
+      kind: 'keys', keys: [...newIds].reverse().map((id) => ({ id })),
+    })
+    const protectionPlan = plan(appliedSnapshot, [], [], undefined, [keyedProtection])
+    await capture(() => applyCatalogueTargetPlan(db, { validated, plan: protectionPlan, receipt: receipt(protectionPlan) }))
+    const partialProtection = catalogueProtectionScope('Region',
+      table(appliedSnapshot, 'Region').filter((row) => importedIds.has(row.id as string)).map(({ name }) => ({ name })),
+      keyedProtection.selector)
+    const partialPlan = plan(appliedSnapshot, [], [], undefined, [partialProtection])
+    await capture(() => applyCatalogueTargetPlan(db, { validated, plan: partialPlan, receipt: receipt(partialPlan) }))
+    await expect(capture(() => recoverCatalogueTarget(db, { receipt: applyReceipt, faultInjection: { afterWrites: fail } })))
+      .rejects.toThrow('injected multi-batch failure')
+    expect(catalogueTargetSnapshotFingerprint(await snapshotCatalogueTarget(db))).toBe(applied)
+    await capture(() => recoverCatalogueTarget(db, { receipt: applyReceipt }))
+    expect(catalogueTargetSnapshotFingerprint(await snapshotCatalogueTarget(db))).toBe(baseline)
+    expect(await readCatalogueCutoverState(db)).toMatchObject({ state: 'open', activeWrites: 0 })
+    for (const operation of ['upsert', 'delete', 'keyed-read', 'scope-read'] as const) {
+      const batches = events.filter((event) => event.event === 'batch' && event.operation === operation && event.table === 'Region')
+      expect(batches.length).toBeGreaterThan(1)
+      const limits = operation === 'keyed-read' || operation === 'scope-read' ? CATALOGUE_KEY_BATCH : CATALOGUE_WRITE_BATCH
+      expect(batches.every((batch) => batch.inputRows <= limits.maxRows && batch.inputJsonBytes <= limits.maxBytes)).toBe(true)
+    }
+    expect(JSON.stringify(events)).not.toContain(newIds[0])
+    expect(JSON.stringify(events)).not.toContain('Größe')
+
+    const oversizedPlan = plan(f.snapshot, [{ ...mutations[0]!, after: { ...mutations[0]!.after, name: '🦊'.repeat(CATALOGUE_WRITE_BATCH.maxBytes / 4) } }])
+    await expect(applyCatalogueTargetPlan(db, { validated, plan: oversizedPlan, receipt: receipt(oversizedPlan) })).rejects.toThrow('exceeds 4194304 UTF-8 JSON bytes')
+    expect(catalogueTargetSnapshotFingerprint(await snapshotCatalogueTarget(db))).toBe(baseline)
+    expect(await readCatalogueCutoverState(db)).toMatchObject({ state: 'maintenance' })
+  })
+
   it('uses the bounded nationwide budget on every long path without extending short gate transactions', async () => {
     const f = await fixture(), targetPlan = plan(f.snapshot, f.mutations), applyReceipt = receipt(targetPlan)
     const transactions = vi.spyOn(db, '$transaction')
@@ -538,7 +596,7 @@ describe('checked catalogue import store', () => {
   it('batches composite inbound targets and still rejects a newer reference in a later batch', async () => {
     const registryVersionId = randomUUID(), sourceId = randomUUID(), regionId = randomUUID()
     const registryEntryId = randomUUID(), catalogueVersionId = randomUUID(), regionBuildId = randomUUID()
-    const taxonIds = Array.from({ length: 1_002 }, () => randomUUID())
+    const taxonIds = Array.from({ length: 10_002 }, () => randomUUID())
     const plausibilityIds = taxonIds.map(() => randomUUID())
     const externalLookalikeId = randomUUID()
     const countryCode = `test-${randomUUID()}`
@@ -588,7 +646,7 @@ describe('checked catalogue import store', () => {
       const applyReceipt = receipt(targetPlan)
       await applyCatalogueTargetPlan(db, { validated, plan: targetPlan, receipt: applyReceipt })
       await db.catalogueLookalike.create({ data: {
-        id: externalLookalikeId, regionBuildId, taxonId: taxonIds[1_000]!, siblingId: taxonIds[1_001]!,
+        id: externalLookalikeId, regionBuildId, taxonId: taxonIds[10_000]!, siblingId: taxonIds[10_001]!,
       } })
 
       await expect(recoverCatalogueTarget(db, {
@@ -598,9 +656,9 @@ describe('checked catalogue import store', () => {
       const composite = batchEvidence.filter((evidence) =>
         evidence.targetTable === 'CataloguePlausibility' && evidence.sourceTable === 'CatalogueLookalike')
       expect(composite.filter(({ label }) => label === 'member').map(({ targetRows, sourceRows }) => ({ targetRows, sourceRows })))
-        .toEqual([{ targetRows: 1_000, sourceRows: 0 }, { targetRows: 2, sourceRows: 1 }])
+        .toEqual([...Array.from({ length: 10 }, () => ({ targetRows: 1_000, sourceRows: 0 })), { targetRows: 2, sourceRows: 1 }])
       expect(composite.filter(({ label }) => label === 'sibling-member').map(({ targetRows, sourceRows }) => ({ targetRows, sourceRows })))
-        .toEqual([{ targetRows: 1_000, sourceRows: 0 }, { targetRows: 2, sourceRows: 1 }])
+        .toEqual([...Array.from({ length: 10 }, () => ({ targetRows: 1_000, sourceRows: 0 })), { targetRows: 2, sourceRows: 1 }])
       expect(composite.every((evidence) =>
         evidence.targetRows <= 1_000 && evidence.targetJsonBytes < 128 * 1_024 &&
         JSON.stringify(evidence.targetColumns) === JSON.stringify(['regionBuildId', 'taxonId']) &&

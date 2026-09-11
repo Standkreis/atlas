@@ -9,6 +9,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { z } from 'zod'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { catalogueImportDigest } from './catalogue-import-json'
+import { cataloguePhase, withCatalogueTelemetry } from './catalogue-import-telemetry'
 import { planCatalogueTarget } from './catalogue-import-relational-plan'
 import { targetGalleryReviewFromDocument, type ReviewedTargetGalleryDocument } from './catalogue-import-review'
 import {
@@ -266,16 +267,16 @@ async function loadConfig(path: string, runtime: CatalogueImportCliRuntime) {
 }
 
 async function buildPlan(config: CatalogueImportExecutionConfig, db: Database, runtime: CatalogueImportCliRuntime) {
-  const source = await runtime.validateSource(config.frozenBundle as CatalogueImportBundleInput)
-  const validated = await runtime.validateRelease(source, config.releaseEvidence as CatalogueReleaseEvidenceInput, { now: runtime.now() })
+  const source = await cataloguePhase('source-validation', () => runtime.validateSource(config.frozenBundle as CatalogueImportBundleInput))
+  const validated = await cataloguePhase('release-validation', () => runtime.validateRelease(source, config.releaseEvidence as CatalogueReleaseEvidenceInput, { now: runtime.now() }))
   const target = await runtime.snapshot(db)
   const reviewed = await runtime.readJson(config.galleryReview.document.path, z.unknown(), config.galleryReview.document)
   const gallery = runtime.review(source, target, reviewed.value as ReviewedTargetGalleryDocument, {
     documentFingerprint: config.galleryReview.documentFingerprint,
     evidenceFingerprint: config.galleryReview.evidenceFingerprint,
   })
-  const plan = runtime.plan({ source, target, gallery, activationAt: config.activationAt })
-  const receipt = runtime.createReceipt({ operationId: config.operationId, plan, validated, createdAt: config.activationAt })
+  const plan = await cataloguePhase('planning', () => runtime.plan({ source, target, gallery, activationAt: config.activationAt }))
+  const receipt = await cataloguePhase('receipt-validation', () => runtime.createReceipt({ operationId: config.operationId, plan, validated, createdAt: config.activationAt }))
   return { validated, plan, receipt }
 }
 
@@ -305,11 +306,20 @@ export const CATALOGUE_IMPORT_CLI_USAGE = [
   'tsx etl/catalogue-import-cli.ts apply --config <json> --receipt <jsonl> --plan-record <json> --release-record <json> [--execution-manifest <json>]',
   'tsx etl/catalogue-import-cli.ts recover --config <json> --receipt <jsonl> --plan-record <json> [--execution-manifest <json>]',
   'DATABASE_URL must be explicitly configured in the process environment; this CLI never loads .env files.',
+  'Optional --telemetry counts emits numeric phase/batch diagnostics; it changes no execution bounds or bindings.',
   'Non-disposable targets require a separately reviewed execution manifest; validating that record cannot prove human approval, which remains the operator’s responsibility.',
 ].join('\n')
 
 /** Command runner is injectable so tests never connect to or mutate a real database. */
 export async function runCatalogueImportCli(argv: readonly string[], options: { runtime?: CatalogueImportCliRuntime; env?: { DATABASE_URL?: string } } = {}) {
+  if (argv.includes('--telemetry')) {
+    return withCatalogueTelemetry((event) => (options.runtime ?? defaultRuntime).stdout(JSON.stringify(event)),
+      () => runCatalogueImportCommand(argv, options))
+  }
+  return runCatalogueImportCommand(argv, options)
+}
+
+async function runCatalogueImportCommand(argv: readonly string[], options: { runtime?: CatalogueImportCliRuntime; env?: { DATABASE_URL?: string } }) {
   const runtime = options.runtime ?? defaultRuntime
   const env = options.env ?? process.env
   const [command, ...args] = argv
@@ -323,7 +333,8 @@ export async function runCatalogueImportCli(argv: readonly string[], options: { 
   const allowed = command === 'plan' ? ['config', 'receipt', 'plan-record', 'execution-manifest'] : command === 'apply'
     ? ['config', 'receipt', 'plan-record', 'release-record', 'execution-manifest']
     : ['config', 'receipt', 'plan-record', 'execution-manifest']
-  const flags = parseFlags(args, allowed)
+  const flags = parseFlags(args, [...allowed, 'telemetry'])
+  if (flags.has('telemetry') && flags.get('telemetry') !== 'counts') throw new Error('catalogue import --telemetry requires counts')
   const connectionString = env.DATABASE_URL
   if (!connectionString) throw new Error('catalogue import requires explicitly configured DATABASE_URL; no .env file is loaded')
   const configPath = required(flags, 'config')
