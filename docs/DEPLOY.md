@@ -74,18 +74,15 @@ Jobs that must outlive the response (the region job on `dex.requestRegion`, the 
 
 ## 🗄️ Filling or refreshing the database from the Mac
 
-The ETL runs on the Mac against Neon over the **unpooled** URL. Only the set tables travel (`Region`, `Taxon`, `Plausibility`, `Lookalike`, reference `Asset`s); sightings and identities never do. Details and the `pg_dump` alternative: [`app/etl/README.md` §🚀](../app/etl/README.md).
+Generate and review data in **local Postgres**, never Neon. Transfer a frozen, reviewed catalogue
+through the [checked import and recovery process](operations/germany-checked-import.md), using the
+unpooled target connection only after the concrete production migration plan is approved.
+The former direct-Neon ETL and whole-table restore recipes are superseded for populated targets;
+they do not preserve target identities, reviewed galleries and personal references safely.
 
-```sh
-cd app
-npx vercel env pull --environment production /tmp/dex-prod.env   # never into the repo
-export DATABASE_URL="$(grep '^DATABASE_URL_UNPOOLED=' /tmp/dex-prod.env | cut -d= -f2- | tr -d '"')"
-npm run etl -- region "Mainz-Bingen"
-npm run etl -- content --region "Mainz-Bingen"
-rm /tmp/dex-prod.env
-```
-
-First fill on 2026-09-06: the region job took 111 s (1,617 GBIF requests), set of 929 species.
+The historical first fill on 2026-09-06 took 111 seconds and produced a 929-species set. That old
+timing is not a Germany migration estimate. Use the production-copy rehearsal's current footprint,
+write-pause and recovery measurements instead.
 
 ## 🧰 Vercel CLI
 
