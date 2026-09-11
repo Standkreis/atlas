@@ -17,6 +17,7 @@ it('concurrent region publication preserves both texts and routes never serve an
   const ctx: Context = { db, identity, networkKey: 'fixture', minted: false, cookies: {}, outCookies: [], origin: null, locale: 'en', setCookie: () => 0 }
   const caller = taxonRouter.createCaller(ctx)
   try {
+    await db.region.createMany({ data: regions.map((id, index) => ({ id, name: `Prose region ${index}`, higher: 'Deutschland', status: 'ready' })) })
     await Promise.all(regions.map((region, i) => storeRegionalProse(db, taxon.id, region, text(`Region ${i}`))))
     for (const [i, regionId] of regions.entries()) expect((await caller.page({ gbifKey: taxon.gbifKey, regionId }))?.prose?.inputHash).toBe(`Region ${i}`)
     expect((await caller.page({ gbifKey: taxon.gbifKey, regionId: randomUUID() }))?.prose).toBeNull()
@@ -25,6 +26,7 @@ it('concurrent region publication preserves both texts and routes never serve an
     expect((await caller.page({ gbifKey: taxon.gbifKey, regionId: regions[0] }))?.prose?.inputHash).toBe('Region 0')
   } finally {
     await db.taxon.delete({ where: { id: taxon.id } })
+    await db.region.deleteMany({ where: { id: { in: regions } } })
     await db.identity.delete({ where: { id: identity.id } })
   }
 })

@@ -15,7 +15,7 @@ const keys = [990037001, 990037002]
 const leadId = '00000000-0037-4000-8000-000000000001'
 const reviewedLeadId = '00000000-0037-4000-8000-000000000002'
 const registryId = randomUUID(), catalogueId = randomUUID()
-let context: Context, regionId: string, sightingId: string
+let context: Context, regionId: string, outsideRegionId: string, sightingId: string
 const asset = (taxonId: string, n: number, position = n) => ({ taxonId, kind: 'image' as const, position, url: `https://example.test/image/${n}/medium.jpg`, author: 'Photographer', licence: 'CC BY 4.0', licenceUrl: 'https://creativecommons.org/licenses/by/4.0/', sourceUrl: `https://example.test/source/${n}`, origin: 'commons', caption: `Image ${n}`, createdAt: new Date('2025-01-01') })
 
 beforeAll(async () => {
@@ -25,6 +25,7 @@ beforeAll(async () => {
   context = { db, identity, networkKey: randomUUID(), minted: false, cookies: {}, outCookies: [], origin: 'http://localhost', locale: 'en', setCookie: () => 0 }
   const region = await db.region.create({ data: { name: 'Gallery reads fixture', higher: 'Deutschland', status: 'ready' } })
   regionId = region.id
+  outsideRegionId = (await db.region.create({ data: { name: 'Gallery outside fixture', higher: 'Deutschland', status: 'ready' } })).id
   await db.taxon.createMany({ data: taxonIds.map((id, i) => ({ id, gbifKey: keys[i], sciName: `Read fixture ${i}`, rank: 'species', tile: 'bird' as const, commonNames: { de: 3, en: ' ', fr: 'Merle noir' }, contentAt: new Date() })) })
   await db.plausibility.createMany({ data: taxonIds.map((taxonId) => ({ taxonId, regionId, obs: 100, monthShare: Array(12).fill(100), peak: 100, words: 'common' })) })
   await db.lookalike.create({ data: { regionId, taxonId: taxonIds[0], siblingId: taxonIds[1] } })
@@ -55,7 +56,7 @@ afterAll(async () => {
   await db.referenceGalleryReceipt.deleteMany({ where: { catalogueVersionId: catalogueId } })
   if (context) await db.identity.delete({ where: { id: context.identity.id } })
   await db.taxon.deleteMany({ where: { id: { in: taxonIds } } })
-  if (regionId) await db.region.delete({ where: { id: regionId } })
+  await db.region.deleteMany({ where: { id: { in: [regionId, outsideRegionId].filter(Boolean) } } })
   await db.catalogueVersion.deleteMany({ where: { id: catalogueId } })
   await db.regionRegistryVersion.deleteMany({ where: { id: registryId } })
   await db.$disconnect()
@@ -93,10 +94,10 @@ describe('public gallery read contract', () => {
     expect(detail?.taxon.lead).toBe(row.lead!.url)
     const fill = await sightingRouter.createCaller(context).fill({ id: sightingId })
     expect(fill?.taxon.lead?.id).toBe(leadId)
-    const outside = await sightingRouter.createCaller(context).outside({ regionId: randomUUID() })
+    const outside = await sightingRouter.createCaller(context).outside({ regionId: outsideRegionId })
     expect(Array.isArray(outside)).toBe(true)
     expect(outside.filter((taxon) => taxon.hasContent).some((taxon) => taxon.lead?.id === leadId)).toBe(true)
-    const versionedOutside = await sightingRouter.createCaller(context).outsideVersioned({ regionId: randomUUID() })
+    const versionedOutside = await sightingRouter.createCaller(context).outsideVersioned({ regionId: outsideRegionId })
     expect(versionedOutside).toEqual({ catalogueVersion: null, taxa: outside })
   })
 
@@ -167,7 +168,7 @@ describe('public gallery read contract', () => {
       expect((await taxonRouter.createCaller(context).ensure({ gbifKey: keys[0] })).leadInfo?.sourceUrl).toBe(asset(taxonIds[0], 2).sourceUrl)
       expect((await journalRouter.createCaller(context).get({ id: sightingId }))?.reference?.id).toBe(reviewedLeadId)
       expect((await sightingRouter.createCaller(context).fill({ id: sightingId }))?.taxon.lead?.id).toBe(reviewedLeadId)
-      expect((await sightingRouter.createCaller(context).outside({ regionId: randomUUID() }))[0]?.lead?.id).toBe(reviewedLeadId)
+      expect((await sightingRouter.createCaller(context).outside({ regionId: outsideRegionId }))[0]?.lead?.id).toBe(reviewedLeadId)
       expect((await db.asset.findMany({ where: { id: { in: protectedIds } }, select: { id: true }, orderBy: { id: 'asc' } })).map((row) => row.id)).toEqual(protectedIds)
     } finally {
       await db.referenceAssetVisibility.deleteMany({ where: { catalogueVersionId: catalogueId } })
