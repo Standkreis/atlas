@@ -113,8 +113,10 @@ reuse historical totals. No unexplained active writer was observed.
 
 Authenticated current and old Preview health checks pass. Development OIDC tokens are rejected by
 protected immutable Production deployments with `TRUSTED_SOURCES_ENVIRONMENT_MISMATCH`; this is
-not WAF enforcement. Shared-browser Vercel sign-in and stable AC power are outstanding preconditions.
-No production transformation or firewall modification has occurred.
+not WAF enforcement. Shared-browser Vercel sign-in is the outstanding access precondition. AC power
+was subsequently connected and verified charging. No production transformation or firewall
+modification has occurred. The full local receipt and related evidence were additionally copied
+to owner-only persistent recovery storage outside Git, excluding credentials and browser profiles.
 
 The actual fence/drain, fresh backup/restore, exact-bound production plan/apply, independent audit,
 reopening and deployed browser/media/audio/offline/analytics smoke evidence must replace this pending
