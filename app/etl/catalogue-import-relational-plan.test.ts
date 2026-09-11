@@ -262,6 +262,22 @@ describe('planCatalogueTarget', () => {
     expect(mutation(plan, 'Taxon').find((row) => row.key.id === targetTaxonA)!.after?.prose).toEqual({ version: 2, body: 'owner-rich' })
   })
 
+  it('rejects conflicting supported source prose even when an unsupported target shape wins', () => {
+    const source = validatedSource({ Taxon: [
+      taxon({ prose: { version: 1, regions: {
+        [sourceRegionId]: { text: 'source-id' }, [targetRegionId]: { text: 'target-id' },
+      } } }),
+      taxon({ id: sourceTaxonB, gbifKey: 2, wikidataId: 'Q2', prose: null }),
+    ] })
+    const target = targetSnapshot({ Taxon: [
+      taxon({ id: targetTaxonA, gbifKey: 1, wikidataId: 'Q1', prose: { version: 2, body: 'owner-rich' } }),
+      taxon({ id: 'outside-taxon', gbifKey: 99, wikidataId: 'Q99' }),
+    ] })
+
+    expect(() => planCatalogueTarget({ source, target, gallery, activationAt: later }))
+      .toThrow('source Taxon.prose maps conflicting prose')
+  })
+
   it('rejects unequal prose values that remap onto one region and deduplicates equal values', () => {
     const conflicting = validatedSource({ Taxon: [
       taxon({ prose: { version: 1, regions: {
