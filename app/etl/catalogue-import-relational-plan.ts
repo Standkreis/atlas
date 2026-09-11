@@ -138,16 +138,19 @@ function mappedProse(
   targetRegionRemap: ReadonlyMap<string, string | null>,
 ) {
   const source = supportedRegionalProse(sourceValue)
+  // Validate source-side identity projection even when an unsupported rich target shape wins.
+  // Otherwise conflicting source keys could escape the fail-closed remapping contract merely
+  // because there is no compatible target structure to merge them into.
+  const mappedSource = source
+    ? remapProseRegions(source.regions, (id) => regionIdBySourceId.get(id) ?? id, 'source Taxon.prose')
+    : {}
   if (!nonempty(targetValue)) {
     if (!source) return sourceValue
-    return { version: 1, regions: remapProseRegions(source.regions, (id) => regionIdBySourceId.get(id) ?? id, 'source Taxon.prose') }
+    return { version: 1, regions: mappedSource }
   }
   const target = supportedRegionalProse(targetValue)
   // An unsupported rich target shape is owner content. Never reinterpret or partially rewrite it.
   if (!target) return targetValue
-  const mappedSource = source
-    ? remapProseRegions(source.regions, (id) => regionIdBySourceId.get(id) ?? id, 'source Taxon.prose')
-    : {}
   const mappedTarget = remapProseRegions(target.regions, (id) => {
     const mapped = targetRegionRemap.has(id) ? targetRegionRemap.get(id) : id
     // Retired/no-successor and unrelated keys remain owner content; only an explicit successor moves.
