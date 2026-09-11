@@ -278,7 +278,7 @@ Two texts per taxon and language, written by a model from the fact sheet and not
 | 3 | `npm run etl -- prose --region Mainz-Bingen --run r1` again: validates the drafts (F4; an invalid one is pending again), writes the **audit** prompts `<same>-audit.md` | pending audits in batches of 5 |
 | 4 | Subagents over the audit prompts, same rule | |
 | 5 | `npm run etl -- prose --load --run r1` (answers → DB, nothing written; a taxon is stored only when every text has a valid draft and a valid audit) | loaded, pending, invalid |
-| 6 | Hand-read ten Ökologie paragraphs; then regenerate and review the frozen catalogue artefacts for the checked production transfer (§🚀: `Taxon` carries `prose`, `Interaction` carries `studies`, `real`, `prose`) | |
+| 6 | Hand-read ten Ökologie paragraphs and retain the review evidence. The [checked Germany catalogue transfer](#-checked-production-transfer) preserves existing rich content and every `Interaction` row; publishing prose or interaction changes requires a separately reviewed content-update plan. | |
 
 `--run` defaults to the region's slug (`mainz-bingen`). A taxon whose `inputHash` (sha1 of both sheets in both languages) equals the stored one is skipped; a changed fact or edge makes it pending again. `content --region <name>` (not `--force`) runs the step at its end for the taxa it filled (prompts only, with the region's default run). `--purge [--region <name>]` sets `prose` back to null; the run folders stay.
 
