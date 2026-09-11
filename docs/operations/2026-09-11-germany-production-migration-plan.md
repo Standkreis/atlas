@@ -115,3 +115,32 @@ All implementation children are merged: [#59 / PR #64](https://github.com/Standk
 | Retired regions unavailable; canonical Mainz-Bingen available | Applied-snapshot region/filter audit and 362-region API sweep; actual production behavior is rechecked after #29 activation. |
 | Cache transition coherent; packs remain lead-only | #62's delivered catalogue/queue/cache implementation and tests, plus [applied-preview explicit lead-only pack evidence](https://github.com/Standkreis/atlas/issues/29#issuecomment-5634263835). Final integrated/browser and production checks remain #29's gate. |
 | No unapproved production transformation | #28 publishes the concrete reviewable plan only. Record owner approval before #29 executes any production transformation or temporary HTTP fence. |
+
+## 🔬 11 September addendum: representative release availability
+
+Owner-approved refinement tracked in [#98](https://github.com/Standkreis/atlas/issues/98): after
+asking why every image needed another check following the completed local audit, Sven approved
+retaining the immutable complete audit and using fresh representative release-time checks.
+This addendum supersedes only the earlier requirement to renew all 36,338 URLs every 24 hours;
+the original decision text above remains historical evidence.
+
+The complete v7 URL audit remains immutable and mandatory (SHA-256
+`e707f0afef556003b8af08ccaf0b68b8444e083edbf0aa40b2606e4f5c3d5263`), with exact full target
+coverage, successful checks and all frozen source/content/review bindings still enforced.
+The stopped repeat's 7,108 successful checks and zero failures are partial evidence only.
+
+The new explicit versioned report covers **all 12 assets / 12 unique image URLs** already
+selected deterministically in the approved content audit. Together they cover available tiles,
+origins, gallery-size buckets and lead/non-lead positions. Operators cannot choose or omit a
+sample. Each check must remain younger than 24 hours at validation and again after drain/before
+apply; future, missing, duplicate, failed, unexpected or unbound checks stop release. The
+report binds the exact frozen files, original complete audit and entire reviewed sample.
+The [operator runbook](germany-checked-import.md#fresh-representative-release-checks) documents
+the bounded read-only command, checkpoints and action-manifest rebinding. The previous
+whole-set-current path remains compatible.
+
+This is an availability-freshness refinement only: no species/image membership, gallery order,
+licence/attribution, scientific/source/decode review, target preservation, HTTP fence, migration,
+recovery or cost approval changes. HTTP availability cannot guarantee future availability,
+image decoding or scientific/licensing correctness. Failed samples are investigated rather
+than removed to make release pass. Production execution remains separately recorded on #29.

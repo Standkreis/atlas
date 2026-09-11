@@ -8,6 +8,7 @@ import { TRANSFER_SPECS, writeTransferJsonl, type TransferSpec } from './catalog
 import {
   validateCatalogueImportBundle,
   validateCatalogueReleaseEvidence,
+  validateFrozenReleaseEvidence,
   type CatalogueImportBundleInput,
   type CatalogueReleaseEvidenceInput,
   type ImportEvidenceFile,
@@ -186,6 +187,35 @@ describe('validateCatalogueImportBundle', () => {
     await expect(validated.assertReleaseEvidenceStillValid(new Date('2026-09-12T03:00:00.000Z'))).rejects.toThrow('stale')
     await writeFile(fixturePaths.currentUrlReportPath, `${await readFile(fixturePaths.currentUrlReportPath, 'utf8')}\n`)
     await expect(validated.assertReleaseEvidenceStillValid(new Date('2026-09-11T04:00:00.000Z'))).rejects.toThrow('changed after release validation')
+  })
+
+  it('binds fresh spots to the complete immutable audit and rechecks freshness and bytes at apply', async () => {
+    const { input, release, paths: fixturePaths } = await fixture()
+    const source = await validateCatalogueImportBundle(input)
+    const now = new Date('2026-09-11T04:00:00.000Z')
+    const { spotContract } = await validateFrozenReleaseEvidence(source, release, now)
+    const original = JSON.parse(await readFile(fixturePaths.currentUrlReportPath, 'utf8'))
+    const spots = { schemaVersion: 1, kind: 'catalogue-release-image-spots', contract: spotContract,
+      generatedAt: original.generatedAt, checks: original.checks, attempted: 1, networkRequests: 1, reused: 0, limitation: 'HTTP only' }
+    await writeFile(fixturePaths.currentUrlReportPath, JSON.stringify(spots))
+    release.currentUrlReport = await evidence(fixturePaths.currentUrlReportPath)
+    const validated = await validateCatalogueReleaseEvidence(source, release, { now })
+    await expect(validated.assertReleaseEvidenceStillValid(now)).resolves.toBeUndefined()
+    await expect(validated.assertReleaseEvidenceStillValid(new Date('2026-09-12T03:00:00.000Z'))).rejects.toThrow('stale')
+    await writeFile(fixturePaths.auditUrlReportPath, `${await readFile(fixturePaths.auditUrlReportPath, 'utf8')}\n`)
+    await expect(validated.assertReleaseEvidenceStillValid(now)).rejects.toThrow('changed after release validation')
+    release.auditUrlReport = await evidence(fixturePaths.auditUrlReportPath)
+    await expect(validateCatalogueReleaseEvidence(source, release, { now })).rejects.toThrow('contract mismatch')
+  })
+
+  it('does not let fresh spots certify a partial or repinned unsuccessful whole audit', async () => {
+    const { input, release, paths: fixturePaths } = await fixture()
+    const source = await validateCatalogueImportBundle(input), now = new Date('2026-09-11T04:00:00.000Z')
+    const original = JSON.parse(await readFile(fixturePaths.auditUrlReportPath, 'utf8'))
+    original.checks = []; original.passed = 0; original.pending = 1
+    await writeFile(fixturePaths.auditUrlReportPath, JSON.stringify(original))
+    release.auditUrlReport = await evidence(fixturePaths.auditUrlReportPath)
+    await expect(validateFrozenReleaseEvidence(source, release, now)).rejects.toThrow('pending count')
   })
 
   it('rejects missing embedded base review decisions even when audit and manifest are repinned', async () => {
