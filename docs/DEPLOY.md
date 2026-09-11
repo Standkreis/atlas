@@ -63,6 +63,45 @@ untouched. Never resolve migration history by dropping these objects or deleting
 
 After the guarded migration step, `npm run build` runs normally: `prebuild` mints the build id, `next build`, and `postbuild` writes the worker manifest.
 
+## 📈 Web Analytics
+
+The application includes `@vercel/analytics` v2 for automatic page views only. The shared boundary
+is present in both disjoint root layouts, but renders only when all platform markers describe the
+exact Vercel Production context: `VERCEL=1`, `VERCEL_ENV=production`, and
+`VERCEL_TARGET_ENV` either absent or `production`. Local, Development, Preview, contradictory and
+unknown contexts collect nothing. There are no custom product events or Atlas identity properties.
+
+Before a page view can leave the browser, the boundary removes every query string and fragment,
+normalizes the URL against the current same origin, and rewrites `/{locale}/sighting/{id}` to
+`/{locale}/sighting/[id]`. Unparseable, cross-origin and non-page-view events are dropped. The site
+uses an origin-only referrer policy. Because the SDK's `beforeSend` callback does not cover its
+separately collected initial referrer, a document with a private sighting path, query, fragment or
+unexpectedly detailed cross-origin referrer does not load analytics at all.
+
+Vercel documents that a page-view data point may also include its timestamp, dynamic route,
+referrer, approximate city-level geolocation, OS/browser/device type and script version. It derives
+a visitor hash from the request without a third-party analytics cookie and discards the visitor
+session after 24 hours. The Settings disclosure distinguishes that collection from the app's
+same-origin HttpOnly `dex_id` cookie. The app does not read that cookie into an analytics event.
+Because the intake is same-origin, browser transport may nevertheless attach same-origin cookies
+as HTTP request headers; that is distinct from the event body and configured dashboard fields, but
+remains part of the legal/privacy review. Cookie-free analytics is not by itself a legal
+conclusion: the owner must confirm the applicable disclosure/consent basis before completing the
+production release, and revisit it if the provider configuration or collected fields change.
+
+Dashboard enablement is a separate owner-controlled prerequisite, potentially subject to the
+Vercel plan, usage limits and billing authority. A repository build cannot prove enablement or
+collection. After deploying, the owner must check the Production environment in Vercel Web
+Analytics, then use a public non-sensitive route on `atlas.standkreis.de` and verify both the
+analytics script and view intake succeed and only the aggregate, sanitized route appears in the
+dashboard. Do not use a real sighting identifier or query value as a production probe. Preview must
+show no analytics script or intake request. Until those checks are recorded, production analytics
+verification remains pending.
+
+Rollback is one code operation: remove both shared boundary mounts and the `@vercel/analytics`
+package, then redeploy. Disabling Web Analytics in the dashboard may stop intake sooner, but does
+not replace the code rollback or prove that previously deployed clients stopped attempting sends.
+
 ## 🩺 Health, cron, background work
 
 | Route | Who calls it | Answer |

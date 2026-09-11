@@ -69,4 +69,10 @@ jobs:
       - run: npm run db:seed
       - run: npm run test:integration
       - run: npm run check
+      # Rebuild the server artifact with the exact production analytics context. The browser suite
+      # intercepts the script and intake locally, so this exercises outbound payloads without Vercel traffic.
+      - run: npm run build
+        env:
+          VERCEL_ENV: production
+          VERCEL_TARGET_ENV: production
       - run: npm run test:browser

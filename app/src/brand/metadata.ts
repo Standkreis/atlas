@@ -10,6 +10,8 @@ export function atlasMetadata(locale: string, copy: BrandCopy): Metadata {
     title: copy.name,
     applicationName: copy.name,
     description: copy.description,
+    // Keep the initial analytics referrer useful at origin granularity without disclosing an Atlas path.
+    referrer: 'origin',
     publisher: 'Standkreis',
     manifest: '/manifest.webmanifest',
     icons: {

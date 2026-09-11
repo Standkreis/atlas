@@ -9,6 +9,7 @@ const fullCatalogue = process.env.UX_FULL_CATALOGUE === '1'
 // Give the current month's preview taxon two distinct local images. The older non-lead catches
 // regressions to createdAt ordering, and its URL is a byte-request sentinel in the browser audit.
 const previewAssetIds = ['00000000-0000-4000-8100-000000000000', '00000000-0000-4000-8100-000000000001']
+const analyticsSightingId = '00000000-0000-4000-8200-000000000000'
 let shiftedPreviewAssets = []
 const fixtureDb = new pg.Client({ connectionString: database.href })
 await fixtureDb.connect()
@@ -19,6 +20,8 @@ try {
     WHERE r.name = 'Mainz-Bingen' AND p.peak > 0
     ORDER BY p."monthShare"[EXTRACT(MONTH FROM CURRENT_DATE)::int]::numeric / p.peak DESC LIMIT 1`)
   if (!demo) throw new Error('Mainz-Bingen preview taxon missing')
+  await fixtureDb.query(`DELETE FROM "Sighting" WHERE id = $1`, [analyticsSightingId])
+  await fixtureDb.query(`INSERT INTO "Sighting" (id, "identityId", "taxonId", at, lat, lng, place, note, evidence, wildness, "createdAt") VALUES ($1, '00000000-0000-4000-8000-000000000001', $2, NOW(), NULL, NULL, 'Private fixture place', 'Private fixture note', 'claimed', 'wild', NOW())`, [analyticsSightingId, demo.taxonId])
   const { rows: existingPreviewAssets } = await fixtureDb.query(`SELECT id, position FROM "Asset" WHERE "taxonId" = $1 ORDER BY id`, [demo.taxonId])
   shiftedPreviewAssets = existingPreviewAssets
   if (shiftedPreviewAssets.length) {
@@ -71,7 +74,7 @@ try {
   await fixtureDb.query('ROLLBACK')
   throw error
 } finally { await fixtureDb.end() }
-const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', '3002'], { stdio: 'inherit', env: { ...process.env, VERCEL: '1', BLOB_READ_WRITE_TOKEN: '', PHOTO_DIR: '/tmp/dex-check-photos', ANTHROPIC_API_KEY: 'check-only', ANTHROPIC_BASE_URL: 'http://127.0.0.1:9', RESEND_API_KEY: 'check-only', RESEND_BASE_URL: 'http://127.0.0.1:9', WEBAUTHN_RP_ID: 'localhost', WEBAUTHN_ORIGIN: base, WEBAUTHN_SECRET: 'check-only-secret-with-at-least-32-characters' } })
+const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', '3002'], { stdio: 'inherit', env: { ...process.env, VERCEL: '1', VERCEL_ENV: 'production', VERCEL_TARGET_ENV: 'production', BLOB_READ_WRITE_TOKEN: '', PHOTO_DIR: '/tmp/dex-check-photos', ANTHROPIC_API_KEY: 'check-only', ANTHROPIC_BASE_URL: 'http://127.0.0.1:9', RESEND_API_KEY: 'check-only', RESEND_BASE_URL: 'http://127.0.0.1:9', WEBAUTHN_RP_ID: 'localhost', WEBAUTHN_ORIGIN: base, WEBAUTHN_SECRET: 'check-only-secret-with-at-least-32-characters' } })
 const run = (script, args) => new Promise((resolve, reject) => {
   const child = spawn(process.execPath, [script, ...args], { stdio: 'inherit' })
   child.on('error', reject)
@@ -89,6 +92,7 @@ try {
   for (const locale of ['en', 'de']) await run('scripts/check/ux.mjs', [base, locale])
   for (const locale of ['en', 'de']) await run('scripts/check/scan-transition.mjs', [base, locale])
   await run('scripts/check/gallery.mjs', [base])
+  await run('scripts/check/analytics.mjs', [base])
   const identity = await fetch(`${base}/api/trpc/identity.me`).then((r) => r.json()).then((j) => j.result.data.json.id)
   await run('scripts/check/offline.mjs', [base, identity])
 } finally {
@@ -98,6 +102,7 @@ try {
   await cleanup.connect()
   try {
     await cleanup.query('BEGIN')
+    await cleanup.query(`DELETE FROM "Sighting" WHERE id = $1`, [analyticsSightingId])
     await cleanup.query(`DELETE FROM "Asset" WHERE id = ANY($1::text[])`, [previewAssetIds])
     for (const asset of shiftedPreviewAssets) await cleanup.query(`UPDATE "Asset" SET position = $1 WHERE id = $2`, [asset.position, asset.id])
     await cleanup.query('COMMIT')
