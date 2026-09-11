@@ -44,7 +44,7 @@ const contract: AuditRegistryContract = {
   southwest: { key: SAMPLE_KEYS[5]!, sourceUnits: [UNIT_CODES[5]!] },
 }
 
-let previousActiveCatalogue: string | null = null
+let previousActiveCatalogue: { id: string; updatedAt: Date } | null = null
 let previousActiveRegistry: string | null = null
 
 async function cleanup() {
@@ -72,7 +72,7 @@ async function cleanup() {
 }
 
 beforeAll(async () => {
-  previousActiveCatalogue = (await db.catalogueVersion.findFirst({ where: { countryCode: 'DE', status: 'active' }, select: { id: true } }))?.id ?? null
+  previousActiveCatalogue = await db.catalogueVersion.findFirst({ where: { countryCode: 'DE', status: 'active' }, select: { id: true, updatedAt: true } })
   previousActiveRegistry = (await db.regionRegistryVersion.findFirst({ where: { countryCode: 'DE', active: true }, select: { id: true } }))?.id ?? null
   await cleanup()
 
@@ -130,7 +130,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await cleanup()
   if (previousActiveRegistry) await db.regionRegistryVersion.update({ where: { id: previousActiveRegistry }, data: { active: true } })
-  if (previousActiveCatalogue) await db.catalogueVersion.update({ where: { id: previousActiveCatalogue }, data: { status: 'active' } })
+  if (previousActiveCatalogue) await db.catalogueVersion.update({ where: { id: previousActiveCatalogue.id }, data: { status: 'active', updatedAt: previousActiveCatalogue.updatedAt } })
   await db.$disconnect()
 })
 

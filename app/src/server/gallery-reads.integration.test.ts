@@ -15,17 +15,27 @@ const keys = [990037001, 990037002]
 const leadId = '00000000-0037-4000-8000-000000000001'
 const reviewedLeadId = '00000000-0037-4000-8000-000000000002'
 const registryId = randomUUID(), catalogueId = randomUUID()
+let previousRegistry: { id: string }[] = []
+let previousCatalogues: { id: string; updatedAt: Date }[] = []
 let context: Context, regionId: string, outsideRegionId: string, sightingId: string
 const asset = (taxonId: string, n: number, position = n) => ({ taxonId, kind: 'image' as const, position, url: `https://example.test/image/${n}/medium.jpg`, author: 'Photographer', licence: 'CC BY 4.0', licenceUrl: 'https://creativecommons.org/licenses/by/4.0/', sourceUrl: `https://example.test/source/${n}`, origin: 'commons', caption: `Image ${n}`, createdAt: new Date('2025-01-01') })
 
 beforeAll(async () => {
-  await db.regionRegistryVersion.create({ data: { id: registryId, countryCode: 'DE', version: registryId, artifactSha256: 'a'.repeat(64), expectedRegions: 0, expectedSourceUnits: 0 } })
-  await db.catalogueVersion.create({ data: { id: catalogueId, countryCode: 'DE', runKey: catalogueId, registryVersionId: registryId, inputFingerprint: 'i', sourceFingerprint: 's', plausibleRulesVersion: 1, tileMappingVersion: 1, observationWindowVersion: 1, yearFrom: 2016, yearTo: 2026, occurrencePredicates: {}, expectedRegions: 1 } })
+  previousRegistry = await db.regionRegistryVersion.findMany({ where: { countryCode: 'DE', active: true }, select: { id: true } })
+  previousCatalogues = await db.catalogueVersion.findMany({ where: { countryCode: 'DE', status: 'active' }, select: { id: true, updatedAt: true } })
+  await db.$transaction(async (tx) => {
+    await tx.regionRegistryVersion.updateMany({ where: { id: { in: previousRegistry.map(({ id }) => id) } }, data: { active: false } })
+    for (const row of previousCatalogues) await tx.catalogueVersion.update({ where: { id: row.id }, data: { status: 'retired', updatedAt: row.updatedAt } })
+  })
+  await db.regionRegistryVersion.create({ data: { id: registryId, countryCode: 'DE', version: registryId, artifactSha256: 'a'.repeat(64), expectedRegions: 2, expectedSourceUnits: 0, active: true } })
+  const source = await db.regionRegistrySource.create({ data: { registryVersionId: registryId, role: 'regions', name: 'Gallery fixture', url: 'https://example.test/gallery', topicDate: new Date('2026-09-11'), downloadedAt: new Date(), sha256: 'b'.repeat(64), licenceId: 'test-only', attribution: 'Fixture' } })
+  await db.catalogueVersion.create({ data: { id: catalogueId, countryCode: 'DE', runKey: catalogueId, registryVersionId: registryId, inputFingerprint: 'i', sourceFingerprint: 's', responseFingerprint: 'r', unionFingerprint: 'u', plausibleRulesVersion: 1, tileMappingVersion: 1, observationWindowVersion: 1, yearFrom: 2016, yearTo: 2026, occurrencePredicates: {}, expectedRegions: 2, completedRegions: 2, unionTaxa: 2, status: 'active', generatedAt: new Date(), auditedAt: new Date(), activatedAt: new Date() } })
   const identity = await db.identity.create({ data: {} })
   context = { db, identity, networkKey: randomUUID(), minted: false, cookies: {}, outCookies: [], origin: 'http://localhost', locale: 'en', setCookie: () => 0 }
-  const region = await db.region.create({ data: { name: 'Gallery reads fixture', higher: 'Deutschland', status: 'ready' } })
+  const region = await db.region.create({ data: { canonicalKey: `gallery-${randomUUID()}`, countryCode: 'DE', name: 'Gallery reads fixture', higher: 'Deutschland', status: 'ready' } })
   regionId = region.id
-  outsideRegionId = (await db.region.create({ data: { name: 'Gallery outside fixture', higher: 'Deutschland', status: 'ready' } })).id
+  outsideRegionId = (await db.region.create({ data: { canonicalKey: `gallery-${randomUUID()}`, countryCode: 'DE', name: 'Gallery outside fixture', higher: 'Deutschland', status: 'ready' } })).id
+  await db.regionRegistryEntry.createMany({ data: [regionId, outsideRegionId].map((id, index) => ({ registryVersionId: registryId, sourceId: source.id, regionId: id, sourceCode: `gallery-${index}`, sourceName: 'Gallery fixture', displayName: 'Gallery fixture', stateCode: '99', stateName: 'Fixture' })) })
   await db.taxon.createMany({ data: taxonIds.map((id, i) => ({ id, gbifKey: keys[i], sciName: `Read fixture ${i}`, rank: 'species', tile: 'bird' as const, commonNames: { de: 3, en: ' ', fr: 'Merle noir' }, contentAt: new Date() })) })
   await db.plausibility.createMany({ data: taxonIds.map((taxonId) => ({ taxonId, regionId, obs: 100, monthShare: Array(12).fill(100), peak: 100, words: 'common' })) })
   await db.lookalike.create({ data: { regionId, taxonId: taxonIds[0], siblingId: taxonIds[1] } })
@@ -56,9 +66,13 @@ afterAll(async () => {
   await db.referenceGalleryReceipt.deleteMany({ where: { catalogueVersionId: catalogueId } })
   if (context) await db.identity.delete({ where: { id: context.identity.id } })
   await db.taxon.deleteMany({ where: { id: { in: taxonIds } } })
-  await db.region.deleteMany({ where: { id: { in: [regionId, outsideRegionId].filter(Boolean) } } })
   await db.catalogueVersion.deleteMany({ where: { id: catalogueId } })
+  await db.regionRegistryEntry.deleteMany({ where: { registryVersionId: registryId } })
+  await db.regionRegistrySource.deleteMany({ where: { registryVersionId: registryId } })
   await db.regionRegistryVersion.deleteMany({ where: { id: registryId } })
+  await db.region.deleteMany({ where: { id: { in: [regionId, outsideRegionId].filter(Boolean) } } })
+  await db.regionRegistryVersion.updateMany({ where: { id: { in: previousRegistry.map(({ id }) => id) } }, data: { active: true } })
+  for (const row of previousCatalogues) await db.catalogueVersion.update({ where: { id: row.id }, data: { status: 'active', updatedAt: row.updatedAt } })
   await db.$disconnect()
 })
 
@@ -98,7 +112,7 @@ describe('public gallery read contract', () => {
     expect(Array.isArray(outside)).toBe(true)
     expect(outside.filter((taxon) => taxon.hasContent).some((taxon) => taxon.lead?.id === leadId)).toBe(true)
     const versionedOutside = await sightingRouter.createCaller(context).outsideVersioned({ regionId: outsideRegionId })
-    expect(versionedOutside).toEqual({ catalogueVersion: null, taxa: outside })
+    expect(versionedOutside).toEqual({ catalogueVersion: catalogueId, taxa: outside })
   })
 
   it('uses one reviewed visibility decision for detail, every lead read and the offline pack', async () => {

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, describe, expect, it as test, vi } from 'vitest'
+import { createSettledTestLifecycle } from './testing/settledTest'
 import { Prisma } from '../generated/prisma/client'
 import { db } from './db'
 import { admitCatalogueWrite, openCatalogueGate, readCatalogueCutoverState, releaseCatalogueWrite } from './catalogueCutoverGate'
@@ -31,6 +32,14 @@ const validated = { pins: {}, tables: new Map(), evidence: sourceEvidence, relea
   assertReleaseEvidenceStillValid } as unknown as ValidatedCatalogueReleaseImport
 
 const ids = new Set<string>()
+const lifecycle = createSettledTestLifecycle()
+// Full-data apply+recover measured 48.95s after #94; the largest body exercises three cases.
+// Our 180s deadline still fails a slow test, but only after its bounded SQL work has settled.
+// Disable Vitest's competing timeout race for this suite so it cannot start cleanup mid-write.
+const STORE_TEST_BUDGET_MS = 180_000
+function it(name: string, body: () => Promise<void>, budgetMs = STORE_TEST_BUDGET_MS) {
+  return test(name, () => lifecycle.run(body, budgetMs), 0)
+}
 
 function table(snapshot: TargetCatalogueSnapshot, name: string) { return snapshot.tables.get(name) ?? [] }
 function byId(snapshot: TargetCatalogueSnapshot, name: string, id: string) {
@@ -99,6 +108,7 @@ async function forceOpen() {
 }
 
 afterEach(async () => {
+  await lifecycle.settle()
   await forceOpen()
   await db.scanWork.deleteMany({ where: { OR: [...ids].map((id) => ({ identityId: id })) } })
   await db.filter.deleteMany({ where: { identityId: { in: [...ids] } } })
@@ -541,7 +551,7 @@ describe('checked catalogue import store', () => {
       await db.region.deleteMany({ where: { id: regionId } })
       await db.taxon.deleteMany({ where: { id: { in: taxonIds } } })
     }
-  }, 60_000)
+  })
 
   it('permits an inserted Asset beside an exact protected old row and still rejects old-row drift', async () => {
     const f = await fixture(), existingAssetId = randomUUID(), incomingAssetId = randomUUID(), secondIncomingAssetId = randomUUID()
