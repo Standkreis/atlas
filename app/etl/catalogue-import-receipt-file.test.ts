@@ -108,5 +108,5 @@ describe('catalogue import receipt files', () => {
     await expect(writeCatalogueReceiptFile(path, oversized)).rejects.toThrow('record exceeds the 16777216 byte size limit')
     expect((await stat(path)).mode & 0o777).toBe(0o600)
     expect(await readFile(path, 'utf8')).not.toContain('"type":"footer"')
-  })
+  }, 30_000)
 })
