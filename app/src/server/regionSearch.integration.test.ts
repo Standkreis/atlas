@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PrismaPg } from '@prisma/adapter-pg'
-import { PrismaClient } from '../generated/prisma/client'
+import { CatalogueStatus, PrismaClient } from '../generated/prisma/client'
 import { normalizeRegionAlias } from '../domain/regionAlias'
 import { db } from './db'
 import { regionsRouter } from './routers/regions'
@@ -11,7 +11,10 @@ import type { Context } from './trpc'
 const registryId = `search-${randomUUID()}`
 const catalogueId = `search-catalogue-${randomUUID()}`
 const ids = Array.from({ length: 25 }, () => randomUUID())
-let previousActive: string[] = []
+type PreviousRegistry = { id: string; active: boolean; activatedAt: Date | null }
+type PreviousCatalogue = { id: string; status: CatalogueStatus; updatedAt: Date; activatedAt: Date | null }
+let previousRegistry: PreviousRegistry | null = null
+let previousCatalogue: PreviousCatalogue | null = null
 let identityId: string
 let caller: ReturnType<typeof regionsRouter.createCaller>
 const observedDb = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }), log: [{ emit: 'event', level: 'query' }] })
@@ -19,8 +22,22 @@ const queries: string[] = []
 observedDb.$on('query', (event) => queries.push(event.query))
 
 beforeAll(async () => {
-  previousActive = (await db.regionRegistryVersion.findMany({ where: { countryCode: 'DE', active: true }, select: { id: true } })).map((row) => row.id)
-  await db.regionRegistryVersion.updateMany({ where: { id: { in: previousActive } }, data: { active: false } })
+  previousCatalogue = await db.catalogueVersion.findFirst({
+    where: { countryCode: 'DE', status: 'active' },
+    select: { id: true, status: true, updatedAt: true, activatedAt: true },
+  })
+  previousRegistry = await db.regionRegistryVersion.findFirst({
+    where: { countryCode: 'DE', active: true },
+    select: { id: true, active: true, activatedAt: true },
+  })
+  if (previousCatalogue) await db.catalogueVersion.update({
+    where: { id: previousCatalogue.id },
+    data: { status: 'retired', updatedAt: previousCatalogue.updatedAt },
+  })
+  if (previousRegistry) await db.regionRegistryVersion.update({
+    where: { id: previousRegistry.id },
+    data: { active: false },
+  })
   await db.regionRegistryVersion.create({ data: {
     id: registryId, countryCode: 'DE', version: registryId, artifactSha256: 'a'.repeat(64), expectedRegions: 25, expectedSourceUnits: 25, active: true,
   } })
@@ -57,17 +74,27 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await db.identity.deleteMany({ where: { id: { in: identityId ? [identityId] : [] } } })
-  await db.catalogueRegionBuild.deleteMany({ where: { catalogueVersionId: catalogueId } })
-  await db.catalogueVersion.deleteMany({ where: { id: catalogueId } })
-  await db.regionRegistryAlias.deleteMany({ where: { registryEntry: { registryVersionId: registryId } } })
-  await db.regionRegistryEntry.deleteMany({ where: { registryVersionId: registryId } })
-  await db.regionRegistrySource.deleteMany({ where: { registryVersionId: registryId } })
-  await db.regionRegistryVersion.deleteMany({ where: { id: registryId } })
-  await db.region.deleteMany({ where: { id: { in: ids } } })
-  await db.regionRegistryVersion.updateMany({ where: { id: { in: previousActive } }, data: { active: true } })
-  await db.$disconnect()
-  await observedDb.$disconnect()
+  try {
+    await db.identity.deleteMany({ where: { id: { in: identityId ? [identityId] : [] } } })
+    await db.catalogueRegionBuild.deleteMany({ where: { catalogueVersionId: catalogueId } })
+    await db.catalogueVersion.deleteMany({ where: { id: catalogueId } })
+    await db.regionRegistryAlias.deleteMany({ where: { registryEntry: { registryVersionId: registryId } } })
+    await db.regionRegistryEntry.deleteMany({ where: { registryVersionId: registryId } })
+    await db.regionRegistrySource.deleteMany({ where: { registryVersionId: registryId } })
+    await db.regionRegistryVersion.deleteMany({ where: { id: registryId } })
+    await db.region.deleteMany({ where: { id: { in: ids } } })
+    if (previousRegistry) await db.regionRegistryVersion.update({
+      where: { id: previousRegistry.id },
+      data: { active: previousRegistry.active, activatedAt: previousRegistry.activatedAt },
+    })
+    if (previousCatalogue) await db.catalogueVersion.update({
+      where: { id: previousCatalogue.id },
+      data: { status: previousCatalogue.status, activatedAt: previousCatalogue.activatedAt, updatedAt: previousCatalogue.updatedAt },
+    })
+  } finally {
+    await db.$disconnect()
+    await observedDb.$disconnect()
+  }
 })
 
 describe('German region tRPC API against Postgres', () => {
