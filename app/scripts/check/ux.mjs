@@ -87,7 +87,7 @@ try {
       const me=await api('identity.me'),progress=await api('identity.progress');
       const set=await api('dex.set',{regionId:me.region.id,tiles:['bird','mammal','amphibian','reptile','fish','insect','plant','fungus'],nowOnly:false});
       const species=set.species.filter(t=>!progress.tiles.length||progress.tiles.includes(t.tile));
-      return {region:me.region.id,possible:species.length,seen:species.filter(t=>progress.seen.includes(t.id)).length,studied:species.filter(t=>progress.studied.includes(t.id)).length};
+      return {region:me.region.id,possible:species.length,seen:species.filter(t=>progress.seen.includes(t.taxonId)).length,studied:species.filter(t=>progress.studied.includes(t.taxonId)).length};
     })()`)
     await wait(`${selector('[data-testid=region-card][data-active]')}?.dataset.possible===${JSON.stringify(String(expected.possible))}`, 'local denominator follows selected region and groups')
     const actual = await evaluate(`(() => {const d=${selector('[data-testid=region-card][data-active]')}.dataset;return {region:d.region,possible:+d.possible,seen:+d.seen,studied:+d.studied}})()`)

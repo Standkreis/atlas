@@ -1,9 +1,21 @@
 // Explicit downloader on a small real region. Transport/storage faults stay inside owned Chrome.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import pg from 'pg'
 import { browserJourney, q } from './journey.mjs'
 
 const [base = 'http://localhost:3002', locale = 'en'] = process.argv.slice(2)
+const database = new URL(process.env.DATABASE_URL ?? '')
+assert.ok(['localhost', '127.0.0.1'].includes(database.hostname) && /^\/dex_check_[a-z0-9_]+$/.test(database.pathname))
+const db = new pg.Client({ connectionString: database.href })
+let reviewedLeads
+await db.connect()
+try {
+  ;({ rows: reviewedLeads } = await db.query(`SELECT p."taxonId", r."resultSnapshot"->'eligible' AS gallery
+    FROM "Plausibility" p JOIN "Region" region ON region.id = p."regionId" AND region.name = 'Sonneberg'
+    JOIN "ReferenceGalleryReceipt" r ON r."taxonId" = p."taxonId"
+    JOIN "CatalogueVersion" c ON c.id = r."catalogueVersionId" AND c.status = 'active' ORDER BY p."taxonId"`))
+} finally { await db.end() }
 await browserJourney(base, async ({ send, evaluate, wait, click, viewport, requests, listeners }) => {
   const mediaMode = locale === 'de' ? 'deterministic local image bytes' : 'actual CDN responses'
   const patterns = [{ urlPattern: 'https://*', resourceType: 'Image' }, { urlPattern: 'https://*', resourceType: 'Fetch' }]
@@ -37,10 +49,13 @@ await browserJourney(base, async ({ send, evaluate, wait, click, viewport, reque
     const me=queries.find(q=>q.queryKey[0].join('.')==='identity.me').state.data;
     const urls=[...new Set(set.species.map(t=>t.leadSmall??t.lead?.url??null).filter(Boolean))].sort();
     const version=encodeURIComponent(me.catalogueVersion).replaceAll('%','_');
-    return {urls,taxa:set.species.length,withoutImage:set.species.filter(t=>!(t.leadSmall??t.lead?.url)).length,
+    return {urls,taxa:set.species.length,sourceLeads:set.species.map(t=>({taxonId:t.taxonId,url:t.lead?.url??null})).sort((a,b)=>a.taxonId.localeCompare(b.taxonId)),withoutImage:set.species.filter(t=>!(t.leadSmall??t.lead?.url)).length,
       cache:'dex-pack-v2-'+version+'-'+me.region.id,marker:'dex.offline.ready.v2.'+version+'.'+me.region.id};
   })()`)
   assert.ok(pack.urls.length > 0 && pack.urls.length <= pack.taxa)
+  assert.deepEqual(pack.sourceLeads,reviewedLeads.map(row=>({taxonId:row.taxonId,url:row.gallery.find(a=>a.position===0)?.url??null})), 'each regional image is the reviewed target position-zero lead')
+  const visibleGalleryReferences = reviewedLeads.reduce((n,row)=>n+row.gallery.length,0)
+  assert.ok(visibleGalleryReferences>pack.urls.length,'populated galleries do not multiply explicit pack images')
   const state = () => evaluate(`(async () => {
     const p=${JSON.stringify(pack)},names=(await caches.keys()).filter(n=>n.startsWith('dex-pack-'));
     const entries=names.includes(p.cache)?await(await caches.open(p.cache)).keys():[];
@@ -106,7 +121,14 @@ await browserJourney(base, async ({ send, evaluate, wait, click, viewport, reque
   assert.deepEqual(complete.urls,pack.urls); assert.equal(complete.ok,pack.urls.length)
   assert.deepEqual(complete.names,[pack.cache]);assert.equal(complete.marker.version,2);assert.deepEqual(complete.marker.urls,pack.urls)
   const leads=[...requests.values()].filter(r=>pack.urls.includes(r.url))
-  console.log(JSON.stringify({explicitPack:{locale,mediaMode,region:'Sonneberg',taxa:pack.taxa,imageLess:pack.withoutImage,uniqueLeads:pack.urls.length,estimate,storedResponseBytes:complete.bytes,pageAttempts:leads.filter(r=>!r.worker).length,upstreamCompleted:leads.filter(r=>!r.cached&&r.completed).length,upstreamEncodedBytes:leads.filter(r=>!r.cached).reduce((n,r)=>n+r.bytes,0),measurement:'incremental cancel/quota/transport/resume; cached SW responses excluded',cancelledAfter:cancelled.urls.length}}))
+  console.log(JSON.stringify({ explicitPack: {
+    locale, mediaMode, region: 'Sonneberg', taxa: pack.taxa, imageLess: pack.withoutImage,
+    uniqueLeads: pack.urls.length, visibleGalleryReferences, estimate, storedResponseBytes: complete.bytes,
+    pageAttempts: leads.filter(r => !r.worker).length,
+    upstreamCompleted: leads.filter(r => !r.cached && r.completed).length,
+    upstreamEncodedBytes: leads.filter(r => !r.cached).reduce((n, r) => n + r.bytes, 0),
+    measurement: 'incremental cancel/quota/transport/resume; cached SW responses excluded', cancelledAfter: cancelled.urls.length,
+  } }))
   await evaluate(`(async()=>{const p=${JSON.stringify(pack)};await(await caches.open(p.cache)).delete(p.urls[0]);if(await caches.has('dex-images'))await(await caches.open('dex-images')).delete(p.urls[0]);document.dispatchEvent(new Event('visibilitychange'))})()`)
   await wait(`${q('[data-testid=offline-download]')}.dataset.status==='idle'`, 'evicted response invalidates readiness')
   await click('[data-testid=offline-download-button]');await wait(`${q('[data-testid=offline-download]')}.dataset.status==='ready'`, 'eviction repairs',120000)
