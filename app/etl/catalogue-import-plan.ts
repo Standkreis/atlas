@@ -10,7 +10,7 @@ import {
   type ReferenceReviewEvidence,
 } from './reference-gallery-preservation'
 import { normalizedRemoteUrl } from '../src/domain/referenceImages'
-import { referenceAssetFromSnapshot } from './catalogue-import-review'
+import { referenceAssetFromSnapshot, referenceTimestampUtc } from './catalogue-import-review'
 
 export type CatalogueTargetRow = Readonly<Record<string, unknown>>
 export type CatalogueMutationPhase = 'materialize' | 'publish'
@@ -258,6 +258,12 @@ const requiredString = (value: unknown, label: string) => {
   return value
 }
 
+/** Canonical scalar form returned by PostgreSQL `TIMESTAMP(3)` through `to_jsonb`. */
+export function cataloguePostgresTimestamp(value: unknown, label = 'catalogue timestamp') {
+  try { return referenceTimestampUtc(value).replace(/\.000Z$/, '').replace(/Z$/, '') }
+  catch { throw new Error(`${label} is invalid`) }
+}
+
 function uniqueByString(rows: readonly CatalogueTargetRow[], field: string, label: string) {
   const result = new Map<string, CatalogueTargetRow>()
   for (const row of rows) {
@@ -274,6 +280,10 @@ const avatarAssetIds = (target: TargetCatalogueSnapshot) => new Set(
 
 const asReferenceAsset = (row: CatalogueTargetRow, avatars: ReadonlySet<string>): ReferenceAsset =>
   referenceAssetFromSnapshot({ ...row, avatarOf: avatars.has(requiredString(row.id, 'Asset.id')) })
+
+const globalReferenceRow = (row: CatalogueTargetRow, taxonId: string, avatars: ReadonlySet<string>) =>
+  row.taxonId === taxonId && row.kind === 'image' && row.ownerId === null && row.sightingId === null &&
+  !avatars.has(requiredString(row.id, 'Asset.id'))
 
 function sameReuseIdentity(source: ReferenceAsset, target: ReferenceAsset, mappedTaxonId: string, correction: string | null) {
   if (target.taxonId !== mappedTaxonId || source.origin !== target.origin ||
@@ -303,6 +313,12 @@ export function buildReviewedGalleryPlan(options: {
   const targetRows = options.target.tables.get('Asset') ?? []
   const targetById = uniqueByString(targetRows, 'id', 'target Asset')
   const sourceById = uniqueByString(options.sourceAssets, 'id', 'source Asset')
+  for (const [sourceId, targetId] of options.review.reuseTargetAssetIdBySourceId) {
+    if (!sourceById.has(requiredString(sourceId, 'reference reuse source id'))) {
+      throw new Error(`reference reuse source ${sourceId} is absent from the validated source Assets`)
+    }
+    requiredString(targetId, `reference reuse target for ${sourceId}`)
+  }
   const sourceAssetIdToTargetId = new Map<string, string>()
   const reusedTargetIds = new Set<string>()
   const incomingRows: CatalogueTargetRow[] = []
@@ -318,6 +334,9 @@ export function buildReviewedGalleryPlan(options: {
     if (reuseId) {
       const targetRow = targetById.get(reuseId)
       if (!targetRow || reusedTargetIds.has(reuseId)) throw new Error(`source Asset ${sourceId} has invalid non-unique target reuse`)
+      if (!globalReferenceRow(targetRow, mappedTaxonId, avatars)) {
+        throw new Error(`source Asset ${sourceId} cannot reuse a personal, sighting, avatar or out-of-taxon target Asset`)
+      }
       const target = asReferenceAsset(targetRow, avatars)
       const draft = options.review.reviewAsset({ kind: 'existing', catalogueVersionId, taxonId: mappedTaxonId, asset: target, sourceAsset: source })
       if (!sameReuseIdentity(source, target, mappedTaxonId, draft.correctedLicenceUrl)) throw new Error(`source Asset ${sourceId} reuse identity or metadata conflicts`)
@@ -328,7 +347,11 @@ export function buildReviewedGalleryPlan(options: {
       continue
     }
     if (targetById.has(sourceId)) throw new Error(`new source Asset ${sourceId} UUID collides with target data`)
-    const after = { ...sourceRow, taxonId: mappedTaxonId }
+    const after = {
+      ...sourceRow,
+      createdAt: cataloguePostgresTimestamp(sourceRow.createdAt, `source Asset ${sourceId}.createdAt`),
+      taxonId: mappedTaxonId,
+    }
     incomingRows.push(after)
     sourceAssetIdToTargetId.set(sourceId, sourceId)
     sourceForTarget.set(sourceId, source)
@@ -338,7 +361,7 @@ export function buildReviewedGalleryPlan(options: {
   }
 
   const mappedTaxa = new Set(options.taxonIdBySourceId.values())
-  const existingRows = targetRows.filter((row) => mappedTaxa.has(String(row.taxonId)) && row.kind === 'image' && row.ownerId === null && row.sightingId === null && !avatars.has(String(row.id)))
+  const existingRows = targetRows.filter((row) => typeof row.taxonId === 'string' && mappedTaxa.has(row.taxonId) && globalReferenceRow(row, row.taxonId, avatars))
   const existingByTaxon = Map.groupBy(existingRows, (row) => requiredString(row.taxonId, 'target Asset.taxonId'))
   const incomingByTaxon = Map.groupBy(incomingRows, (row) => requiredString(row.taxonId, 'incoming Asset.taxonId'))
   const receiptRows: CatalogueTargetRow[] = []
@@ -374,6 +397,7 @@ export function buildReviewedGalleryPlan(options: {
     })
     eligibleAssets += planned.visibility.filter((row) => row.eligible).length
     hiddenAssets += planned.visibility.filter((row) => !row.eligible).length
+    const storedReviewTime = cataloguePostgresTimestamp(receipt.reviewedAt, 'reference receipt reviewedAt')
     receiptRows.push({
       catalogueVersionId,
       taxonId,
@@ -384,10 +408,14 @@ export function buildReviewedGalleryPlan(options: {
       resultSnapshot: receipt.resultSnapshot,
       resultFingerprint: receipt.resultFingerprint,
       reviewer: receipt.reviewer,
-      reviewedAt: receipt.reviewedAt,
-      createdAt: receipt.reviewedAt,
+      reviewedAt: storedReviewTime,
+      createdAt: storedReviewTime,
     })
-    visibilityRows.push(...planned.visibility.map((row) => ({ ...row, createdAt: row.reviewedAt })))
+    visibilityRows.push(...planned.visibility.map((row) => ({
+      ...row,
+      reviewedAt: cataloguePostgresTimestamp(row.reviewedAt, `reference visibility ${row.assetId}.reviewedAt`),
+      createdAt: cataloguePostgresTimestamp(row.reviewedAt, `reference visibility ${row.assetId}.createdAt`),
+    })))
   }
 
   const assetMutations: PlannedCatalogueRowMutation[] = []
