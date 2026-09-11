@@ -8,6 +8,9 @@ function unsupported(value: unknown): never {
 }
 
 function* quotedString(value: string): Generator<string> {
+  // Most row values are small. Native JSON escaping avoids a generator step for every character;
+  // even the worst-case six-character escape stays below the bounded chunk size here.
+  if (value.length <= 2048) { yield JSON.stringify(value); return }
   let chunk = '"'
   const append = function* (encoded: string) {
     if (chunk.length + encoded.length > STRING_CHUNK_CODE_UNITS) {
