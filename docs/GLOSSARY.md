@@ -18,12 +18,12 @@
 | Code | 🇩🇪 UI | 🇬🇧 UI | Means | Defined in |
 | --- | --- | --- | --- | --- |
 | `Sighting` | Sichtung | Sighting | The atom. One encounter with a taxon at a time and place; evidence claimed · photographed · id-assisted | [spec §🧬](specs/0001-standkreis-dex-the-first-walk.md#-the-model) |
-| `Study` | — | — | The mark that the user opened and studied a species page. Pays XP only after the recap | spec §🧬 |
-| `Taxon` | Art | Species | One GBIF backbone species, with Wikidata id, tile and common names | spec §🧬 |
-| `Region` | Kreisregion | Region | One selectable, versioned German BBSR Kreisregion composed from one or more official Kreis units. GADM ids are query mappings, not region identity | [Germany Atlas contract](records/2026-09-08-germany-atlas-contract.md) |
-| `KreisUnit` | Landkreis / kreisfreie Stadt | District / independent city | One official BKG VG250 Kreis geometry and membership atom; not necessarily separately selectable | Germany Atlas contract §Region contract |
+| `Study` | — | — | Location-independent learning mark; distinct from discovery. Pays XP only after the recap | [Germany ADR](adr/2026-09-11-germany-atlas.md#-four-distinct-progress-measures), spec §🧬 |
+| `Taxon` | Art | Species | Accepted GBIF taxon with tile and names; the audited German union contains 6,874 taxa, including six accepted hybrids | [Germany ADR](adr/2026-09-11-germany-atlas.md#-regions-and-plausible-sets) |
+| `Region` | Kreisregion | Region | One selectable, versioned German BBSR Kreisregion composed from official Kreis units. GADM ids are query mappings, not region identity | [Germany ADR](adr/2026-09-11-germany-atlas.md#-regions-and-plausible-sets) |
+| `KreisUnit` | Landkreis / kreisfreie Stadt | District / independent city | One official BKG VG250 Kreis geometry and membership atom; not necessarily separately selectable | [Germany ADR](adr/2026-09-11-germany-atlas.md#-regions-and-plausible-sets) |
 | `Plausibility` | möglich | possible | Taxon × region: whole-year observations plus twelve month shares. The denominator | spec §The plausible set |
-| `GermanCatalogue` | deutscher Artenkatalog | German species catalogue | Distinct union of every regional plausible set in one complete active version; never a separately cut national list | Germany Atlas contract §Catalogue contract |
+| `GermanCatalogue` | deutscher Artenkatalog | German species catalogue | Distinct union of every regional plausible set in one complete active version; regional denominators stay local | [Germany ADR](adr/2026-09-11-germany-atlas.md#-regions-and-plausible-sets) |
 | `Filter` | Filter | Filter | Region + tiles + the "nur jetzt" chip, one per identity | spec §🧬 |
 | `Tile` | Gruppe | Group | One of eight coarse taxonomic groups: 🐦 🦌 🐸 🦎 🐟 🦋 🌿 🍄. `insect` = Insekten & Spinnen | spec §The plausible set |
 | `Asset` | Foto | Photo | An image with source, licence and author. Own photo first, else reference | spec §🗄️ |
@@ -52,7 +52,7 @@
 | `nowOnly`, chip | nur jetzt | now only | share ≥ 25 % of peak. Narrows the grid, not the denominator | spec §The plausible set |
 | `words` | Ganzes Jahr · Mär–Okt | All year · Mar–Oct | Month runs ≥ 25 % of peak, all twelve ≥ 10 % → whole year | spec §The plausible set |
 | `monthShare` | — | — | Per species and month, share of the region's observations, per 100,000 | schema comment, record 0002 |
-| Germany progress | Deutschland-Fortschritt | Germany progress | Versioned discovered, studied, visited-region and German-sighting totals; choosing a region is not a visit | Germany Atlas contract §Germany-progress contract |
+| Germany progress | Deutschland-Fortschritt | Germany progress | Catalogue-scoped discovery/study are location-independent; German sightings/visits require wild sightings inside BKG land geometry | [Germany ADR](adr/2026-09-11-germany-atlas.md#-four-distinct-progress-measures) |
 
 ## 🧪 Process words
 
@@ -61,6 +61,6 @@
 | Grill | A decision session that questions the brief, leaves a record | [records](records/) |
 | Record | Immutable log of decisions and rejected alternatives | [records](records/) |
 | Spec | Living document while the epic is open, distilled into an ADR at close | [specs](specs/) |
-| Index-ready | Minimum publishable taxon identity and functional fallback; rich content and a real image remain optional | Germany Atlas contract §Minimum index-ready taxon |
+| Index-ready | Publishable taxon identity and functional fallback; zero-to-12 licensed images, with rich content and a real image optional | [Germany ADR](adr/2026-09-11-germany-atlas.md#-index-ready-content-and-images) |
 | Handoff | Instructions for one agent session, findings written back next to it | [handoffs](handoffs/) |
 | Slice | One end-to-end increment. Slice one = the first walk | [ROADMAP](ROADMAP.md) |

@@ -4,7 +4,7 @@
 
 | 🗓️ Updated | 👤 Owner | ➡️ Next |
 | --- | --- | --- |
-| 2026-09-08 | Sven Reiser | [Epic #14](https://github.com/Standkreis/atlas/issues/14): Germany Atlas, starting from the [region, catalogue, progress and migration contract](records/2026-09-08-germany-atlas-contract.md) |
+| 2026-09-11 | Sven Reiser | [#29](https://github.com/Standkreis/atlas/issues/29): complete checked production release and independent verification, then adopt the [Germany Atlas ADR](adr/2026-09-11-germany-atlas.md) and close [Epic #14](https://github.com/Standkreis/atlas/issues/14). Production acceptance is pending |
 
 ## Current milestone
 
@@ -12,6 +12,13 @@ Epic #14 replaces the earlier prose-first handover as the active delivery order.
 Germany-only atlas over the complete BBSR Kreisregion registry, with a national catalogue union,
 searchable region discovery and Germany-wide progress. Its native GitHub blockers own execution
 order; the historical handover below remains useful context for the existing data and prose work.
+
+The reviewed launch catalogue has **6,874 taxa (including six accepted hybrids) across 362
+Kreisregionen / 400 Kreis units**. The [close-out ADR draft](adr/2026-09-11-germany-atlas.md)
+consolidates the decisions; its pending production checklist is not a release-success claim.
+After #14 fully ships, [#67](https://github.com/Standkreis/atlas/issues/67) owns an external-source
+learning preview with a separate owner approval before catalogue-wide work. Complete new wiki,
+Steckbrief and sound coverage is not implicitly delivered by #14 or guaranteed by #67.
 
 ## Current reliability handoff
 
