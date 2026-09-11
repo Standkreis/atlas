@@ -10,6 +10,7 @@ import {
   recoverCatalogueTarget,
   snapshotCatalogueTarget,
   type CatalogueApplyReceipt,
+  type CatalogueInboundBatchEvidence,
 } from '../../etl/catalogue-import-store'
 import {
   cataloguePostgresTimestamp,
@@ -455,6 +456,92 @@ describe('checked catalogue import store', () => {
     expect(await db.asset.findUnique({ where: { id: assetId } })).not.toBeNull()
     expect(await db.scanWork.findUnique({ where: { key: scanKey } })).not.toBeNull()
   })
+
+  it('batches composite inbound targets and still rejects a newer reference in a later batch', async () => {
+    const registryVersionId = randomUUID(), sourceId = randomUUID(), regionId = randomUUID()
+    const registryEntryId = randomUUID(), catalogueVersionId = randomUUID(), regionBuildId = randomUUID()
+    const taxonIds = Array.from({ length: 1_002 }, () => randomUUID())
+    const plausibilityIds = taxonIds.map(() => randomUUID())
+    const externalLookalikeId = randomUUID()
+    const countryCode = `test-${randomUUID()}`
+    const batchEvidence: CatalogueInboundBatchEvidence[] = []
+    try {
+      await db.region.create({ data: { id: regionId, canonicalKey: `batch-${regionId}`, countryCode, name: 'Batch region', higher: 'Fixture', status: 'ready' } })
+      await db.regionRegistryVersion.create({ data: {
+        id: registryVersionId, countryCode, version: `batch-${randomUUID()}`, artifactSha256: 'a'.repeat(64),
+        expectedRegions: 1, expectedSourceUnits: 0,
+      } })
+      await db.regionRegistrySource.create({ data: {
+        id: sourceId, registryVersionId, role: 'regions', name: 'Batch source', url: 'https://example.test/batch.json',
+        topicDate: new Date('2026-09-11T00:00:00.000Z'), downloadedAt: new Date('2026-09-11T00:00:00.000Z'),
+        sha256: 'b'.repeat(64), licenceId: 'test-only', attribution: 'Test fixture',
+      } })
+      await db.regionRegistryEntry.create({ data: {
+        id: registryEntryId, registryVersionId, sourceId, regionId, sourceCode: `batch-${randomUUID()}`,
+        sourceName: 'Batch region', displayName: 'Batch region', stateCode: 'BT', stateName: 'Batch test',
+      } })
+      await db.catalogueVersion.create({ data: {
+        id: catalogueVersionId, countryCode, runKey: `batch-${randomUUID()}`, registryVersionId,
+        inputFingerprint: 'c'.repeat(64), sourceFingerprint: 'd'.repeat(64), responseFingerprint: 'e'.repeat(64),
+        unionFingerprint: 'f'.repeat(64), plausibleRulesVersion: 1, tileMappingVersion: 1,
+        observationWindowVersion: 1, yearFrom: 2021, yearTo: 2026, occurrencePredicates: { fixture: true },
+        status: 'audited', expectedRegions: 1, completedRegions: 1, unionTaxa: taxonIds.length,
+        generatedAt: new Date('2026-09-11T00:00:00.000Z'), auditedAt: new Date('2026-09-11T00:00:00.000Z'),
+      } })
+      await db.catalogueRegionBuild.create({ data: {
+        id: regionBuildId, catalogueVersionId, registryVersionId, registryEntryId, status: 'pending',
+        totalObservations: taxonIds.length, regionSize: taxonIds.length,
+      } })
+      await db.taxon.createMany({ data: taxonIds.map((id, index) => ({
+        id, gbifKey: -1_500_000_000 + index, sciName: `Batchus ${index}`, rank: 'species', tile: 'bird' as const,
+      })) })
+      const snapshot = await snapshotCatalogueTarget(db)
+      const mutations: PlannedCatalogueRowMutation[] = taxonIds.map((taxonId, index) => ({
+        phase: 'materialize',
+        table: 'CataloguePlausibility',
+        key: { id: plausibilityIds[index]! },
+        before: null,
+        after: {
+          id: plausibilityIds[index]!, regionBuildId, taxonId, obs: 1,
+          monthShare: Array(12).fill(1), peak: 1, words: 'all year',
+        },
+      }))
+      const targetPlan = plan(snapshot, mutations, [], { catalogueVersionId, registryVersionId })
+      const applyReceipt = receipt(targetPlan)
+      await applyCatalogueTargetPlan(db, { validated, plan: targetPlan, receipt: applyReceipt })
+      await db.catalogueLookalike.create({ data: {
+        id: externalLookalikeId, regionBuildId, taxonId: taxonIds[1_000]!, siblingId: taxonIds[1_001]!,
+      } })
+
+      await expect(recoverCatalogueTarget(db, {
+        receipt: applyReceipt,
+        faultInjection: { inboundBatch: (evidence) => batchEvidence.push(evidence) },
+      })).rejects.toThrow('newer inbound references')
+      const composite = batchEvidence.filter((evidence) =>
+        evidence.targetTable === 'CataloguePlausibility' && evidence.sourceTable === 'CatalogueLookalike')
+      expect(composite.filter(({ label }) => label === 'member').map(({ targetRows, sourceRows }) => ({ targetRows, sourceRows })))
+        .toEqual([{ targetRows: 1_000, sourceRows: 0 }, { targetRows: 2, sourceRows: 1 }])
+      expect(composite.filter(({ label }) => label === 'sibling-member').map(({ targetRows, sourceRows }) => ({ targetRows, sourceRows })))
+        .toEqual([{ targetRows: 1_000, sourceRows: 0 }, { targetRows: 2, sourceRows: 1 }])
+      expect(composite.every((evidence) =>
+        evidence.targetRows <= 1_000 && evidence.targetJsonBytes < 128 * 1_024 &&
+        JSON.stringify(evidence.targetColumns) === JSON.stringify(['regionBuildId', 'taxonId']) &&
+        JSON.stringify(evidence.sourceKeyColumns) === JSON.stringify(['id']))).toBe(true)
+      expect(await db.cataloguePlausibility.count({ where: { regionBuildId } })).toBe(taxonIds.length)
+      expect(await readCatalogueCutoverState(db)).toMatchObject({ state: 'maintenance', activeWrites: 0 })
+    } finally {
+      await forceOpen()
+      await db.catalogueLookalike.deleteMany({ where: { regionBuildId } })
+      await db.cataloguePlausibility.deleteMany({ where: { regionBuildId } })
+      await db.catalogueRegionBuild.deleteMany({ where: { id: regionBuildId } })
+      await db.catalogueVersion.deleteMany({ where: { id: catalogueVersionId } })
+      await db.regionRegistryEntry.deleteMany({ where: { id: registryEntryId } })
+      await db.regionRegistrySource.deleteMany({ where: { id: sourceId } })
+      await db.regionRegistryVersion.deleteMany({ where: { id: registryVersionId } })
+      await db.region.deleteMany({ where: { id: regionId } })
+      await db.taxon.deleteMany({ where: { id: { in: taxonIds } } })
+    }
+  }, 60_000)
 
   it('permits an inserted Asset beside an exact protected old row and still rejects old-row drift', async () => {
     const f = await fixture(), existingAssetId = randomUUID(), incomingAssetId = randomUUID(), secondIncomingAssetId = randomUUID()

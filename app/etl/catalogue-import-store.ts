@@ -445,6 +445,18 @@ function assertReceipt(receipt: CatalogueApplyReceipt, plan?: CatalogueTargetPla
 export type CatalogueStoreFaultInjection = Readonly<{
   afterWrites?: (tx: Tx) => Promise<void>
   afterCommit?: () => Promise<void>
+  inboundBatch?: (evidence: CatalogueInboundBatchEvidence) => void
+}>
+
+export type CatalogueInboundBatchEvidence = Readonly<{
+  targetTable: CatalogueTargetTable
+  sourceTable: (typeof CATALOGUE_TARGET_TABLES)[number]
+  label: string
+  targetColumns: readonly string[]
+  sourceKeyColumns: readonly string[]
+  targetRows: number
+  targetJsonBytes: number
+  sourceRows: number
 }>
 
 async function verifyApplied(db: Db, receipt: CatalogueApplyReceipt, committedFingerprint: string) {
@@ -598,43 +610,68 @@ function catalogueRecoveryIndex(mutations: readonly PlannedCatalogueRowMutation[
   }
 }
 
-async function inboundRows(tx: Tx, reference: InboundReference, targets: readonly CatalogueTargetRow[]) {
-  if (!targets.length) return []
+// Keep every guard complete while bounding the expensive join input. A high-fanout key can still
+// return many matches, but only source primary keys cross the database boundary; paginating those
+// small results would add ordering state without reducing the hash input that exhausted /dev/shm.
+async function scanInboundRows(
+  tx: Tx,
+  reference: InboundReference,
+  targets: readonly CatalogueTargetRow[],
+  inspect: (row: CatalogueTargetRow) => void,
+  observe?: CatalogueStoreFaultInjection['inboundBatch'],
+) {
+  if (!targets.length) return
   const source = tableContract(reference.sourceTable), target = writeContract(reference.targetTable)
   if (reference.sourceColumns.length !== reference.targetColumns.length ||
     reference.sourceColumns.some((column) => !source.columns.includes(column)) ||
     reference.targetColumns.some((column) => !target.columns.includes(column))) throw new Error('catalogue recovery inbound-reference contract is invalid')
   const join = reference.sourceColumns.map((column, index) => `s.${quote(column)} = t.${quote(reference.targetColumns[index]!)}`).join(' AND ')
   const order = source.keys.map((key) => `s.${quote(key)}`).join(', ')
-  return tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
-    `SELECT to_jsonb(s) AS row FROM ${quote(reference.sourceTable)} s JOIN jsonb_populate_recordset(NULL::${quote(reference.targetTable)}, $1::jsonb) t ON ${join} ORDER BY ${order}`,
-    JSON.stringify(targets),
-  ).then((rows) => rows.map(({ row }) => row))
+  const sourceKey = `jsonb_build_object(${source.keys.flatMap((key) => [`'${key}'`, `to_jsonb(s.${quote(key)})`]).join(', ')})`
+  for (const targetBatch of chunks(targets)) {
+    const batch = targetBatch.map((row) => Object.fromEntries(reference.targetColumns.map((column) => [column, row[column]])))
+    const payload = JSON.stringify(batch)
+    const rows = await tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
+      `SELECT ${sourceKey} AS row FROM ${quote(reference.sourceTable)} s JOIN jsonb_populate_recordset(NULL::${quote(reference.targetTable)}, $1::jsonb) t ON ${join} ORDER BY ${order}`,
+      payload,
+    )
+    observe?.(Object.freeze({
+      targetTable: reference.targetTable,
+      sourceTable: reference.sourceTable,
+      label: reference.label ?? reference.sourceColumns.join('+'),
+      targetColumns: Object.freeze([...reference.targetColumns]),
+      sourceKeyColumns: Object.freeze([...source.keys]),
+      targetRows: batch.length,
+      targetJsonBytes: Buffer.byteLength(payload),
+      sourceRows: rows.length,
+    }))
+    for (const { row } of rows) inspect(row)
+  }
 }
 
-async function assertNoNewInboundReferences(tx: Tx, index: CatalogueRecoveryIndex) {
+async function assertNoNewInboundReferences(tx: Tx, index: CatalogueRecoveryIndex, faultInjection?: CatalogueStoreFaultInjection) {
   const blockers: string[] = []
   for (const reference of INBOUND_REFERENCES) {
     const inserted = index.insertedByTable.get(reference.targetTable) ?? []
-    for (const row of await inboundRows(tx, reference, inserted)) {
+    await scanInboundRows(tx, reference, inserted, (row) => {
       const id = `${reference.sourceTable}:${keyText(currentKey(reference.sourceTable, row))}`
       if (!index.ownedFinalKeys.has(id)) blockers.push(`${reference.sourceTable}.${reference.label ?? reference.sourceColumns.join('+')}:${keyText(currentKey(reference.sourceTable, row))}`)
-    }
+    }, faultInjection?.inboundBatch)
   }
 
   const regionIds = (index.insertedByTable.get('Region') ?? []).flatMap((row) => typeof row.id === 'string' ? [row.id] : [])
-  if (regionIds.length) {
+  for (const batch of chunks(regionIds)) {
     const filters = await tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
-      `SELECT to_jsonb(f) AS row FROM "Filter" f WHERE f."regionIds" && $1::text[] ORDER BY f.id`, regionIds)
+      `SELECT jsonb_build_object('id', f.id) AS row FROM "Filter" f WHERE f."regionIds" && $1::text[] ORDER BY f.id`, batch)
     for (const { row } of filters) if (!index.ownedFinalKeys.has(`Filter:${keyText(currentKey('Filter', row))}`)) blockers.push(`Filter.regionIds:${keyText(currentKey('Filter', row))}`)
     const prose = await tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
-      `SELECT to_jsonb(t) AS row FROM "Taxon" t WHERE t.prose->>'version' = '1' AND t.prose->'regions' ?| $1::text[] ORDER BY t.id`, regionIds)
+      `SELECT jsonb_build_object('id', t.id) AS row FROM "Taxon" t WHERE t.prose->>'version' = '1' AND t.prose->'regions' ?| $1::text[] ORDER BY t.id`, batch)
     for (const { row } of prose) if (!index.ownedFinalKeys.has(`Taxon:${keyText(currentKey('Taxon', row))}`)) blockers.push(`Taxon.prose.regions:${keyText(currentKey('Taxon', row))}`)
     const scans = await tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
-      `SELECT to_jsonb(s) AS row FROM "ScanWork" s WHERE EXISTS (
+      `SELECT jsonb_build_object('key', s.key) AS row FROM "ScanWork" s WHERE EXISTS (
         SELECT 1 FROM jsonb_path_query(s.result, 'strict $.**.regionId') value
         WHERE value #>> '{}' = ANY($1::text[])
-      ) ORDER BY s.key`, regionIds)
+      ) ORDER BY s.key`, batch)
     for (const { row } of scans) blockers.push(`ScanWork.result.regionId:${keyText(currentKey('ScanWork', row))}`)
   }
   if (blockers.length) throw new Error(`catalogue recovery found newer inbound references: ${[...new Set(blockers)].slice(0, 20).join(', ')}`)
@@ -695,7 +732,7 @@ export async function recoverCatalogueTarget(db: Db, options: {
     const after = await currentMutationRows(tx, recovery.final)
     assertMutationImages(recovery.final, after, 'after')
     await assertProtectedScopes(tx, options.receipt.protectedScopes)
-    await assertNoNewInboundReferences(tx, recovery)
+    await assertNoNewInboundReferences(tx, recovery, options.faultInjection)
     await recoverMutations(tx, options.receipt.mutations)
     await options.faultInjection?.afterWrites?.(tx)
     const before = await currentMutationRows(tx, recovery.initial)
