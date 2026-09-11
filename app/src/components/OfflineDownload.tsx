@@ -15,7 +15,7 @@ import { packCache as CACHE, readyKey as READY_KEY, regionalPackUrls, verifiedAt
 const KB_PER_IMAGE = 30 // measured (findings 0009 §C2): iNaturalist `small` 13–74 KB, median 29 KB; Wikimedia 330 px thumbs ~17 KB
 const PARALLEL = 4
 
-type Run = { regionId: string; done: number; total: number; status: 'running' | 'stopped' | 'failed' | 'ready' }
+type Run = { regionId: string; catalogueVersion: string | null; done: number; total: number; status: 'running' | 'stopped' | 'failed' | 'ready' }
 let run: Run | null = null
 let cancel = false
 const listeners = new Set<() => void>()
@@ -24,15 +24,15 @@ const subscribe = (l: () => void) => { listeners.add(l); return () => { listener
 const useRun = () => useSyncExternalStore(subscribe, () => run, () => null)
 const stop = () => { cancel = true }
 
-async function download(regionId: string, urls: string[]) {
+async function download(regionId: string, catalogueVersion: string | null, urls: string[]) {
   if (run?.status === 'running') return
-  if (!navigator.serviceWorker?.controller) { run = { regionId, done: 0, total: urls.length, status: 'failed' }; emit(); return }
-  try { localStorage.removeItem(READY_KEY(regionId)) } catch { /* unavailable */ }
+  if (!navigator.serviceWorker?.controller) { run = { regionId, catalogueVersion, done: 0, total: urls.length, status: 'failed' }; emit(); return }
+  try { localStorage.removeItem(READY_KEY(regionId, catalogueVersion)) } catch { /* unavailable */ }
   cancel = false
-  run = { regionId, done: 0, total: urls.length, status: 'running' }
+  run = { regionId, catalogueVersion, done: 0, total: urls.length, status: 'running' }
   emit()
   let cache: Cache
-  try { cache = await caches.open(CACHE(regionId)) } catch { run = { ...run, status: 'failed' }; emit(); return }
+  try { cache = await caches.open(CACHE(regionId, catalogueVersion)) } catch { run = { ...run, status: 'failed' }; emit(); return }
   const queue = [...urls]
   let failed = false
   const worker = async () => {
@@ -55,9 +55,10 @@ async function download(regionId: string, urls: string[]) {
   }
   await Promise.all(Array.from({ length: PARALLEL }, worker))
   if (!failed && !cancel) {
-    try { localStorage.setItem(READY_KEY(regionId), JSON.stringify({ version: 1, at: new Date().toISOString(), urls } satisfies Pack)) } catch { /* private mode */ }
+    const marker: Pack = catalogueVersion ? { version: 2, catalogueVersion, at: new Date().toISOString(), urls } : { version: 1, at: new Date().toISOString(), urls }
+    try { localStorage.setItem(READY_KEY(regionId, catalogueVersion), JSON.stringify(marker)) } catch { /* private mode */ }
     // Verify all responses after the run; eviction or storage failure is never ready.
-    run = { ...run!, status: await verifiedAt(regionId, urls).catch(() => null) ? 'ready' : 'failed' }
+    run = { ...run!, status: await verifiedAt(regionId, catalogueVersion, urls).catch(() => null) ? 'ready' : 'failed' }
   } else run = { ...run!, status: cancel ? 'stopped' : 'failed' }
   emit()
 }
@@ -69,24 +70,25 @@ export function OfflineDownload({ testId = 'offline-download' }: { testId?: stri
   const trpc = useTRPC()
   const me = useQuery(trpc.identity.me.queryOptions())
   const region = me.data?.region ?? null
+  const catalogueVersion = me.data?.catalogueVersion ?? null
   const { set } = useAtlasSet(region)
   const state = useRun()
   const off = useOffline()
   const urlList = JSON.stringify(regionalPackUrls(set?.species ?? []))
-  const [verified, setVerified] = useState<{ regionId: string; urls: string; at: string } | null>(null)
+  const [verified, setVerified] = useState<{ regionId: string; catalogueVersion: string | null; urls: string; at: string } | null>(null)
   useEffect(() => {
     if (!region) return
     let current = true
-    const verify = () => { void verifiedAt(region.id, JSON.parse(urlList) as string[]).then(at => { if (current) setVerified(at ? { regionId: region.id, urls: urlList, at } : null) }).catch(() => { if (current) setVerified(null) }) }
+    const verify = () => { void verifiedAt(region.id, catalogueVersion, JSON.parse(urlList) as string[]).then(at => { if (current) setVerified(at ? { regionId: region.id, catalogueVersion, urls: urlList, at } : null) }).catch(() => { if (current) setVerified(null) }) }
     verify()
     document.addEventListener('visibilitychange', verify)
     return () => { current = false; document.removeEventListener('visibilitychange', verify) }
-  }, [region, urlList, state?.status])
+  }, [region, catalogueVersion, urlList, state?.status])
   if (!region || !set) return null
   const urls = JSON.parse(urlList) as string[]
   const mb = Math.max(1, Math.round((urls.length * KB_PER_IMAGE) / 1024))
-  const mine = state?.regionId === region.id ? state : null
-  const ready = verified?.regionId === region.id && verified.urls === urlList ? verified.at : null
+  const mine = state?.regionId === region.id && state.catalogueVersion === catalogueVersion ? state : null
+  const ready = verified?.regionId === region.id && verified.catalogueVersion === catalogueVersion && verified.urls === urlList ? verified.at : null
   const readyLabel = ready ? t('ready', { date: format.dateTime(new Date(ready), { day: 'numeric', month: 'short' }) }) : null
 
   let line: string
@@ -96,16 +98,16 @@ export function OfflineDownload({ testId = 'offline-download' }: { testId?: stri
     action = { label: t('cancel'), onClick: stop }
   } else if (mine?.status === 'failed') {
     line = t('failed', { done: mine.done, total: mine.total })
-    action = off ? null : { label: t('resume'), onClick: () => { void download(region.id, urls) } }
+    action = off ? null : { label: t('resume'), onClick: () => { void download(region.id, catalogueVersion, urls) } }
   } else if (mine?.status === 'stopped') {
     line = t('stopped', { done: mine.done, total: mine.total })
-    action = { label: t('resume'), onClick: () => { void download(region.id, urls) } }
+    action = { label: t('resume'), onClick: () => { void download(region.id, catalogueVersion, urls) } }
   } else if (readyLabel) {
     line = readyLabel
-    action = off ? null : { label: t('reload'), onClick: () => { void download(region.id, urls) } }
+    action = off ? null : { label: t('reload'), onClick: () => { void download(region.id, catalogueVersion, urls) } }
   } else {
     line = t('summary', { n: urls.length, mb })
-    action = off ? null : { label: t('load'), onClick: () => { void download(region.id, urls) } }
+    action = off ? null : { label: t('load'), onClick: () => { void download(region.id, catalogueVersion, urls) } }
   }
 
   return (

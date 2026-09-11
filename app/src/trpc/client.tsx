@@ -11,6 +11,8 @@ import type { AppRouter } from '@/server/routers/_app'
 import { clearPrivateData, PRIVATE_RESET_KEY, PRIVATE_PAUSE_KEY, purgePrivatePhotos } from '@/components/PrivateData'
 import { acceptIdentity, expectedIdentity, identityFetch, invalidateIdentity } from '@/components/ClientIdentity'
 import { IDENTITY_KEY, pauseOutbox, resumeOutbox, load, flush } from '@/components/Queue'
+import { invalidateRegionalPacks, resumeRegionalPackCleanup } from '@/components/OfflinePack'
+import { CATALOGUE_VERSION_KEY, catalogueVersionForStorage, catalogueVersionFromStorage, catalogueVersionFromStorageEvent, keepForCatalogue, watchCatalogueCache, type CatalogueVersionState } from '@/components/CatalogueCache'
 
 export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>()
 
@@ -33,7 +35,7 @@ const PERSIST_MAX_AGE = 30 * 24 * 60 * 60 * 1000
 // (2^31-1 ms, 24.8 days); past that the timer overflows and fires at once, and every query nobody looks at is gone
 // within the second (seen in C2: the prefetched `journal.get` and every hydrated query vanished from the store).
 const PERSIST_GC_TIME = Math.min(PERSIST_MAX_AGE, 2 ** 31 - 1)
-const PERSISTED: [string, string][] = [['dex', 'set'], ['dex', 'setCounts'], ['dex', 'regions'], ['regions', 'personal'], ['identity', 'progress'], ['identity', 'germanyProgress'], ['identity', 'me'], ['sighting', 'photos'], ['sighting', 'outside'], ['journal', 'days'], ['journal', 'get'], ['taxon', 'page'], ['taxon', 'mapCentre']]
+const PERSISTED: [string, string][] = [['dex', 'set'], ['dex', 'setCounts'], ['dex', 'regions'], ['regions', 'personal'], ['identity', 'progress'], ['identity', 'germanyProgress'], ['identity', 'me'], ['sighting', 'photos'], ['sighting', 'outsideVersioned'], ['journal', 'days'], ['journal', 'get'], ['taxon', 'page'], ['taxon', 'mapCentre']]
 const PAGE_CAP = 10 // `taxon.page` entries kept, newest first: ~59 KB each
 const SIGHTING_CAP = 30 // `journal.get` entries kept, newest first (handoff 0012 F2): the walk's sightings open offline; ~1 KB each
 const isPath = (key: readonly unknown[], path: [string, string]) => Array.isArray(key[0]) && key[0][0] === path[0] && key[0][1] === path[1]
@@ -42,6 +44,7 @@ let lastWritten = ''
 let lastStamp = 0 // timestamp of the store this page wrote last; a different one on disk means another page wrote
 const trace = (msg: string) => { try { localStorage.setItem('dex.persist.error', `${new Date().toISOString()} ${msg}`) } catch { /* private mode */ } }
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+const currentCatalogueVersion = (): CatalogueVersionState => { try { return catalogueVersionFromStorage(localStorage.getItem(CATALOGUE_VERSION_KEY)) } catch { return undefined } }
 const read = (): PersistedClient | undefined => {
   const raw = localStorage.getItem(PERSIST_KEY)
   if (!raw) return undefined
@@ -93,6 +96,8 @@ const withoutPages = (client: PersistedClient): PersistedClient => ({ ...client,
 function sanitize(client: PersistedClient): PersistedClient {
   let pages = 0, sightings = 0
   const queries = [...client.clientState.queries].sort((a, b) => b.state.dataUpdatedAt - a.state.dataUpdatedAt).flatMap((q) => {
+    const catalogueVersion = currentCatalogueVersion()
+    if (!keepForCatalogue(q.queryKey, q.state.data, catalogueVersion)) return []
     if (isPath(q.queryKey, ['taxon', 'page']) && ++pages > PAGE_CAP) return []
     if (isPath(q.queryKey, ['journal', 'get']) && ++sightings > SIGHTING_CAP) return []
     let state = { ...q.state, error: null, fetchFailureReason: null, fetchMeta: null }
@@ -122,7 +127,8 @@ function makeQueryClient() {
 // persisted progress: when `identity.me` answers with a new id, every other query is dropped and persisted again.
 function watchIdentity(qc: QueryClient) {
   return qc.getQueryCache().subscribe((e) => {
-    if (e.type !== 'updated' || e.action.type !== 'success' || !isPath(e.query.queryKey, ['identity', 'me'])) return
+    if (e.type !== 'updated' || e.action.type !== 'success') return
+    if (!isPath(e.query.queryKey, ['identity', 'me'])) return
     const id = (e.query.state.data as { id?: string } | undefined)?.id
     if (!id) return
     acceptIdentity(id)
@@ -136,12 +142,33 @@ function watchIdentity(qc: QueryClient) {
 }
 
 export function TRPCReactProvider({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(makeQueryClient)
+  // Install generation tracking while the QueryClient is created, before child useQuery hooks
+  // can begin their first requests.
+  const [{ queryClient, catalogue }] = useState(() => {
+    const queryClient = makeQueryClient()
+    const catalogue = watchCatalogueCache(queryClient, {
+      readVersion: currentCatalogueVersion,
+      writeVersion: (version) => { try { localStorage.setItem(CATALOGUE_VERSION_KEY, catalogueVersionForStorage(version)) } catch { /* private mode */ } },
+      onTransition: (version) => { void invalidateRegionalPacks(version).catch(() => {}) },
+    })
+    return { queryClient, catalogue }
+  })
   useEffect(() => {
     const unsubscribe = watchIdentity(queryClient)
     void purgePrivatePhotos().catch(() => {})
+    // localStorage commits before CacheStorage deletion. If navigation abandoned the page that
+    // observed a catalogue transition, this page resumes that safe, idempotent public-pack cleanup.
+    void resumeRegionalPackCleanup(currentCatalogueVersion()).catch(() => {})
     const reset = (event: StorageEvent) => {
       if (event.key === PRIVATE_PAUSE_KEY) { if (event.newValue) pauseOutbox(); else resumeOutbox(); return }
+      if (event.key === CATALOGUE_VERSION_KEY) {
+        // A removed key is treated as a legacy rollback for compatibility with tabs predating the sentinel.
+        const catalogueVersion = catalogueVersionFromStorageEvent(event.newValue)
+        // Preserve the authoritative rollback distinction after an older tab removes the key.
+        if (event.newValue === null) try { localStorage.setItem(CATALOGUE_VERSION_KEY, catalogueVersionForStorage(null)) } catch { /* private mode */ }
+        catalogue.transition(catalogueVersion)
+        return
+      }
       if (event.key !== PRIVATE_RESET_KEY && event.key !== IDENTITY_KEY) return
       invalidateIdentity()
       void queryClient.cancelQueries().then(() => queryClient.resetQueries())
@@ -151,8 +178,11 @@ export function TRPCReactProvider({ children }: { children: ReactNode }) {
       if (previous) void clearPrivateData(false, previous).catch(() => {})
     }
     window.addEventListener('storage', reset)
+    // `catalogue` is owned by this QueryClient and intentionally stays subscribed for the
+    // client's whole lifetime. Unsubscribing it in passive cleanup breaks React StrictMode's
+    // setup → cleanup → setup cycle because the stable state initializer does not run again.
     return () => { unsubscribe(); window.removeEventListener('storage', reset) }
-  }, [queryClient])
+  }, [queryClient, catalogue])
   const [trpcClient] = useState(() =>
     // `x-dex-locale` (handoff 0016 A5): the page's language, so a procedure that writes prose (the scan's ladder) answers in it.
     createTRPCClient<AppRouter>({ links: [identityBoundaryLink, splitLink({

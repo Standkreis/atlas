@@ -47,13 +47,14 @@ self.addEventListener('activate', (event) => {
     return
   }
   event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => (k.startsWith('dex-shell-') || k.startsWith('dex-static-')) && k !== SHELL && k !== STATIC).map((k) => caches.delete(k))))
+      caches.keys()
+        .then((keys) => Promise.all(keys.filter((k) => (k.startsWith('dex-shell-') || k.startsWith('dex-static-')) && k !== SHELL && k !== STATIC).map((k) => caches.delete(k))))
       .then(async () => {
-        for (const name of await caches.keys()) {
-          const cache = await caches.open(name)
-          for (const key of await cache.keys()) if (new URL(key.url).pathname.startsWith('/api/photo/')) await cache.delete(key)
-        }
+        // Old workers put user photos in the shared image cache. Do not enumerate and open every
+        // cache name: a catalogue transition can delete a regional pack after the names snapshot,
+        // and opening that stale name would recreate an empty incompatible pack.
+        const cache = await caches.open(IMAGES)
+        for (const key of await cache.keys()) if (new URL(key.url).pathname.startsWith('/api/photo/')) await cache.delete(key)
       })
       .then(() => self.clients.claim()),
   )
@@ -220,8 +221,9 @@ async function image(req) {
   const c = await caches.open(IMAGES)
   for (const name of await caches.keys()) {
     if (!name.startsWith('dex-pack-')) continue
-    const pack = await caches.open(name)
-    const saved = await pack.match(req.url)
+    // A read must not recreate a pack deleted by a catalogue transition after this names
+    // snapshot. CacheStorage.match returns undefined when that named cache no longer exists.
+    const saved = await caches.match(req.url, { cacheName: name })
     if (saved?.ok) return saved
   }
   const hit = await c.match(req.url)

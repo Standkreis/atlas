@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { hashKey, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { TRPCClientError } from '@trpc/client'
 import { useTranslations } from 'next-intl'
 import type { RegionStatus } from '@/generated/prisma/enums'
 import { isNetworkError, useTRPC, useTRPCClient } from '@/trpc/client'
 import { allTiles } from './AtlasCounters'
 import { useOffline } from './OfflineBanner'
 import { RegionPicker } from './RegionPicker'
-import { pendingRegionAfterCompletion, regionRemovalGuard, savedRegionRows, uniqueRegionIds } from './RegionManagementState'
+import { pendingRegionAfterCompletion, pendingRegionWriteIsRetryable, regionRemovalGuard, savedRegionRows, uniqueRegionIds } from './RegionManagementState'
 import { pickerIsGermanFallback, type PickerRegion } from './RegionPickerState'
 import { Sheet, useSheetClose } from './Sheet'
 
@@ -22,6 +23,10 @@ const PENDING_KEY = 'dex.region.pending'
 const pendingRegion = (): string | null => { try { return localStorage.getItem(PENDING_KEY) } catch { return null } }
 const setPending = (id: string | null) => { try { if (id) localStorage.setItem(PENDING_KEY, id); else localStorage.removeItem(PENDING_KEY) } catch { /* private mode */ } }
 const acknowledgePending = (completedId: string) => setPending(pendingRegionAfterCompletion(pendingRegion(), completedId))
+const retryableRegionWrite = (error: unknown) => pendingRegionWriteIsRetryable(
+  isNetworkError(error),
+  error instanceof TRPCClientError ? (error.data as { httpStatus?: number } | undefined)?.httpStatus : undefined,
+)
 
 export function useRegionSwitch() {
   const trpc = useTRPC()
@@ -32,8 +37,8 @@ export function useRegionSwitch() {
     onMutate: ({ regionId }) => { const r = qc.getQueryData(meKey)?.regions.find((x) => x.id === regionId); if (r) apply(r) },
     onSuccess: (_, { regionId }) => { acknowledgePending(regionId); void qc.invalidateQueries({ queryKey: meKey }) },
     onError: (e, { regionId }) => {
-      if (!isNetworkError(e)) acknowledgePending(regionId)
-      if (!isNetworkError(e)) void qc.invalidateQueries({ queryKey: meKey })
+      if (!retryableRegionWrite(e)) acknowledgePending(regionId)
+      if (!retryableRegionWrite(e)) void qc.invalidateQueries({ queryKey: meKey })
     },
   }))
   return {
@@ -54,7 +59,7 @@ export function RegionReplay() {
   const meKey = trpc.identity.me.queryKey()
   const replay = useMutation(trpc.identity.setRegion.mutationOptions({
     onSuccess: (_, { regionId }) => { acknowledgePending(regionId); void qc.invalidateQueries({ queryKey: meKey }) },
-    onError: (e, { regionId }) => { if (!isNetworkError(e)) { acknowledgePending(regionId); void qc.invalidateQueries({ queryKey: meKey }) } }, // no longer in the list: the server's word stands
+    onError: (e, { regionId }) => { if (!retryableRegionWrite(e)) { acknowledgePending(regionId); void qc.invalidateQueries({ queryKey: meKey }) } }, // no longer in the list: the server's word stands
   }))
   const { mutate } = replay
   useEffect(() => {
@@ -148,6 +153,7 @@ function Body() {
     const byId = new Map(old.selected.filter((region) => region.id !== removedId).map((region) => [region.id, region]))
     if (added) byId.set(added.id, added as (typeof old.selected)[number])
     return {
+      ...old,
       registryVersion,
       activeRegionId: old.activeRegionId,
       selected: regionIds.flatMap((id) => byId.get(id) ?? []),

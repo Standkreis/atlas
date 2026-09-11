@@ -772,3 +772,29 @@ model PhotoDeletion {
   createdAt DateTime @default(now())
   @@index([createdAt])
 }
+
+/// Distributed admission state for a country catalogue cutover. Absence means open so the
+/// additive migration leaves every legacy deployment functional.
+model CatalogueCutoverGate {
+  countryCode       String                    @id
+  state             String                    @default("open")
+  targetCatalogueId String?
+  operationId       String?
+  maintenanceSince  DateTime?
+  updatedAt         DateTime                  @updatedAt
+  admissions        CatalogueWriteAdmission[]
+}
+
+/// Work admitted before maintenance closes the gate. Rows intentionally have no automatic
+/// expiry: a crashed worker remains visible and must be resolved explicitly before cutover.
+model CatalogueWriteAdmission {
+  id          String               @id @default(uuid())
+  countryCode String
+  gate        CatalogueCutoverGate @relation(fields: [countryCode], references: [countryCode], onDelete: Restrict)
+  kind        String
+  identityId  String?
+  detail      Json?
+  admittedAt  DateTime             @default(now())
+
+  @@index([countryCode, admittedAt])
+}

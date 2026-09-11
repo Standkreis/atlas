@@ -4,12 +4,13 @@ const harness = vi.hoisted(() => ({
   disk: new Map<string, unknown>(), commits: [] as { puts: string[]; drops: string[] }[],
   hangRead: false, failCommit: false,
   create: vi.fn(async () => ({ id: 'saved' })), identify: vi.fn(async () => ({ answer: null })),
+  compatibility: vi.fn(async ({ regionIds }: { regionIds: string[] }): Promise<{ catalogueVersion: string | null; registryVersion: string | null; resolutions: { inputId: string; regionId: string | null; canonicalKey: string | null; reason: string }[] }> => ({ catalogueVersion: null, registryVersion: null, resolutions: regionIds.map(inputId => ({ inputId, regionId: inputId, canonicalKey: null, reason: 'active' })) })),
   serverOwner: 'owner', me: vi.fn(),
 }))
 vi.mock('@trpc/client', () => ({
   createTRPCClient: () => ({ identity: { me: { query: async () => { harness.me(); return { id: harness.serverOwner } } } },
     sighting: { create: { mutate: harness.create }, identify: { mutate: harness.identify } },
-    study: { mark: { mutate: harness.create } } }),
+    study: { mark: { mutate: harness.create } }, regions: { compatibility: { query: harness.compatibility } } }),
   httpBatchLink: () => ({}), TRPCClientError: class extends Error {},
 }))
 vi.mock('idb-keyval', () => ({
@@ -42,6 +43,8 @@ const storage = new Map<string, string>()
 const localStorage = { getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => { storage.set(k, v) }, removeItem: (k: string) => { storage.delete(k) } }
 const taxon = { id: 't1', gbifKey: 1, sciName: 'Turdus merula', names: {}, tile: 'bird', lead: null }
 const study = { id: 'r1', kind: 'study' as const, payload: { taxonId: 't1', taxon } }
+const legacyRegion = '10000000-0000-4000-8000-000000000001'
+const canonicalRegion = '10000000-0000-4000-8000-000000000002'
 
 describe('durable, identity-owned outbox', () => {
   beforeEach(() => {
@@ -52,6 +55,7 @@ describe('durable, identity-owned outbox', () => {
     storage.clear(); storage.set('dex.persist.identity', 'owner')
     harness.disk.clear(); harness.commits = []; harness.hangRead = false; harness.failCommit = false; harness.serverOwner = 'owner'
     harness.create.mockClear(); harness.identify.mockClear(); harness.me.mockClear()
+    harness.compatibility.mockClear()
   })
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
@@ -104,7 +108,7 @@ describe('durable, identity-owned outbox', () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { finish = resolve })))
     const q = await import('./Queue')
     await q.enqueue({ id: 'photo', kind: 'photo', payload: {}, blob: new Blob(['jpeg']) })
-    await q.enqueue({ id: 'scan', kind: 'scan', payload: { at: new Date().toISOString(), place: null, regionId: 'region', photoRow: 'photo', idPending: true } })
+    await q.enqueue({ id: 'scan', kind: 'scan', payload: { at: new Date().toISOString(), place: null, regionId: canonicalRegion, photoRow: 'photo', idPending: true } })
     const flushing = q.flush()
     await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
     await q.clearOutbox()
@@ -147,6 +151,88 @@ describe('durable, identity-owned outbox', () => {
     storage.set('dex.persist.identity', 'owner')
     await q.flush()
     expect(harness.me).not.toHaveBeenCalled()
+  })
+
+  it('durably maps a queued scan through its approved successor before identification', async () => {
+    harness.compatibility.mockResolvedValueOnce({ catalogueVersion: 'v2', registryVersion: 'registry-v2', resolutions: [{ inputId: legacyRegion, regionId: canonicalRegion, canonicalKey: 'de-krg-07339000', reason: 'successor' }] })
+    const q = await import('./Queue')
+    await q.enqueue({ id: 'scan', kind: 'scan', payload: { at: new Date().toISOString(), place: 'Mainz-Bingen', regionId: legacyRegion, photoId: 'photo', idPending: true } })
+    await q.flush()
+    expect(harness.identify).toHaveBeenCalledWith(expect.objectContaining({ regionId: canonicalRegion }), expect.anything())
+    expect((q.rowOf('scan') as { payload: object }).payload).toMatchObject({ regionId: canonicalRegion, idPending: false })
+  })
+
+  it('retains a no-successor scan until the user explicitly rebinds its region', async () => {
+    harness.compatibility.mockResolvedValueOnce({ catalogueVersion: 'v2', registryVersion: 'registry-v2', resolutions: [{ inputId: legacyRegion, regionId: null, canonicalKey: null, reason: 'retired' }] })
+    const q = await import('./Queue')
+    await q.enqueue({ id: 'scan', kind: 'scan', payload: { at: new Date().toISOString(), place: 'Kyoto', regionId: legacyRegion, photoId: 'photo', idPending: true } })
+    await q.flush()
+    expect(harness.identify).not.toHaveBeenCalled()
+    expect((q.rowOf('scan') as { payload: { requiresRegion?: boolean } }).payload.requiresRegion).toBe(true)
+    harness.compatibility.mockResolvedValueOnce({ catalogueVersion: 'v2', registryVersion: 'registry-v2', resolutions: [{ inputId: canonicalRegion, regionId: canonicalRegion, canonicalKey: 'de-krg-current', reason: 'active' }] })
+    await q.rebindScanRegion('scan', { id: canonicalRegion, name: 'Current region' })
+    await vi.waitFor(() => expect(harness.identify).toHaveBeenCalledWith(expect.objectContaining({ regionId: canonicalRegion }), expect.anything()))
+    expect((q.rowOf('scan') as { payload: object }).payload).toMatchObject({ regionId: canonicalRegion, place: 'Current region', requiresRegion: false, idPending: false })
+  })
+
+  it('retains a post-cutover scan whose canonical region is missing after rollback', async () => {
+    harness.compatibility.mockResolvedValueOnce({ catalogueVersion: null, registryVersion: null, resolutions: [{ inputId: canonicalRegion, regionId: null, canonicalKey: null, reason: 'unknown' }] })
+    const q = await import('./Queue')
+    const blob = new Blob(['post-cutover photo'])
+    await q.enqueue({ id: 'photo', kind: 'photo', payload: {}, blob })
+    await q.enqueue({ id: 'scan', kind: 'scan', payload: { at: new Date().toISOString(), place: 'Removed canonical region', regionId: canonicalRegion, photoRow: 'photo', idPending: true } })
+    await q.flush()
+    expect(harness.identify).not.toHaveBeenCalled()
+    expect(q.rowOf('photo')?.blob).toBe(blob)
+    expect(q.rowOf('scan')).toMatchObject({ dead: false, lastError: 'region-retired', payload: { regionId: canonicalRegion, photoRow: 'photo', idPending: true, requiresRegion: true } })
+  })
+
+  it('retains a queued scan and photo on retryable catalogue maintenance', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'maintenance' }), { status: 503 })))
+    const q = await import('./Queue')
+    const blob = new Blob(['jpeg'])
+    await q.enqueue({ id: 'photo', kind: 'photo', payload: {}, blob })
+    await q.enqueue({ id: 'scan', kind: 'scan', payload: { at: new Date().toISOString(), place: 'Mainz-Bingen', regionId: canonicalRegion, photoRow: 'photo', idPending: true } })
+    await q.flush()
+    expect(q.rowOf('photo')?.blob).toBe(blob)
+    expect((q.rowOf('scan') as { dead?: boolean; payload: object })).toMatchObject({ dead: false, payload: { photoRow: 'photo', idPending: true, waitingReason: 'maintenance' } })
+    expect(harness.identify).not.toHaveBeenCalled()
+  })
+
+  it('ignores more than fifty retained dead scans while transitioning one live scan', async () => {
+    for (let i = 0; i < 51; i++) harness.disk.set(`dead-${i}`, { id: `dead-${i}`, identityId: 'owner', createdAt: i, attempts: 1, lastError: 'old failure', dead: true, kind: 'scan', payload: { at: new Date().toISOString(), place: null, regionId: `malformed-${i}`, photoId: 'photo', idPending: true } })
+    harness.disk.set('live', { id: 'live', identityId: 'owner', createdAt: 100, attempts: 0, lastError: null, kind: 'scan', payload: { at: new Date().toISOString(), place: null, regionId: canonicalRegion, photoId: 'photo', idPending: true } })
+    harness.compatibility.mockResolvedValueOnce({ catalogueVersion: 'v2', registryVersion: 'registry-v2', resolutions: [{ inputId: canonicalRegion, regionId: canonicalRegion, canonicalKey: 'de-krg-current', reason: 'active' }] })
+    const q = await import('./Queue')
+    await q.flush()
+    expect(harness.compatibility).toHaveBeenCalledTimes(1)
+    expect(harness.compatibility.mock.calls[0]?.[0].regionIds).toEqual([canonicalRegion])
+    expect(harness.identify).toHaveBeenCalledWith(expect.objectContaining({ regionId: canonicalRegion }), expect.anything())
+    expect(q.rowsNow().filter((row) => row.dead)).toHaveLength(51)
+  })
+
+  it('chunks an oversized persisted set of live scan regions to the server limit', async () => {
+    for (let i = 0; i < 51; i++) {
+      const regionId = `10000000-0000-4000-8000-${String(i).padStart(12, '0')}`
+      harness.disk.set(`live-${i}`, { id: `live-${i}`, identityId: 'owner', createdAt: i, attempts: 0, lastError: null, kind: 'scan', payload: { at: new Date().toISOString(), place: null, regionId, photoId: 'photo', idPending: true } })
+    }
+    const q = await import('./Queue')
+    await q.flush()
+    expect(harness.compatibility).toHaveBeenCalledTimes(2)
+    expect(harness.compatibility.mock.calls.map(([input]) => input.regionIds.length)).toEqual([50, 1])
+    expect(harness.identify).toHaveBeenCalledTimes(51)
+  })
+
+  it('moves a malformed scan to explicit region recovery and flushes an unrelated row', async () => {
+    const q = await import('./Queue')
+    await q.enqueue({ id: 'bad-scan', kind: 'scan', payload: { at: new Date().toISOString(), place: 'Legacy', regionId: 'not-a-uuid', photoId: 'photo', idPending: true } })
+    await q.enqueue(study)
+    await q.flush()
+    expect(harness.compatibility).not.toHaveBeenCalled()
+    expect(harness.identify).not.toHaveBeenCalled()
+    expect(q.rowOf('bad-scan')).toMatchObject({ dead: false, lastError: 'region-invalid', payload: { regionId: 'not-a-uuid', requiresRegion: true, idPending: true } })
+    expect(harness.create).toHaveBeenCalled()
+    expect(q.rowOf('r1')).toBeUndefined()
   })
 
 })

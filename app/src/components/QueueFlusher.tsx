@@ -33,7 +33,7 @@ export function QueueFlusher() {
     const progressKey = trpc.identity.progress.queryKey()
     return onFlushed(async ({ row }) => {
       const keys = [progressKey, trpc.journal.pathKey()]
-      if (row.kind === 'sighting') keys.push(trpc.sighting.photos.queryKey(), trpc.sighting.outside.pathKey(), trpc.sighting.fill.queryKey({ id: row.id }))
+      if (row.kind === 'sighting') keys.push(trpc.sighting.photos.queryKey(), trpc.sighting.outsideVersioned.pathKey(), trpc.sighting.fill.queryKey({ id: row.id }))
       await Promise.all(keys.map((queryKey) => qc.invalidateQueries({ queryKey, refetchType: 'all' })))
       // The sighting's own page is persisted (`journal.get`, handoff 0012 F2); fetch it now, while the signal is there, so
       // the page opens offline later without ever having been opened online.

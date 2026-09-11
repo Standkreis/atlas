@@ -9,6 +9,7 @@ function worker() {
   const caches = {
     keys: async () => [...stores.keys()],
     delete: async (name: string) => stores.delete(name),
+    match: async (request: string | Request, options?: { cacheName?: string }) => options?.cacheName ? stores.get(options.cacheName)?.get(key(request)) : undefined,
     open: async (name: string) => {
       if (!stores.has(name)) stores.set(name, new Map())
       const store = stores.get(name)!
@@ -50,7 +51,11 @@ describe('service worker privacy and offline reference packs', () => {
     await cache.put('https://upload.wikimedia.org/bird.jpg', new Response('public bytes'))
     const pack = await sw.caches.open('dex-pack-region')
     await pack.put('https://upload.wikimedia.org/flower.jpg', new Response('flower'))
+    const open = vi.spyOn(sw.caches, 'open')
+    open.mockClear()
     await sw.activate()
+    expect(open).toHaveBeenCalledTimes(1)
+    expect(open).toHaveBeenCalledWith('dex-images')
     expect(await cache.match(`${origin}/api/photo/private-asset`)).toBeUndefined()
     expect(await (await cache.match('https://upload.wikimedia.org/bird.jpg'))?.text()).toBe('public bytes')
     expect(await (await pack.match('https://upload.wikimedia.org/flower.jpg'))?.text()).toBe('flower')
@@ -62,5 +67,21 @@ describe('service worker privacy and offline reference packs', () => {
     await pack.put(url, new Response('public reference'))
     expect(await (await sw.request(url))?.text()).toBe('public reference')
     expect(sw.fetch).not.toHaveBeenCalled()
+  })
+  it('does not recreate a pack deleted after the service worker reads its name', async () => {
+    const sw = worker()
+    const name = 'dex-pack-v2-old-region'
+    const url = 'https://upload.wikimedia.org/delayed.jpg'
+    const pack = await sw.caches.open(name)
+    await pack.put(url, new Response('old reference'))
+    const match = sw.caches.match
+    let release!: () => void
+    sw.caches.match = vi.fn((request: string | Request, options?: { cacheName?: string }) => new Promise<Response | undefined>((resolve) => { release = () => { void match(request, options).then(resolve) } }))
+    const response = sw.request(url)
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    await sw.caches.delete(name)
+    release()
+    expect((await response)?.status).toBe(404)
+    expect(await sw.caches.keys()).not.toContain(name)
   })
 })

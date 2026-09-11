@@ -1,5 +1,6 @@
 import { env } from '@/server/env'
 import { sweep } from '@/server/sweep'
+import { TRPCError } from '@trpc/server'
 
 // GET /api/cron/sweep (handoff 0011 Track B): the restart sweep, run by Vercel's cron (vercel.json, hourly) instead of
 // per cold start. Vercel sends `Authorization: Bearer <CRON_SECRET>`; anything else is 401, and a server without the
@@ -21,6 +22,9 @@ export async function GET(req: Request) {
     ;(globalThis as { dexSweepAt?: string }).dexSweepAt = new Date().toISOString()
     return Response.json(result, { headers: { 'cache-control': 'no-store' } })
   } catch (e) {
+    if (e instanceof TRPCError && e.code === 'SERVICE_UNAVAILABLE') {
+      return Response.json({ error: e.message }, { status: 503, headers: { 'cache-control': 'no-store', 'retry-after': '30' } })
+    }
     const error = e instanceof Error ? e.message : String(e)
     console.error('[sweep] failed:', error)
     return Response.json({ error }, { status: 500, headers: { 'cache-control': 'no-store' } })

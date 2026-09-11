@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { Prisma, PrismaClient } from '../generated/prisma/client'
 import { normalizeRegionAlias } from '../domain/regionAlias'
 import { bkgLandContainment } from './regionGeometry'
+import { activeGermanyCatalogue, resolveRegionSelection } from './regionCompatibility'
 
 export const REGION_SEARCH_LIMIT = 20
 export const regionSearchInput = z.object({
@@ -19,7 +20,7 @@ const entrySelect = {
   sourceUnits: { orderBy: { sourceCode: 'asc' }, select: { canonicalKey: true, name: true, kind: true } },
 } satisfies Prisma.RegionRegistryEntrySelect
 type Entry = Prisma.RegionRegistryEntryGetPayload<{ select: typeof entrySelect }>
-type SearchDb = Pick<PrismaClient, 'regionRegistryVersion' | 'regionRegistryEntry' | 'catalogueRegionBuild' | 'filter'>
+type SearchDb = Pick<PrismaClient, 'regionRegistryVersion' | 'regionRegistryEntry' | 'catalogueRegionBuild' | 'catalogueVersion' | 'region' | 'filter'>
 const activeRegistry = (db: SearchDb) => db.regionRegistryVersion.findFirst({
   where: { countryCode: 'DE', active: true }, select: { id: true, version: true, artifactSha256: true },
 })
@@ -49,12 +50,12 @@ async function summaries(db: SearchDb, entries: Entry[], registryId: string, mon
 
 export async function searchRegions(db: SearchDb, input: z.output<typeof regionSearchInput>) {
   const registry = await activeRegistry(db)
-  if (!registry) return { status: 'registry-unavailable' as const, registryVersion: null, results: [], next: null }
+  if (!registry) return { status: 'registry-unavailable' as const, registryVersion: null, catalogueVersion: null, results: [], next: null }
   if (input.registryVersion && input.registryVersion !== registry.id) {
-    return { status: 'registry-changed' as const, registryVersion: registry.id, results: [], next: null }
+    return { status: 'registry-changed' as const, registryVersion: registry.id, catalogueVersion: null, results: [], next: null }
   }
   const query = normalizeRegionAlias(input.q)
-  if (query.length < 2) return { status: 'ok' as const, registryVersion: registry.id, results: [], next: null }
+  if (query.length < 2) return { status: 'ok' as const, registryVersion: registry.id, catalogueVersion: null, results: [], next: null }
   // Each token can match a different alias: e.g. "Neustadt Bayern" disambiguates by Land.
   const entries = await db.regionRegistryEntry.findMany({
     where: {
@@ -65,21 +66,30 @@ export async function searchRegions(db: SearchDb, input: z.output<typeof regionS
     orderBy: { region: { canonicalKey: 'asc' } }, take: input.limit + 1, select: entrySelect,
   })
   const page = entries.slice(0, input.limit)
+  const results = await summaries(db, page, registry.id, input.month ?? new Date().getMonth() + 1)
   return {
     status: 'ok' as const, registryVersion: registry.id,
-    results: await summaries(db, page, registry.id, input.month ?? new Date().getMonth() + 1),
+    // A selectable summary is already bound to its active CatalogueRegionBuild, so reuse that
+    // projection instead of adding a separate catalogue lookup to every search.
+    catalogueVersion: results.find((row) => row.summary)?.summary?.catalogueVersion ?? null,
+    results,
     next: entries.length > input.limit ? page.at(-1)!.region.canonicalKey : null,
   }
 }
 
 /** Explicit recent IDs are device-owned; they are not sightings, visits or catalogue search. */
 export async function personalRegions(db: SearchDb, identityId: string, recentIds: string[], month: number) {
-  const [registry, filter] = await Promise.all([
-    activeRegistry(db), db.filter.findUnique({ where: { identityId }, select: { regionId: true, regionIds: true } }),
+  const [catalogue, filter] = await Promise.all([
+    activeGermanyCatalogue(db), db.filter.findUnique({ where: { identityId }, select: { regionId: true, regionIds: true } }),
   ])
-  if (!registry) return { registryVersion: null, activeRegionId: null, selected: [], recent: [], unavailableIds: [...new Set([...(filter?.regionIds ?? []), ...recentIds])] }
-  const selectedIds = [...new Set(filter?.regionIds ?? [])].slice(0, 20)
-  const recent = [...new Set(recentIds)].filter((id) => !selectedIds.includes(id)).slice(0, 20)
+  // The registry-only branch preserves ready pre-cutover regions. Successor/retired restrictions
+  // begin only with the matched active catalogue; missing/non-ready IDs still fail closed.
+  const registry = catalogue?.registryVersion ?? await activeRegistry(db)
+  if (!registry) return { registryVersion: null, catalogueVersion: null, activeRegionId: null, regionTransitions: [], selected: [], recent: [], unavailableIds: [...new Set([...(filter?.regionIds ?? []), ...recentIds])] }
+  const selection = await resolveRegionSelection(db, filter?.regionIds ?? [], filter?.regionId ?? null, catalogue)
+  const recentSelection = await resolveRegionSelection(db, recentIds, null, catalogue)
+  const selectedIds = selection.regionIds.slice(0, 20)
+  const recent = recentSelection.regionIds.filter((id) => !selectedIds.includes(id)).slice(0, 20)
   const ids = [...selectedIds, ...recent]
   const entries = ids.length ? await db.regionRegistryEntry.findMany({
     where: { registryVersionId: registry.id, regionId: { in: ids }, region: { countryCode: 'DE', canonicalKey: { not: null } } },
@@ -87,10 +97,14 @@ export async function personalRegions(db: SearchDb, identityId: string, recentId
   }) : []
   const rows = await summaries(db, entries, registry.id, month)
   const byId = new Map(rows.map((row) => [row.id, row]))
+  const unavailable = [...selection.resolutions, ...recentSelection.resolutions]
+    .filter((row) => row.reason === 'unknown')
+    .map((row) => row.inputId)
   return {
-    registryVersion: registry.id, activeRegionId: filter?.regionId ?? null,
+    registryVersion: registry.id, catalogueVersion: selection.catalogueVersion, activeRegionId: selection.activeRegionId,
+    regionTransitions: [...selection.resolutions, ...recentSelection.resolutions].filter((row) => row.regionId !== row.inputId),
     selected: selectedIds.flatMap((id) => byId.get(id) ?? []),
-    recent: recent.flatMap((id) => byId.get(id) ?? []), unavailableIds: ids.filter((id) => !byId.has(id)),
+    recent: recent.flatMap((id) => byId.get(id) ?? []), unavailableIds: [...new Set([...unavailable, ...ids.filter((id) => !byId.has(id))])],
   }
 }
 
@@ -105,16 +119,16 @@ export type RegionContainment = (point: { lat: number; lng: number }, registryId
 export async function locateRegion(db: SearchDb, input: z.output<typeof regionLocationInput>, containment: RegionContainment = bkgLandContainment) {
   if (input.permission !== 'granted') return { status: 'permission-required' as const, region: null }
   const registry = await activeRegistry(db)
-  if (!registry) return { status: 'registry-unavailable' as const, region: null }
+  if (!registry) return { status: 'registry-unavailable' as const, catalogueVersion: null, region: null }
   const match = await containment({ lat: input.lat, lng: input.lng }, registry.id, registry.artifactSha256)
-  if (match.status === 'geometry-unavailable') return { status: match.status, registryVersion: registry.id, region: null }
+  if (match.status === 'geometry-unavailable') return { status: match.status, registryVersion: registry.id, catalogueVersion: null, region: null }
   const keys = [...new Set(match.regionKeys)].sort()
-  if (!keys.length) return { status: 'no-result' as const, registryVersion: registry.id, region: null }
+  if (!keys.length) return { status: 'no-result' as const, registryVersion: registry.id, catalogueVersion: null, region: null }
   // BKG boundary ties select the lexicographically lowest immutable public key.
   const entry = await db.regionRegistryEntry.findFirst({
     where: { registryVersionId: registry.id, region: { countryCode: 'DE', canonicalKey: keys[0] } }, select: entrySelect,
   })
-  if (!entry) return { status: 'registry-mismatch' as const, registryVersion: registry.id, region: null }
+  if (!entry) return { status: 'registry-mismatch' as const, registryVersion: registry.id, catalogueVersion: null, region: null }
   const [region] = await summaries(db, [entry], registry.id, new Date().getMonth() + 1)
-  return { status: 'resolved' as const, registryVersion: registry.id, boundaryTie: keys.length > 1, region }
+  return { status: 'resolved' as const, registryVersion: registry.id, catalogueVersion: region?.summary?.catalogueVersion ?? null, boundaryTie: keys.length > 1, region }
 }
