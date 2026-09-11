@@ -23,7 +23,7 @@
     "check": "npm run typecheck && npm run lint && npm run test && npm run build:export && npm run build",
     "etl": "tsx etl/cli.ts",
     "db:check:setup": "node scripts/check-db.mjs",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:integration": "node scripts/check/integration.mjs",
     "test:browser": "node scripts/check/browser.mjs"
   },
   "dependencies": {
