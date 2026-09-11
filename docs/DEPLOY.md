@@ -11,7 +11,7 @@
 | Piece | Service | Where | Notes |
 | --- | --- | --- | --- |
 | App | **Vercel** (team "Standkreis", Pro), project `standkreis-dex` | functions in `fra1`, Node.js 24 | root directory `app`; build command from `app/vercel.json`: `node scripts/deploy/migrate.mjs && npm run build` (overrides the dashboard) |
-| Database | **Neon Postgres** (Free), store `standkreis-atlas` | Frankfurt `eu-central-1` | via the Vercel marketplace; connected to Production and Preview only, so local dev keeps the Docker Postgres on `:5433` |
+| Database | **Neon Postgres** (Launch, verified 2026-09-11), store `standkreis-atlas` | Frankfurt `eu-central-1` | via the Vercel marketplace; connected to Production and Preview only, so local dev keeps the Docker Postgres on `:5433`; [upgrade verification](https://github.com/Standkreis/atlas/issues/28#issuecomment-5633156461) |
 | Photos | **Vercel Blob**, private store `standkreis-dex-blob` | `iad1` | connected to all three environments; user photos live at `photos/<assetId>.jpg`, streamed by `/api/photo/<id>` (0011 Track A); xeno-canto clips at `sounds/<gbifKey>.mp3`, streamed by `/api/photo/<id>.mp3` (0021 D5) |
 | Mail | **Resend** (EU region) | — | the email code (0020): one transactional mail from `atlas@standkreis.de`, no tracking. The domain `standkreis.de` must be verified at Resend (DKIM, return path) before the first real mail |
 | DNS | united-domains | — | `atlas` CNAME → Vercel; the apex `standkreis.de` is reserved for a later landing page |
@@ -121,7 +121,7 @@ Jobs that must outlive the response (the region job on `dex.requestRegion`, the 
 
 Generate and review data in **local Postgres**, never Neon. Transfer a frozen, reviewed catalogue
 through the [checked import and recovery process](operations/germany-checked-import.md), using the
-unpooled target connection only after the concrete production migration plan is approved.
+unpooled target connection only after the [concrete Germany production migration plan](operations/2026-09-11-germany-production-migration-plan.md) is approved, including its temporary Production/Preview HTTP fence. Plan publication and the verified Neon upgrade do not themselves authorize data transformation.
 The former direct-Neon ETL and whole-table restore recipes are superseded for populated targets;
 they do not preserve target identities, reviewed galleries and personal references safely.
 
