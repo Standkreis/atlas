@@ -2,7 +2,8 @@
 // fulfilled by CDP, so this test observes outbound payloads without contacting Vercel.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
+import { stopOwnedProcess } from './owned-process.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -14,7 +15,8 @@ const expectDisabled = process.env.ANALYTICS_EXPECT_DISABLED === '1'
 const sightingId = '00000000-0000-4000-8200-000000000000'
 const encodedSightingId = '%300000000-0000-4000-8200-000000000000'
 const secondSightingId = '10000000-0000-4000-8200-000000000000'
-const identityId = '00000000-0000-4000-8000-000000000001'
+const identityId = process.env.BROWSER_IDENTITY_ID
+if (!identityId) throw new Error('Run through browser.mjs to create an owned analytics identity')
 const forbidden = [sightingId, encodedSightingId, secondSightingId, '%65n', identityId, 'secret-query', 'private-fragment', 'Private fixture note', '49.992', '8.247']
 const profile = mkdtempSync(join(tmpdir(), 'dex-analytics-'))
 const port = 9800 + Math.floor(Math.random() * 500)
@@ -198,7 +200,5 @@ try {
   }
 } finally {
   if (websocket?.readyState === WebSocket.OPEN) websocket.close()
-  chrome.kill('SIGTERM')
-  await new Promise((resolve) => { if (chrome.exitCode !== null) resolve(); else chrome.once('exit', resolve) })
-  rmSync(profile, { recursive: true, force: true })
+  await stopOwnedProcess(chrome, profile)
 }

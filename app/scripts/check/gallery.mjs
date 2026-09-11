@@ -1,7 +1,8 @@
 // Production-browser coverage for issue #38. The four gallery shapes are inserted only into the guarded disposable
 // dex_check_* database, and synthetic image responses keep the check independent of upstream hosts and API budgets.
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { stopOwnedProcess } from './owned-process.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pg from 'pg'
@@ -157,7 +158,11 @@ try {
   console.log(JSON.stringify({ gallery: 'pass', states: [0, 1, 2, 12], phone: '360x800', desktop: '1440x900', keyboard: ['ArrowLeft', 'ArrowRight', 'Home', 'End'], brokenNonLead: 'isolated', activeAttribution: 'pass', eagerLeadLazyRest: 'pass' }))
 } finally {
   ws?.close()
-  proc.kill('SIGTERM')
-  await sleep(300)
-  rmSync(profile, { recursive: true, force: true })
+  await stopOwnedProcess(proc, profile)
+  const cleanup = new pg.Client({ connectionString: database.href })
+  try {
+    await cleanup.connect()
+    await cleanup.query('DELETE FROM "Taxon" WHERE id = ANY($1::text[])', [[0, 1, 2, 12].map(taxonId)])
+  } catch (error) { console.error('Gallery fixture cleanup failed:', error); process.exitCode = 1 }
+  finally { await cleanup.end() }
 }

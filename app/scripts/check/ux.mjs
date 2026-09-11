@@ -3,7 +3,8 @@
 // CHROME=/path/to/chrome supports Linux CI. No paid API calls or external messages.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { stopOwnedProcess } from './owned-process.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { checkGermanyContrast } from './germany-contrast.mjs'
@@ -304,7 +305,7 @@ try {
     await wait(`!${selector('[data-testid=region-add]')}.disabled`, 'Südwestpfalz add settles')
     await sleep(300)
     assert.equal(externalMediaRequestCount(), imagesBeforeSouthWest, 'adding a saved region starts no image fetch or render')
-    assert.equal(await evaluate(`(async () => !(await caches.has('dex-pack-${offlineSwitchRegionId}')) && localStorage.getItem('dex.offline.ready.${offlineSwitchRegionId}') === null)()`), true, 'adding a saved region creates no offline pack')
+    assert.equal(await evaluate(`(async () => !(await caches.keys()).some(name => name.startsWith('dex-pack-')) && !Object.keys(localStorage).some(name => name.startsWith('dex.offline.ready.')))()`), true, 'adding a saved region creates no legacy or versioned offline pack')
     await click(`[data-testid=region-row][data-region="${offlineSwitchRegionId}"] [data-testid=region-pick]`)
     await wait(`!${selector('[data-testid=region-sheet]')}`, 'switch closes region management')
     await click('[data-testid=tab-dex]')
@@ -343,7 +344,7 @@ try {
     await wait(`!${selector('[data-testid=region-add]')}.disabled`, 'Hamburg retry settles')
     await sleep(300)
     assert.equal(externalMediaRequestCount(), imagesBeforeHamburg, 'adding an uncached region starts no image fetch or render')
-    assert.equal(await evaluate(`(async () => !(await caches.has('dex-pack-${offlineUnavailableRegionId}')) && localStorage.getItem('dex.offline.ready.${offlineUnavailableRegionId}') === null)()`), true, 'adding an uncached region creates no offline pack')
+    assert.equal(await evaluate(`(async () => !(await caches.keys()).some(name => name.startsWith('dex-pack-')) && !Object.keys(localStorage).some(name => name.startsWith('dex.offline.ready.')))()`), true, 'adding an uncached region creates no legacy or versioned offline pack')
     await click(`[data-testid=region-row][data-region="${initialRegionId}"] [data-testid=region-remove]`)
     await wait(`document.querySelectorAll('[data-testid=region-row]').length === 3`, 'inactive Mainz-Bingen is removed')
     assert.equal(await evaluate(`${selector('[data-testid=region-row][data-active] [data-testid=region-remove]')}.disabled`), true, 'active region remains protected with multiple saved regions')
@@ -457,7 +458,5 @@ try {
   console.log(JSON.stringify({ locale, viewport: '390x844 + 1280x900', onboarding: 'pass', dialogs: 'pass', regionManagement: 'pass', radioKeyboard: 'pass', navigation: 'pass', germanyProgress: 'pass', journalError: 'pass', manualSave: 'pass', offlineReload: 'pass', species: cellCount, workerSessions: workers.length }))
 } finally {
   ws?.close()
-  proc.kill()
-  await new Promise((resolve) => { if (proc.exitCode !== null) resolve(); else { proc.once('exit', resolve); setTimeout(resolve, 2000) } })
-  rmSync(profile, { recursive: true, force: true })
+  await stopOwnedProcess(proc, profile)
 }

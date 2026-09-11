@@ -2,7 +2,8 @@
 // supplied local test identity. Usage: node scripts/check/offline.mjs <base> <dex_id>
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { stopOwnedProcess } from './owned-process.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pg from 'pg'
@@ -151,7 +152,5 @@ try {
     await catalogueDb.end()
   }
   ws?.close()
-  chrome.kill('SIGTERM')
-  await sleep(500)
-  rmSync(profile, { recursive: true, force: true })
+  await stopOwnedProcess(chrome, profile)
 }

@@ -2,11 +2,13 @@
 // intercepts every upload/identify attempt locally, and never reaches a model or media provider.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { stopOwnedProcess } from './owned-process.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const [base = 'http://localhost:3002', locale = 'en', identityId = '00000000-0000-4000-8000-000000000001'] = process.argv.slice(2)
+const [base = 'http://localhost:3002', locale = 'en', identityId = process.env.BROWSER_IDENTITY_ID] = process.argv.slice(2)
+if (!identityId) throw new Error('Run through browser.mjs to create an owned scan identity')
 if (!['en', 'de'].includes(locale) || !['localhost', '127.0.0.1'].includes(new URL(base).hostname)) throw new Error('Queued-scan checks require en/de and a localhost server')
 const expected = locale === 'de'
   ? { region: 'Dieses Foto wartet für eine nicht mehr verfügbare Region.', maintenance: 'Der Atlas wird gerade aktualisiert · die Bestimmung wird wiederholt' }
@@ -148,7 +150,5 @@ try {
   console.log(JSON.stringify(result))
 } finally {
   ws?.close()
-  chrome.kill('SIGTERM')
-  await sleep(500)
-  rmSync(profile, { recursive: true, force: true })
+  await stopOwnedProcess(chrome, profile)
 }

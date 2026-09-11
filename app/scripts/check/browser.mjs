@@ -1,27 +1,39 @@
 // Reproduces the CI production-browser suite against a disposable database.
 import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { stopOwnedProcess } from './owned-process.mjs'
 import pg from 'pg'
 import landManifest from '../../src/server/data/germany-land.manifest.json' with { type: 'json' }
 const database = new URL(process.env.DATABASE_URL ?? '')
 if (!['localhost', '127.0.0.1'].includes(database.hostname) || !/^\/dex_check_[a-z0-9_]+$/.test(database.pathname)) throw new Error('Browser tests require a local dex_check_* database')
-const base = 'http://localhost:3002'
+const port = process.env.BROWSER_PORT || '3002'
+if (!/^\d+$/.test(port) || +port < 1024 || +port > 65535) throw new Error('Invalid BROWSER_PORT')
+const base = `http://localhost:${port}`
+const identityId = randomUUID()
+process.env.BROWSER_IDENTITY_ID = identityId
 const fullCatalogue = process.env.UX_FULL_CATALOGUE === '1'
 // Give the current month's preview taxon two distinct local images. The older non-lead catches
 // regressions to createdAt ordering, and its URL is a byte-request sentinel in the browser audit.
 const previewAssetIds = ['00000000-0000-4000-8100-000000000000', '00000000-0000-4000-8100-000000000001']
 const analyticsSightingId = '00000000-0000-4000-8200-000000000000'
 let shiftedPreviewAssets = []
+let previewVisibility = []
+let oldRegistries = [], oldCatalogues = [], oldMainz = []
 const fixtureDb = new pg.Client({ connectionString: database.href })
 await fixtureDb.connect()
 try {
   await fixtureDb.query('BEGIN')
-  await fixtureDb.query(`DELETE FROM "Asset" WHERE id = ANY($1::text[])`, [previewAssetIds])
+  const { rows: collisions } = await fixtureDb.query(`SELECT id FROM "Asset" WHERE id = ANY($1::text[]) UNION ALL SELECT id FROM "Sighting" WHERE id = $2`, [previewAssetIds, analyticsSightingId])
+  if (collisions.length) throw new Error('Reserved browser fixture IDs already exist; refusing to overwrite')
+  await fixtureDb.query('INSERT INTO "Identity" (id) VALUES ($1)', [identityId])
   const { rows: [demo] } = await fixtureDb.query(`SELECT p."taxonId" FROM "Plausibility" p JOIN "Region" r ON r.id = p."regionId"
     WHERE r.name = 'Mainz-Bingen' AND p.peak > 0
     ORDER BY p."monthShare"[EXTRACT(MONTH FROM CURRENT_DATE)::int]::numeric / p.peak DESC LIMIT 1`)
   if (!demo) throw new Error('Mainz-Bingen preview taxon missing')
-  await fixtureDb.query(`DELETE FROM "Sighting" WHERE id = $1`, [analyticsSightingId])
-  await fixtureDb.query(`INSERT INTO "Sighting" (id, "identityId", "taxonId", at, lat, lng, place, note, evidence, wildness, "createdAt") VALUES ($1, '00000000-0000-4000-8000-000000000001', $2, NOW(), NULL, NULL, 'Private fixture place', 'Private fixture note', 'claimed', 'wild', NOW())`, [analyticsSightingId, demo.taxonId])
+  await fixtureDb.query(`INSERT INTO "Sighting" (id, "identityId", "taxonId", at, lat, lng, place, note, evidence, wildness, "createdAt") VALUES ($1, $3, $2, NOW(), NULL, NULL, 'Private fixture place', 'Private fixture note', 'claimed', 'wild', NOW())`, [analyticsSightingId, demo.taxonId, identityId])
+  // Reviewed galleries fail closed for unreviewed inserted rows. Temporarily remove only this
+  // demo's visibility decisions, preserving exact rows for restoration after all browsers exit.
+  ;({ rows: previewVisibility } = await fixtureDb.query('DELETE FROM "ReferenceAssetVisibility" WHERE "taxonId" = $1 RETURNING *', [demo.taxonId]))
   const { rows: existingPreviewAssets } = await fixtureDb.query(`SELECT id, position FROM "Asset" WHERE "taxonId" = $1 ORDER BY id`, [demo.taxonId])
   shiftedPreviewAssets = existingPreviewAssets
   if (shiftedPreviewAssets.length) {
@@ -51,6 +63,13 @@ try {
   } else {
     // Add the smallest active, geometry-compatible German catalogue so the ordinary CI suite exercises a ready national summary.
     const now = new Date()
+    const { rows: reserved } = await fixtureDb.query(`SELECT id FROM "RegionRegistryVersion" WHERE id = 'browser-registry-de' OR ("countryCode" = 'DE' AND version = $1) UNION ALL SELECT id FROM "CatalogueVersion" WHERE id = 'browser-catalogue-de' OR ("countryCode" = 'DE' AND "runKey" = 'browser-fixture-v1')`, [landManifest.registryVersion])
+    if (reserved.length) throw new Error('Reserved browser catalogue already exists')
+    ;({ rows: oldMainz } = await fixtureDb.query(`SELECT id, "canonicalKey", "countryCode" FROM "Region" WHERE name = 'Mainz-Bingen'`))
+    ;({ rows: oldRegistries } = await fixtureDb.query(`SELECT id, active FROM "RegionRegistryVersion" WHERE "countryCode" = 'DE' AND active`))
+    ;({ rows: oldCatalogues } = await fixtureDb.query(`SELECT id, status, "updatedAt" FROM "CatalogueVersion" WHERE "countryCode" = 'DE' AND status = 'active'`))
+    await fixtureDb.query(`UPDATE "CatalogueVersion" SET status = 'retired' WHERE id = ANY($1::text[])`, [oldCatalogues.map(row => row.id)])
+    await fixtureDb.query(`UPDATE "RegionRegistryVersion" SET active = false WHERE id = ANY($1::text[])`, [oldRegistries.map(row => row.id)])
     const { rows: [mainz] } = await fixtureDb.query(`UPDATE "Region" SET "canonicalKey" = 'de-krg-07339', "countryCode" = 'DE' WHERE name = 'Mainz-Bingen' RETURNING id, name`)
     if (!mainz) throw new Error('Mainz-Bingen seed region missing')
     const registryId = 'browser-registry-de', sourceId = 'browser-source-de', entryId = 'browser-entry-mainz'
@@ -68,13 +87,13 @@ try {
   // active fixture region without depending on the identities created by preceding UX checks.
   const { rows: [scanRegion] } = await fixtureDb.query(`SELECT id FROM "Region" WHERE name = 'Mainz-Bingen' AND status = 'ready' ORDER BY "canonicalKey" NULLS LAST LIMIT 1`)
   if (!scanRegion) throw new Error('Queued-scan browser fixture region missing')
-  await fixtureDb.query(`INSERT INTO "Filter" (id, "identityId", "regionId", "regionIds", tiles, "nowOnly", "updatedAt") VALUES ('browser-scan-filter', '00000000-0000-4000-8000-000000000001', $1, ARRAY[$1]::text[], ARRAY['bird']::"Tile"[], false, NOW()) ON CONFLICT ("identityId") DO UPDATE SET "regionId" = EXCLUDED."regionId", "regionIds" = EXCLUDED."regionIds", tiles = EXCLUDED.tiles, "updatedAt" = NOW()`, [scanRegion.id])
+  await fixtureDb.query(`INSERT INTO "Filter" (id, "identityId", "regionId", "regionIds", tiles, "nowOnly", "updatedAt") VALUES ($2, $3, $1, ARRAY[$1]::text[], ARRAY['bird']::"Tile"[], false, NOW())`, [scanRegion.id, randomUUID(), identityId])
   await fixtureDb.query('COMMIT')
 } catch (error) {
   await fixtureDb.query('ROLLBACK')
   throw error
 } finally { await fixtureDb.end() }
-const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', '3002'], { stdio: 'inherit', env: { ...process.env, VERCEL: '1', VERCEL_ENV: 'production', VERCEL_TARGET_ENV: 'production', BLOB_READ_WRITE_TOKEN: '', PHOTO_DIR: '/tmp/dex-check-photos', ANTHROPIC_API_KEY: 'check-only', ANTHROPIC_BASE_URL: 'http://127.0.0.1:9', RESEND_API_KEY: 'check-only', RESEND_BASE_URL: 'http://127.0.0.1:9', WEBAUTHN_RP_ID: 'localhost', WEBAUTHN_ORIGIN: base, WEBAUTHN_SECRET: 'check-only-secret-with-at-least-32-characters' } })
+const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', port], { stdio: 'inherit', env: { ...process.env, VERCEL: '1', VERCEL_ENV: 'production', VERCEL_TARGET_ENV: 'production', BLOB_READ_WRITE_TOKEN: '', PHOTO_DIR: '/tmp/dex-check-photos', ANTHROPIC_API_KEY: 'check-only', ANTHROPIC_BASE_URL: 'http://127.0.0.1:9', RESEND_API_KEY: 'check-only', RESEND_BASE_URL: 'http://127.0.0.1:9', WEBAUTHN_RP_ID: 'localhost', WEBAUTHN_ORIGIN: base, WEBAUTHN_SECRET: 'check-only-secret-with-at-least-32-characters' } })
 const run = (script, args) => new Promise((resolve, reject) => {
   const child = spawn(process.execPath, [script, ...args], { stdio: 'inherit' })
   child.on('error', reject)
@@ -92,12 +111,15 @@ try {
   for (const locale of ['en', 'de']) await run('scripts/check/ux.mjs', [base, locale])
   for (const locale of ['en', 'de']) await run('scripts/check/scan-transition.mjs', [base, locale])
   await run('scripts/check/gallery.mjs', [base])
+  if (fullCatalogue) {
+    await run('scripts/check/full-gallery.mjs', [base])
+    for (const locale of ['en', 'de']) await run('scripts/check/full-offline.mjs', [base, locale])
+  }
   await run('scripts/check/analytics.mjs', [base])
   const identity = await fetch(`${base}/api/trpc/identity.me`).then((r) => r.json()).then((j) => j.result.data.json.id)
   await run('scripts/check/offline.mjs', [base, identity])
 } finally {
-  server.kill('SIGTERM')
-  await new Promise((resolve) => { if (server.exitCode !== null) resolve(); else server.once('exit', resolve) })
+  await stopOwnedProcess(server)
   const cleanup = new pg.Client({ connectionString: database.href })
   await cleanup.connect()
   try {
@@ -105,9 +127,24 @@ try {
     await cleanup.query(`DELETE FROM "Sighting" WHERE id = $1`, [analyticsSightingId])
     await cleanup.query(`DELETE FROM "Asset" WHERE id = ANY($1::text[])`, [previewAssetIds])
     for (const asset of shiftedPreviewAssets) await cleanup.query(`UPDATE "Asset" SET position = $1 WHERE id = $2`, [asset.position, asset.id])
+    for (const row of previewVisibility) await cleanup.query('INSERT INTO "ReferenceAssetVisibility" SELECT * FROM json_populate_record(NULL::"ReferenceAssetVisibility", $1::json)', [JSON.stringify(row)])
+    await cleanup.query('DELETE FROM "Identity" WHERE id = $1', [identityId])
+    if (!fullCatalogue) {
+      await cleanup.query(`DELETE FROM "CatalogueTaxon" WHERE "catalogueVersionId" = 'browser-catalogue-de'`)
+      await cleanup.query(`DELETE FROM "CatalogueRegionBuild" WHERE "catalogueVersionId" = 'browser-catalogue-de'`)
+      await cleanup.query(`DELETE FROM "CatalogueVersion" WHERE id = 'browser-catalogue-de'`)
+      await cleanup.query(`DELETE FROM "RegionRegistryAlias" WHERE "registryEntryId" = 'browser-entry-mainz'`)
+      await cleanup.query(`DELETE FROM "RegionRegistryEntry" WHERE "registryVersionId" = 'browser-registry-de'`)
+      await cleanup.query(`DELETE FROM "RegionRegistrySource" WHERE "registryVersionId" = 'browser-registry-de'`)
+      await cleanup.query(`DELETE FROM "RegionRegistryVersion" WHERE id = 'browser-registry-de'`)
+      for (const row of oldMainz) await cleanup.query('UPDATE "Region" SET "canonicalKey" = $2, "countryCode" = $3 WHERE id = $1', [row.id, row.canonicalKey, row.countryCode])
+      for (const row of oldRegistries) await cleanup.query('UPDATE "RegionRegistryVersion" SET active = $2 WHERE id = $1', [row.id, row.active])
+      for (const row of oldCatalogues) await cleanup.query('UPDATE "CatalogueVersion" SET status = $2::"CatalogueStatus", "updatedAt" = $3 WHERE id = $1', [row.id, row.status, row.updatedAt])
+    }
     await cleanup.query('COMMIT')
   } catch (error) {
     await cleanup.query('ROLLBACK')
-    throw error
+    console.error('Browser fixture restoration failed:', error)
+    process.exitCode = 1
   } finally { await cleanup.end() }
 }
