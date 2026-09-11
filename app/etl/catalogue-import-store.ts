@@ -73,6 +73,7 @@ const TABLES = {
 const WRITE_TABLES = new Set<string>(Object.keys(CATALOGUE_TARGET_PRIMARY_KEYS))
 const SHA256 = /^[a-f\d]{64}$/
 const BATCH_SIZE = 1_000
+const CATALOGUE_TRANSACTION_OPTIONS = { timeout: 120_000, maxWait: 30_000 } as const
 
 function quote(identifier: string) { return `"${identifier}"` }
 function tableContract(table: string): TableContract {
@@ -120,10 +121,11 @@ async function readAllRows(db: Pick<Tx, '$queryRawUnsafe'>, table: string): Prom
 /** One repeatable target snapshot; to_jsonb keeps database timestamp/date values as exact strings. */
 export async function snapshotCatalogueTarget(db: Db): Promise<TargetCatalogueSnapshot> {
   return db.$transaction(async (tx) => {
+    await boundCatalogueTransaction(tx)
     const tables = new Map<string, readonly CatalogueTargetRow[]>()
     for (const table of CATALOGUE_TARGET_TABLES) tables.set(table, deepFreeze(await readAllRows(tx, table)))
     return Object.freeze({ tables: readonlyMap(tables) }) as TargetCatalogueSnapshot
-  }, { isolationLevel: 'RepeatableRead' })
+  }, { isolationLevel: 'RepeatableRead', ...CATALOGUE_TRANSACTION_OPTIONS })
 }
 
 export function catalogueTargetSnapshotFingerprint(snapshot: TargetCatalogueSnapshot) {
@@ -200,7 +202,7 @@ function validatePlan(plan: CatalogueTargetPlan) {
 async function readKeyedRows(db: Pick<Tx, '$queryRawUnsafe'>, table: string, keys: readonly Record<string, unknown>[]): Promise<CatalogueTargetRow[]> {
   if (!keys.length) return []
   const contract = tableContract(table)
-  const join = contract.keys.map((key) => `t.${quote(key)} IS NOT DISTINCT FROM k.${quote(key)}`).join(' AND ')
+  const join = contract.keys.map((key) => `t.${quote(key)} = k.${quote(key)}`).join(' AND ')
   const order = contract.keys.map((key) => `t.${quote(key)}`).join(', ')
   const sql = `SELECT to_jsonb(t) AS row FROM ${quote(table)} t JOIN jsonb_populate_recordset(NULL::${quote(table)}, $1::jsonb) k ON ${join} ORDER BY ${order}`
   return db.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(sql, JSON.stringify(keys)).then((rows) => rows.map(({ row }) => row))
@@ -237,7 +239,7 @@ async function scopeRows(db: Pick<Tx, '$queryRawUnsafe'>, scope: CatalogueProtec
   }
   const keys = scope.selector.keys as readonly Record<string, unknown>[]
   if (!keys.length) return []
-  const join = contract.keys.map((key) => `t.${quote(key)} IS NOT DISTINCT FROM k.${quote(key)}`).join(' AND ')
+  const join = contract.keys.map((key) => `t.${quote(key)} = k.${quote(key)}`).join(' AND ')
   const rows = await db.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(`SELECT ${projected} AS row FROM ${quote(scope.table)} t JOIN jsonb_populate_recordset(NULL::${quote(scope.table)}, $1::jsonb) k ON ${join} ORDER BY ${order}`, JSON.stringify(keys))
   return rows.map(({ row }) => row)
 }
@@ -287,6 +289,11 @@ async function lockTargetTables(tx: Tx) {
   for (const table of CATALOGUE_TARGET_TABLES) await tx.$executeRawUnsafe(`LOCK TABLE ${quote(table)} IN SHARE ROW EXCLUSIVE MODE`)
 }
 
+async function boundCatalogueTransaction(tx: Tx) {
+  await tx.$executeRawUnsafe('SET LOCAL statement_timeout = 120000')
+  await tx.$executeRawUnsafe('SET LOCAL lock_timeout = 30000')
+}
+
 async function assertTargetSnapshot(tx: Tx, expected: string) {
   const actual = await currentTargetFingerprint(tx)
   if (actual !== expected) throw new Error('complete target snapshot changed after planning')
@@ -322,7 +329,7 @@ async function upsertRows(tx: Tx, table: string, rows: readonly CatalogueTargetR
 async function deleteRows(tx: Tx, table: string, keys: readonly Record<string, unknown>[]) {
   if (!keys.length) return
   const contract = writeContract(table)
-  const match = contract.keys.map((key) => `t.${quote(key)} IS NOT DISTINCT FROM k.${quote(key)}`).join(' AND ')
+  const match = contract.keys.map((key) => `t.${quote(key)} = k.${quote(key)}`).join(' AND ')
   const sql = `DELETE FROM ${quote(table)} t USING jsonb_populate_recordset(NULL::${quote(table)}, $1::jsonb) k WHERE ${match}`
   for (const batch of chunks(keys)) await tx.$executeRawUnsafe(sql, JSON.stringify(batch))
 }
@@ -442,11 +449,12 @@ export type CatalogueStoreFaultInjection = Readonly<{
 
 async function verifyApplied(db: Db, receipt: CatalogueApplyReceipt, committedFingerprint: string) {
   await db.$transaction(async (tx) => {
+    await boundCatalogueTransaction(tx)
     const rows = await currentMutationRows(tx, finalImages(receipt.mutations))
     assertMutationImages(finalImages(receipt.mutations), rows, 'after')
     await assertProtectedScopes(tx, receipt.protectedScopes)
     if (await currentTargetFingerprint(tx) !== committedFingerprint) throw new Error('complete post-commit target verification mismatch')
-  }, { isolationLevel: 'RepeatableRead' })
+  }, { isolationLevel: 'RepeatableRead', ...CATALOGUE_TRANSACTION_OPTIONS })
 }
 
 /**
@@ -474,6 +482,7 @@ export async function applyCatalogueTargetPlan(db: Db, options: {
   await options.validated.assertStillValid()
 
   const committedFingerprint = await db.$transaction(async (tx) => {
+    await boundCatalogueTransaction(tx)
     await requireDrainedCatalogueMaintenance(tx, {
       operationId: options.receipt.operationId,
       targetCatalogueId: options.receipt.catalogueVersionId,
@@ -489,7 +498,7 @@ export async function applyCatalogueTargetPlan(db: Db, options: {
     assertMutationImages(finalImages(options.receipt.mutations), after, 'after')
     await assertProtectedScopes(tx, options.receipt.protectedScopes)
     return currentTargetFingerprint(tx)
-  }, { isolationLevel: 'Serializable', timeout: 120_000, maxWait: 30_000 })
+  }, { isolationLevel: 'Serializable', ...CATALOGUE_TRANSACTION_OPTIONS })
 
   await options.faultInjection?.afterCommit?.()
   await verifyApplied(db, options.receipt, committedFingerprint)
@@ -588,7 +597,7 @@ async function inboundRows(tx: Tx, reference: InboundReference, targets: readonl
   if (reference.sourceColumns.length !== reference.targetColumns.length ||
     reference.sourceColumns.some((column) => !source.columns.includes(column)) ||
     reference.targetColumns.some((column) => !target.columns.includes(column))) throw new Error('catalogue recovery inbound-reference contract is invalid')
-  const join = reference.sourceColumns.map((column, index) => `s.${quote(column)} IS NOT DISTINCT FROM t.${quote(reference.targetColumns[index]!)}`).join(' AND ')
+  const join = reference.sourceColumns.map((column, index) => `s.${quote(column)} = t.${quote(reference.targetColumns[index]!)}`).join(' AND ')
   const order = source.keys.map((key) => `s.${quote(key)}`).join(', ')
   return tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
     `SELECT to_jsonb(s) AS row FROM ${quote(reference.sourceTable)} s JOIN jsonb_populate_recordset(NULL::${quote(reference.targetTable)}, $1::jsonb) t ON ${join} ORDER BY ${order}`,
@@ -647,11 +656,12 @@ async function recoverMutations(tx: Tx, mutations: readonly PlannedCatalogueRowM
 
 async function verifyRecovered(db: Db, receipt: CatalogueApplyReceipt, committedFingerprint: string, index: CatalogueRecoveryIndex) {
   await db.$transaction(async (tx) => {
+    await boundCatalogueTransaction(tx)
     const rows = await currentMutationRows(tx, index.initial)
     assertMutationImages(index.initial, rows, 'before')
     await assertProtectedScopes(tx, receipt.protectedScopes)
     if (await currentTargetFingerprint(tx) !== committedFingerprint) throw new Error('complete post-recovery target verification mismatch')
-  }, { isolationLevel: 'RepeatableRead' })
+  }, { isolationLevel: 'RepeatableRead', ...CATALOGUE_TRANSACTION_OPTIONS })
 }
 
 /** Exact-CAS recovery. Any changed after-image or new reference fails before the first inverse. */
@@ -669,6 +679,7 @@ export async function recoverCatalogueTarget(db: Db, options: {
   if (drain.count) throw new Error(`catalogue write drain is not empty (${drain.count})`)
 
   const committedFingerprint = await db.$transaction(async (tx) => {
+    await boundCatalogueTransaction(tx)
     await requireDrainedCatalogueMaintenance(tx, {
       operationId: options.receipt.operationId,
       targetCatalogueId: options.receipt.catalogueVersionId,
@@ -684,7 +695,7 @@ export async function recoverCatalogueTarget(db: Db, options: {
     assertMutationImages(recovery.initial, before, 'before')
     await assertProtectedScopes(tx, options.receipt.protectedScopes)
     return currentTargetFingerprint(tx)
-  }, { isolationLevel: 'Serializable', timeout: 120_000, maxWait: 30_000 })
+  }, { isolationLevel: 'Serializable', ...CATALOGUE_TRANSACTION_OPTIONS })
 
   await options.faultInjection?.afterCommit?.()
   await verifyRecovered(db, options.receipt, committedFingerprint, recovery)

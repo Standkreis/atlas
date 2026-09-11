@@ -126,6 +126,35 @@ describe('checked catalogue import store', () => {
     expect(catalogueTargetSnapshotFingerprint(snapshot)).toMatch(/^[a-f\d]{64}$/)
   })
 
+  it('uses an indexed or hashed equality plan when reading ten thousand catalogue keys', async () => {
+    const prefix = `store-key-plan-${randomUUID()}`
+    const rows = Array.from({ length: 10_000 }, (_, index) => ({
+      id: randomUUID(),
+      canonicalKey: `${prefix}-${index}`,
+      countryCode: 'DE',
+      name: `Key plan ${index}`,
+      higher: 'Fixture',
+      status: 'ready' as const,
+    }))
+    try {
+      for (let index = 0; index < rows.length; index += 1_000) {
+        await db.region.createMany({ data: rows.slice(index, index + 1_000) })
+      }
+      const keys = rows.map(({ id }) => ({ id }))
+      const explained = await db.$queryRawUnsafe<Record<string, unknown>[]>(
+        `EXPLAIN (ANALYZE, FORMAT JSON) SELECT count(*) FROM "Region" t
+         JOIN jsonb_populate_recordset(NULL::"Region", $1::jsonb) k ON t.id = k.id`,
+        JSON.stringify(keys),
+      )
+      const planText = JSON.stringify(explained[0]?.['QUERY PLAN'])
+      expect(planText).toMatch(/"Node Type":"(?:Hash Join|Index(?: Only)? Scan)"/)
+      expect(planText).not.toContain('Join Filter')
+      expect(planText).toContain('Actual Rows":10000')
+    } finally {
+      await db.region.deleteMany({ where: { canonicalKey: { startsWith: prefix } } })
+    }
+  }, 30_000)
+
   it('atomically applies, verifies, opens, and exactly recovers while preserving personal rows', async () => {
     const f = await fixture()
     const targetPlan = plan(f.snapshot, f.mutations, ['Identity', 'Sighting'])
@@ -320,8 +349,15 @@ describe('checked catalogue import store', () => {
 
   it('rolls the serializable transaction back on an injected write failure', async () => {
     const f = await fixture(), targetPlan = plan(f.snapshot, f.mutations), applyReceipt = receipt(targetPlan)
+    let transactionLimits: { statementBound: boolean, lockBound: boolean } | undefined
     await expect(applyCatalogueTargetPlan(db, { validated, plan: targetPlan, receipt: applyReceipt,
-      faultInjection: { afterWrites: async () => { throw new Error('injected transaction failure') } } })).rejects.toThrow('injected transaction failure')
+      faultInjection: { afterWrites: async (tx) => {
+        ;[transactionLimits] = await tx.$queryRawUnsafe<{ statementBound: boolean, lockBound: boolean }[]>(
+          `SELECT current_setting('statement_timeout')::interval = interval '120 seconds' AS "statementBound",
+                  current_setting('lock_timeout')::interval = interval '30 seconds' AS "lockBound"`)
+        throw new Error('injected transaction failure')
+      } } })).rejects.toThrow('injected transaction failure')
+    expect(transactionLimits).toEqual({ statementBound: true, lockBound: true })
     expect(await db.region.findUnique({ where: { id: f.newRegionId } })).toBeNull()
     expect(await db.filter.findUniqueOrThrow({ where: { identityId: f.identityId } })).toMatchObject({ regionId: f.oldRegionId })
     expect(await readCatalogueCutoverState(db)).toMatchObject({ state: 'maintenance' })
