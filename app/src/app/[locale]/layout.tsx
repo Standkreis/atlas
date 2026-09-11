@@ -4,6 +4,7 @@ import { hasLocale, NextIntlClientProvider } from 'next-intl'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { routing } from '@/i18n/routing'
 import { Shell } from '@/components/Shell'
+import { AnalyticsBoundary } from '@/components/AnalyticsBoundary'
 import { ServiceWorker } from '@/components/ServiceWorker'
 import { IdentityBoot } from '@/components/IdentityBoot'
 import { QueueFlusher } from '@/components/QueueFlusher'
@@ -58,6 +59,7 @@ export default async function LocaleLayout({ children, params }: LayoutProps<'/[
             <RegionReplay />
             <ThemeBoot />
             <ServiceWorker />
+            <AnalyticsBoundary />
           </TRPCReactProvider>
         </NextIntlClientProvider>
       </body>

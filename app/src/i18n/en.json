@@ -345,6 +345,8 @@
     },
     "data": {
       "title": "Your data",
+      "analytics": "Production page views",
+      "analyticsHint": "Vercel Web Analytics receives the cleaned page path, referrer origin, approximate location, and browser and device details. Sighting IDs, queries, your Atlas identity, email, exact coordinates, notes, and photos are not put in the analytics event. Vercel uses a request-derived hash without an analytics cookie and discards the visitor session after 24 hours. The separate HttpOnly Atlas cookie keeps access to your data; the browser may include same-domain cookies in request headers, but Atlas does not copy them into the analytics event.",
       "export": "Export",
       "exportHint": "Sightings and studied species as JSON. Photos are private links, not image files; the links stop working after deletion.",
       "delete": "Delete everything",

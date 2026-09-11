@@ -192,6 +192,7 @@ export function IdentitySettings({ version }: { version: string }) {
       </section>
 
       <Group title={t('data.title')}>
+        <Row title={t('data.analytics')} hint={t('data.analyticsHint')} />
         <Row title={t('data.export')} hint={t('data.exportHint')} onClick={exportData} testId="export" />
         <Row title={t('data.delete')} hint={t('data.deleteHint')} onClick={() => setDeleting(true)} testId="delete" />
       </Group>

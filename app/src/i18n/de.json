@@ -345,6 +345,8 @@
     },
     "data": {
       "title": "Deine Daten",
+      "analytics": "Seitenaufrufe in Produktion",
+      "analyticsHint": "Vercel Web Analytics erhält den bereinigten Seitenpfad, die Herkunft als Domain, den ungefähren Ort sowie Browser- und Gerätedaten. Sichtungs-IDs, Suchparameter, deine Atlas-Kennung, E-Mail, genaue Koordinaten, Notizen und Fotos werden nicht in das Analyse-Ereignis geschrieben. Vercel nutzt ohne Analyse-Cookie einen aus der Anfrage gebildeten Hash und verwirft die Besuchssitzung nach 24 Stunden. Der getrennte HttpOnly-Atlas-Cookie hält den Zugriff auf deine Daten; der Browser kann Cookies derselben Domain in Anfrage-Headern mitsenden, der Atlas kopiert sie aber nicht in das Analyse-Ereignis.",
       "export": "Exportieren",
       "exportHint": "Sichtungen und studierte Arten als JSON. Fotos sind als private Links enthalten, nicht als Bilddateien; nach dem Löschen funktionieren die Links nicht mehr.",
       "delete": "Alles löschen",
