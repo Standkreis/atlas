@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { importRegionRegistry } from '../../etl/registry-import'
 import { parseRegionQueryMapping } from '../../etl/registry-mapping'
@@ -7,7 +8,9 @@ import { db } from './db'
 const REGISTRY_ID = 'de-krg-2099-12-31'
 const OTHER_REGISTRY_ID = 'de-krg-2098-12-31'
 const ARTIFACT_SHA = 'c'.repeat(64)
-const legacyGids = ['DEU.11.19_1', 'DEU.11.30_1']
+const regionKeys = ['de-krg-99000001', 'de-krg-99000002', 'de-krg-99000003'] as const
+const legacyGids = [`DEU.99.1_${randomUUID()}`, `DEU.99.2_${randomUUID()}`]
+const dependencies = { legacySuccessors: { [regionKeys[0]]: legacyGids[0], [regionKeys[1]]: legacyGids[1] } }
 const source = (id: string, role: 'regions' | 'kreisUnits', product: string, layer: string) => ({
   id,
   role,
@@ -37,23 +40,23 @@ const fixture = parseRegionRegistry({
   },
   regions: [
     {
-      key: 'de-krg-07339000', sourceKey: '07339000', displayName: 'Mainz-Bingen', sourceName: 'Mainz-Bingen', stateCode: '07', stateName: 'Rheinland-Pfalz',
-      aliases: aliases('Landkreis Mainz-Bingen', 'Mainz-Bingen', 'Rheinland-Pfalz'),
-      kreisUnits: [{ key: 'de-krs-07339', ags: '07339', name: 'Mainz-Bingen', type: 'Landkreis' }],
+      key: regionKeys[0], sourceKey: '99000001', displayName: 'Mainz-Bingen', sourceName: 'Mainz-Bingen', stateCode: '99', stateName: 'Fixtureland',
+      aliases: aliases('Landkreis Mainz-Bingen', 'Mainz-Bingen', 'Fixtureland'),
+      kreisUnits: [{ key: 'de-krs-99001', ags: '99001', name: 'Mainz-Bingen', type: 'Landkreis' }],
     },
     {
-      key: 'de-krg-07340000', sourceKey: '07340000', displayName: 'Südwestpfalz', sourceName: 'Südwestpfalz/Pirmasens/Zweibrücken', stateCode: '07', stateName: 'Rheinland-Pfalz',
-      aliases: aliases('Pirmasens', 'Rheinland-Pfalz', 'Südwestpfalz', 'Südwestpfalz/Pirmasens/Zweibrücken', 'Zweibrücken'),
+      key: regionKeys[1], sourceKey: '99000002', displayName: 'Südwestpfalz', sourceName: 'Südwestpfalz/Pirmasens/Zweibrücken', stateCode: '99', stateName: 'Fixtureland',
+      aliases: aliases('Pirmasens', 'Fixtureland', 'Südwestpfalz', 'Südwestpfalz/Pirmasens/Zweibrücken', 'Zweibrücken'),
       kreisUnits: [
-        { key: 'de-krs-07317', ags: '07317', name: 'Pirmasens', type: 'Kreisfreie Stadt' },
-        { key: 'de-krs-07320', ags: '07320', name: 'Zweibrücken', type: 'Kreisfreie Stadt' },
-        { key: 'de-krs-07340', ags: '07340', name: 'Südwestpfalz', type: 'Landkreis' },
+        { key: 'de-krs-99002', ags: '99002', name: 'Pirmasens', type: 'Kreisfreie Stadt' },
+        { key: 'de-krs-99003', ags: '99003', name: 'Zweibrücken', type: 'Kreisfreie Stadt' },
+        { key: 'de-krs-99004', ags: '99004', name: 'Südwestpfalz', type: 'Landkreis' },
       ],
     },
     {
-      key: 'de-krg-07341000', sourceKey: '07341000', displayName: 'Testkreis', sourceName: 'Testkreis', stateCode: '07', stateName: 'Rheinland-Pfalz',
-      aliases: aliases('Rheinland-Pfalz', 'Testkreis'),
-      kreisUnits: [{ key: 'de-krs-07341', ags: '07341', name: 'Testkreis', type: 'Landkreis' }],
+      key: regionKeys[2], sourceKey: '99000003', displayName: 'Testkreis', sourceName: 'Testkreis', stateCode: '99', stateName: 'Fixtureland',
+      aliases: aliases('Fixtureland', 'Testkreis'),
+      kreisUnits: [{ key: 'de-krs-99005', ags: '99005', name: 'Testkreis', type: 'Landkreis' }],
     },
   ],
 } satisfies RegionRegistry)
@@ -70,18 +73,19 @@ const mapping = parseRegionQueryMapping({
   counts: { sourceUnits: 5, mappedQueryUnits: 6, excludedQueryUnits: 0, providerInventory: 6 },
   review: { status: 'verified', method: 'minimal integration fixture', minimumLargestOverlap: 1, excluded: [] },
   mappings: [
-    { sourceUnitKey: 'de-krs-07317', providerKeys: ['DEU.99.1_999'] },
-    { sourceUnitKey: 'de-krs-07320', providerKeys: ['DEU.99.2_999'] },
-    { sourceUnitKey: 'de-krs-07339', providerKeys: ['DEU.99.3_999'] },
-    { sourceUnitKey: 'de-krs-07340', providerKeys: ['DEU.99.4_999', 'DEU.99.5_999'] },
-    { sourceUnitKey: 'de-krs-07341', providerKeys: ['DEU.99.6_999'] },
+    { sourceUnitKey: 'de-krs-99001', providerKeys: ['DEU.99.1_999'] },
+    { sourceUnitKey: 'de-krs-99002', providerKeys: ['DEU.99.2_999'] },
+    { sourceUnitKey: 'de-krs-99003', providerKeys: ['DEU.99.3_999'] },
+    { sourceUnitKey: 'de-krs-99004', providerKeys: ['DEU.99.4_999', 'DEU.99.5_999'] },
+    { sourceUnitKey: 'de-krs-99005', providerKeys: ['DEU.99.6_999'] },
   ],
 })
 
-type LegacySnapshot = { id: string; created: boolean; name: string; higher: string; canonicalKey: string | null; countryCode: string | null }
-const legacy: LegacySnapshot[] = []
+const legacy: { id: string }[] = []
 let identityId: string
 let taxonId: string
+const ownedRegionIds: string[] = []
+let ownsRegistry = false
 
 async function removeRegistry() {
   await db.regionQueryUnit.deleteMany({ where: { registryVersionId: REGISTRY_ID } })
@@ -93,11 +97,16 @@ async function removeRegistry() {
 }
 
 beforeAll(async () => {
-  await removeRegistry()
+  const [registry, otherRegistry, regions] = await Promise.all([
+    db.regionRegistryVersion.findUnique({ where: { id: REGISTRY_ID }, select: { id: true } }),
+    db.regionRegistryVersion.findUnique({ where: { id: OTHER_REGISTRY_ID }, select: { id: true } }),
+    db.region.findMany({ where: { OR: [{ canonicalKey: { in: [...regionKeys] } }, { gadmGid: { in: legacyGids } }] }, select: { id: true } }),
+  ])
+  if (registry || otherRegistry || regions.length) throw new Error('registry integration fixture identifiers already exist')
   for (const [index, gadmGid] of legacyGids.entries()) {
-    const found = await db.region.findUnique({ where: { gadmGid } })
-    const row = found ?? await db.region.create({ data: { gadmGid, name: `Legacy ${index}`, higher: 'Legacy', status: 'ready' } })
-    legacy.push({ id: row.id, created: !found, name: row.name, higher: row.higher, canonicalKey: row.canonicalKey, countryCode: row.countryCode })
+    const row = await db.region.create({ data: { gadmGid, name: `Legacy ${index}`, higher: 'Legacy', status: 'ready' } })
+    legacy.push({ id: row.id })
+    ownedRegionIds.push(row.id)
   }
   const identity = await db.identity.create({ data: {} })
   identityId = identity.id
@@ -108,38 +117,41 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await removeRegistry()
-  await db.identity.delete({ where: { id: identityId } })
-  await db.taxon.delete({ where: { id: taxonId } })
-  await db.region.deleteMany({ where: { canonicalKey: 'de-krg-07341000' } })
-  for (const row of legacy) {
-    if (row.created) await db.region.delete({ where: { id: row.id } })
-    else await db.region.update({ where: { id: row.id }, data: { name: row.name, higher: row.higher, canonicalKey: row.canonicalKey, countryCode: row.countryCode } })
+  try {
+    if (ownsRegistry) await removeRegistry()
+    await db.identity.deleteMany({ where: { id: { in: identityId ? [identityId] : [] } } })
+    await db.taxon.deleteMany({ where: { id: { in: taxonId ? [taxonId] : [] } } })
+    await db.region.deleteMany({ where: { id: { in: ownedRegionIds } } })
+  } finally {
+    await db.$disconnect()
   }
-  await db.$disconnect()
 })
 
 describe('versioned German region registry import', () => {
   it('is additive, idempotent and preserves legacy UUID references', async () => {
     const before = await db.regionRegistryVersion.count()
     const concurrent = await Promise.all([
-      importRegionRegistry({ registry: fixture, artifactSha256: ARTIFACT_SHA, mapping }),
-      importRegionRegistry({ registry: fixture, artifactSha256: ARTIFACT_SHA, mapping }),
+      importRegionRegistry({ registry: fixture, artifactSha256: ARTIFACT_SHA, mapping }, dependencies),
+      importRegionRegistry({ registry: fixture, artifactSha256: ARTIFACT_SHA, mapping }, dependencies),
     ])
-    expect(concurrent.map((result) => result.created).sort()).toEqual([false, true])
     const first = concurrent.find((result) => result.created)!
+    ownsRegistry = first.created
+    const ownedNewRegion = await db.region.findUniqueOrThrow({ where: { canonicalKey: regionKeys[2] }, select: { id: true } })
+    ownedRegionIds.push(ownedNewRegion.id)
+    expect(concurrent.map((result) => result.created).sort()).toEqual([false, true])
     expect(first).toMatchObject({ created: true, regions: 3, sourceUnits: 5, queryUnits: 6, legacyRegionsReused: 2 })
 
     const [mainz, swp, newRegion, filter, plausibility, version] = await Promise.all([
-      db.region.findUniqueOrThrow({ where: { canonicalKey: 'de-krg-07339000' } }),
-      db.region.findUniqueOrThrow({ where: { canonicalKey: 'de-krg-07340000' } }),
-      db.region.findUniqueOrThrow({ where: { canonicalKey: 'de-krg-07341000' } }),
+      db.region.findUniqueOrThrow({ where: { canonicalKey: regionKeys[0] } }),
+      db.region.findUniqueOrThrow({ where: { canonicalKey: regionKeys[1] } }),
+      db.region.findUniqueOrThrow({ where: { canonicalKey: regionKeys[2] } }),
       db.filter.findUniqueOrThrow({ where: { identityId } }),
       db.plausibility.findUniqueOrThrow({ where: { taxonId_regionId: { taxonId, regionId: legacy[0]!.id } } }),
       db.regionRegistryVersion.findUniqueOrThrow({ where: { id: REGISTRY_ID } }),
     ])
     expect(mainz.id).toBe(legacy[0]!.id)
     expect(swp.id).toBe(legacy[1]!.id)
+    expect(newRegion.id).toBe(ownedNewRegion.id)
     expect(filter.regionId).toBe(legacy[0]!.id)
     expect(filter.regionIds).toEqual([legacy[0]!.id])
     expect(plausibility.regionId).toBe(legacy[0]!.id)
@@ -148,7 +160,7 @@ describe('versioned German region registry import', () => {
     expect(await db.regionRegistryVersion.count()).toBe(before + 1)
 
     const importedAt = version.importedAt
-    const second = await importRegionRegistry({ registry: fixture, artifactSha256: ARTIFACT_SHA, mapping })
+    const second = await importRegionRegistry({ registry: fixture, artifactSha256: ARTIFACT_SHA, mapping }, dependencies)
     expect(second).toMatchObject({ created: false, regions: 3, sourceUnits: 5, queryUnits: 6 })
     expect((await db.regionRegistryVersion.findUniqueOrThrow({ where: { id: REGISTRY_ID } })).importedAt).toEqual(importedAt)
     expect(await db.regionQueryUnit.count({ where: { registryVersionId: REGISTRY_ID } })).toBe(6)
@@ -176,8 +188,8 @@ describe('versioned German region registry import', () => {
           sourceCode: 'cross-version',
           sourceName: 'Cross-version fixture',
           displayName: 'Cross-version fixture',
-          stateCode: '07',
-          stateName: 'Rheinland-Pfalz',
+          stateCode: '99',
+          stateName: 'Fixtureland',
         },
       })).rejects.toMatchObject({ code: 'P2003' })
     } finally {

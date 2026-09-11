@@ -18,6 +18,14 @@ const LEGACY_SUCCESSORS: Record<string, string> = {
   'de-krg-07340000': 'DEU.11.30_1',
 }
 
+type RegionRegistryImportDependencies = {
+  legacySuccessors: Readonly<Record<string, string>>
+}
+
+const REGION_REGISTRY_IMPORT_DEFAULTS: RegionRegistryImportDependencies = {
+  legacySuccessors: LEGACY_SUCCESSORS,
+}
+
 const instant = (date: string) => new Date(`${date}T00:00:00.000Z`)
 const stableId = (kind: string, ...parts: string[]) => `${kind}-${createHash('sha256').update(parts.join('\0')).digest('hex').slice(0, 32)}`
 const canonicalJson = (value: unknown): string => {
@@ -291,7 +299,10 @@ async function addQueryMappings(
  * Import one immutable BKG registry, optionally with its separately supplied operational GADM
  * mapping. The transaction is all-or-nothing; a byte-identical rerun performs validation only.
  */
-export async function importRegionRegistry(options: ImportOptions = {}): Promise<RegionRegistryImportResult> {
+export async function importRegionRegistry(
+  options: ImportOptions = {},
+  dependencies: RegionRegistryImportDependencies = REGION_REGISTRY_IMPORT_DEFAULTS,
+): Promise<RegionRegistryImportResult> {
   const registry = parseRegionRegistry(options.registry ?? loadGermanyRegistry())
   const artifactSha256 = options.artifactSha256 ?? GERMANY_REGISTRY_SHA256
   const mapping = options.mapping ? parseRegionQueryMapping(options.mapping) : undefined
@@ -324,7 +335,7 @@ export async function importRegionRegistry(options: ImportOptions = {}): Promise
     const sourceByRole = new Map(sources.map((source) => [source.role, source.id]))
 
     for (const region of registry.regions) {
-      const legacyGadmGid = LEGACY_SUCCESSORS[region.key]
+      const legacyGadmGid = dependencies.legacySuccessors[region.key]
       const candidates = await tx.region.findMany({
         where: { OR: [{ canonicalKey: region.key }, ...(legacyGadmGid ? [{ gadmGid: legacyGadmGid }] : [])] },
         select: { id: true, canonicalKey: true },

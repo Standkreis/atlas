@@ -17,6 +17,7 @@ const identityA = randomUUID(), identityB = randomUUID(), taxonId = randomUUID()
 let previousRegistry: string[] = []
 let previousCatalogues: { id: string; updatedAt: Date }[] = []
 const createdRegionIds: string[] = []
+let priorMainzMembers: string[] = []
 
 const context = async (id: string): Promise<Context> => ({
   db, identity: await db.identity.findUniqueOrThrow({ where: { id } }), networkKey: randomUUID(), minted: false,
@@ -50,6 +51,7 @@ beforeAll(async () => {
   const activatedAt = new Date()
   await db.catalogueVersion.create({ data: { id: catalogueId, countryCode: 'DE', runKey: catalogueId, registryVersionId: registryId, inputFingerprint: 'c', sourceFingerprint: 'd', responseFingerprint: 'e', unionFingerprint: 'f', plausibleRulesVersion: 1, tileMappingVersion: 1, observationWindowVersion: 1, yearFrom: 2016, yearTo: 2026, occurrencePredicates: {}, status: 'active', expectedRegions: 2, completedRegions: 2, unionTaxa: 1, generatedAt: activatedAt, auditedAt: activatedAt, activatedAt } })
   await db.taxon.create({ data: { id: taxonId, gbifKey: -Math.floor(Math.random() * 1_000_000_000), sciName: 'Compatibilis testus', rank: 'species', tile: 'bird' } })
+  priorMainzMembers = (await db.plausibility.findMany({ where: { regionId: ids.mainz }, select: { taxonId: true } })).map(({ taxonId }) => taxonId)
   await db.plausibility.create({ data: { taxonId, regionId: ids.mainz, obs: 10, monthShare: Array(12).fill(100), peak: 100, words: 'all year' } })
   await db.identity.createMany({ data: [{ id: identityA }, { id: identityB }] })
   await db.filter.create({ data: { identityId: identityA, regionId: ids.kyoto, regionIds: [ids.kyoto, ids.oldSouthWest, ids.oldMainz, ids.schagen], tiles: ['bird'] } })
@@ -95,7 +97,11 @@ describe('canonical/retired region compatibility', () => {
   it('serves an old regional request from the versioned canonical set and hides retired suggestions', async () => {
     const ctx = await context(identityA)
     const set = await dexRouter.createCaller(ctx).set({ regionId: ids.oldMainz, tiles: ['bird'] })
-    expect(set).toMatchObject({ catalogueVersion: catalogueId, registryVersion: registryId, region: { id: ids.mainz }, setSize: 1 })
+    expect(set).toMatchObject({ catalogueVersion: catalogueId, registryVersion: registryId, region: { id: ids.mainz }, setSize: priorMainzMembers.length + 1 })
+    expect(set).toEqual(await dexRouter.createCaller(ctx).set({ regionId: ids.mainz, tiles: ['bird'] }))
+    expect(set!.species.some((row) => row.taxonId === taxonId)).toBe(true)
+    expect((await db.plausibility.findMany({ where: { regionId: ids.mainz }, select: { taxonId: true } })).map(({ taxonId }) => taxonId).sort())
+      .toEqual([...priorMainzMembers, taxonId].sort())
     const legacyPicker = await dexRouter.createCaller(ctx).regions()
     expect(legacyPicker.map((row) => row.id).sort()).toEqual([ids.mainz, ids.southWest].sort())
     const compatibility = await regionsRouter.createCaller(ctx).compatibility({ regionIds: [ids.oldMainz, ids.kyoto] })
