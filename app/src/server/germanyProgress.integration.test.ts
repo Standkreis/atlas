@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { CatalogueStatus } from '../generated/prisma/client'
 import { db } from './db'
 import { germanyProgress, type GermanyGeometry } from './germanyProgress'
 import { identityRouter } from './routers/identity'
@@ -13,10 +14,25 @@ const registryId = manifest.registryVersion
 const sha = manifest.registrySha256
 const north = 'de-krg-07315000', south = 'de-krg-07340000'
 const catalogueIds = [randomUUID(), randomUUID()]
-const regionIds = [randomUUID(), randomUUID()]
+let regionIds: string[] = [randomUUID(), randomUUID()]
 const taxonIds = Array.from({ length: 5 }, () => randomUUID())
 let identityId: string, otherId: string, ctx: Context
-let priorRegistryId: string | undefined, priorCatalogueId: string | undefined
+type PreviousRegistry = { id: string; active: boolean; activatedAt: Date | null }
+type PreviousCatalogue = { id: string; status: CatalogueStatus; updatedAt: Date; activatedAt: Date | null }
+let previousRegistry: PreviousRegistry | null = null
+let manifestBefore: PreviousRegistry | null = null
+let previousCatalogue: PreviousCatalogue | null = null
+let ownedManifestRegistry = false
+let managesManifestRegistry = false
+const ownedRegionIds: string[] = []
+let priorMembershipCount = 0
+
+type RegistryVersionWriter = Pick<typeof db, 'regionRegistryVersion'>
+
+async function deactivateManagedManifestRegistry(client: RegistryVersionWriter, managed: boolean) {
+  if (!managed) return
+  await client.regionRegistryVersion.updateMany({ where: { id: registryId }, data: { active: false } })
+}
 
 const land: LandFeature[] = [
   { key: south, bbox: [7, 48, 9, 49.5], polygons: [[[[7, 48], [9, 48], [9, 49.5], [7, 49.5], [7, 48]]]] },
@@ -37,19 +53,62 @@ async function study(taxon: number, owner = identityId) {
 }
 
 beforeAll(async () => {
-  priorRegistryId = (await db.regionRegistryVersion.findFirst({ where: { countryCode: 'DE', active: true } }))?.id
-  priorCatalogueId = (await db.catalogueVersion.findFirst({ where: { countryCode: 'DE', status: 'active' } }))?.id
-  await db.regionRegistryVersion.updateMany({ where: { id: priorRegistryId ?? 'absent' }, data: { active: false } })
-  await db.catalogueVersion.updateMany({ where: { id: priorCatalogueId ?? 'absent' }, data: { status: 'retired' } })
-  await db.regionRegistryVersion.create({ data: { id: registryId, countryCode: 'DE', version: registryId, artifactSha256: sha, expectedRegions: 2, expectedSourceUnits: 2, active: true } })
-  const source = await db.regionRegistrySource.create({ data: {
-    registryVersionId: registryId, role: 'regions', name: 'Fixture', url: 'https://example.test/fixture',
-    topicDate: new Date('2024-12-31'), downloadedAt: new Date(), sha256: sha, licenceId: 'dl-de/by-2-0', attribution: 'Fixture',
-  } })
-  for (const [index, key] of [north, south].entries()) {
-    await db.region.create({ data: { id: regionIds[index], canonicalKey: key, countryCode: 'DE', name: key, higher: 'Fixture', status: 'ready' } })
-    await db.regionRegistryEntry.create({ data: { registryVersionId: registryId, sourceId: source.id, regionId: regionIds[index], sourceCode: key.slice(7), sourceName: key, displayName: key, stateCode: '99', stateName: 'Fixture' } })
+  previousCatalogue = await db.catalogueVersion.findFirst({
+    where: { countryCode: 'DE', status: 'active' },
+    select: { id: true, status: true, updatedAt: true, activatedAt: true },
+  })
+  previousRegistry = await db.regionRegistryVersion.findFirst({
+    where: { countryCode: 'DE', active: true },
+    select: { id: true, active: true, activatedAt: true },
+  })
+  manifestBefore = await db.regionRegistryVersion.findUnique({
+    where: { id: registryId },
+    select: { id: true, active: true, activatedAt: true },
+  })
+  if (previousCatalogue) await db.catalogueVersion.update({
+    where: { id: previousCatalogue.id },
+    data: { status: 'retired', updatedAt: previousCatalogue.updatedAt },
+  })
+  if (previousRegistry && previousRegistry.id !== registryId) await db.regionRegistryVersion.update({
+    where: { id: previousRegistry.id },
+    data: { active: false },
+  })
+
+  if (manifestBefore) {
+    const manifestRegistry = await db.regionRegistryVersion.findUniqueOrThrow({ where: { id: registryId } })
+    if (manifestRegistry.countryCode !== 'DE' || manifestRegistry.artifactSha256 !== sha) {
+      throw new Error('checked-in Germany manifest registry does not match its database identity')
+    }
+    const entries = await db.regionRegistryEntry.findMany({
+      where: { registryVersionId: registryId, region: { canonicalKey: { in: [north, south] } } },
+      select: { region: { select: { id: true, canonicalKey: true } } },
+    })
+    const idsByKey = new Map(entries.map((entry) => [entry.region.canonicalKey, entry.region.id]))
+    if (entries.length !== 2 || idsByKey.size !== 2 || !idsByKey.get(north) || !idsByKey.get(south)) {
+      throw new Error('checked-in Germany manifest registry lacks the required canonical fixture regions')
+    }
+    regionIds = [idsByKey.get(north)!, idsByKey.get(south)!]
+    managesManifestRegistry = true
+  } else {
+    await db.regionRegistryVersion.create({ data: {
+      id: registryId, countryCode: 'DE', version: registryId, artifactSha256: sha, expectedRegions: 2, expectedSourceUnits: 2,
+    } })
+    ownedManifestRegistry = true
+    managesManifestRegistry = true
+    const source = await db.regionRegistrySource.create({ data: {
+      registryVersionId: registryId, role: 'regions', name: 'Fixture', url: 'https://example.test/fixture',
+      topicDate: new Date('2024-12-31'), downloadedAt: new Date(), sha256: sha, licenceId: 'dl-de/by-2-0', attribution: 'Fixture',
+    } })
+    for (const [index, key] of [north, south].entries()) {
+      const borrowed = await db.region.findUnique({ where: { canonicalKey: key }, select: { id: true } })
+      const region = borrowed ?? await db.region.create({ data: { canonicalKey: key, countryCode: 'DE', name: key, higher: 'Fixture', status: 'ready' } })
+      if (!borrowed) ownedRegionIds.push(region.id)
+      regionIds[index] = region.id
+      await db.regionRegistryEntry.create({ data: { registryVersionId: registryId, sourceId: source.id, regionId: region.id, sourceCode: key.slice(7), sourceName: key, displayName: key, stateCode: '99', stateName: 'Fixture' } })
+    }
   }
+  await db.regionRegistryVersion.update({ where: { id: registryId }, data: { active: true } })
+  priorMembershipCount = await db.plausibility.count({ where: { regionId: regionIds[0], taxon: { tile: { in: ['bird', 'plant'] } } } })
   for (const [index, id] of taxonIds.entries()) {
     await db.taxon.create({ data: { id, gbifKey: 990_026_001 + index, sciName: `Progress fixture ${index}`, rank: 'SPECIES', tile: index === 1 ? 'plant' : 'bird' } })
   }
@@ -85,20 +144,42 @@ beforeEach(async () => {
 })
 
 afterAll(async () => {
-  await db.identity.deleteMany({ where: { id: { in: [identityId, otherId].filter(Boolean) } } })
-  await db.catalogueTaxon.deleteMany({ where: { catalogueVersionId: { in: catalogueIds } } })
-  await db.catalogueVersion.deleteMany({ where: { id: { in: catalogueIds } } })
-  await db.regionRegistryEntry.deleteMany({ where: { registryVersionId: registryId } })
-  await db.regionRegistrySource.deleteMany({ where: { registryVersionId: registryId } })
-  await db.regionRegistryVersion.deleteMany({ where: { id: registryId } })
-  await db.region.deleteMany({ where: { id: { in: regionIds } } })
-  await db.taxon.deleteMany({ where: { id: { in: taxonIds } } })
-  if (priorRegistryId) await db.regionRegistryVersion.update({ where: { id: priorRegistryId }, data: { active: true } })
-  if (priorCatalogueId) await db.catalogueVersion.update({ where: { id: priorCatalogueId }, data: { status: 'active' } })
-  await db.$disconnect()
+  try {
+    await db.identity.deleteMany({ where: { id: { in: [identityId, otherId].filter(Boolean) } } })
+    await db.catalogueTaxon.deleteMany({ where: { catalogueVersionId: { in: catalogueIds } } })
+    await db.catalogueVersion.deleteMany({ where: { id: { in: catalogueIds } } })
+    await db.taxon.deleteMany({ where: { id: { in: taxonIds } } })
+    await deactivateManagedManifestRegistry(db, managesManifestRegistry)
+    if (ownedManifestRegistry) {
+      await db.regionRegistryEntry.deleteMany({ where: { registryVersionId: registryId } })
+      await db.regionRegistrySource.deleteMany({ where: { registryVersionId: registryId } })
+      await db.regionRegistryVersion.deleteMany({ where: { id: registryId } })
+      await db.region.deleteMany({ where: { id: { in: ownedRegionIds } } })
+    }
+    if (previousRegistry) await db.regionRegistryVersion.update({
+      where: { id: previousRegistry.id },
+      data: { active: previousRegistry.active, activatedAt: previousRegistry.activatedAt },
+    })
+    if (managesManifestRegistry && manifestBefore && manifestBefore.id !== previousRegistry?.id) await db.regionRegistryVersion.update({
+      where: { id: manifestBefore.id },
+      data: { active: manifestBefore.active, activatedAt: manifestBefore.activatedAt },
+    })
+    if (previousCatalogue) await db.catalogueVersion.update({
+      where: { id: previousCatalogue.id },
+      data: { status: previousCatalogue.status, activatedAt: previousCatalogue.activatedAt, updatedAt: previousCatalogue.updatedAt },
+    })
+  } finally {
+    await db.$disconnect()
+  }
 })
 
 describe('Germany-wide personal progress', () => {
+  it('does not deactivate the manifest registry after an unvalidated partial setup', async () => {
+    const updateMany = vi.fn()
+    await deactivateManagedManifestRegistry({ regionRegistryVersion: { updateMany } } as unknown as RegistryVersionWriter, false)
+    expect(updateMany).not.toHaveBeenCalled()
+  })
+
   it('intersects unique accepted taxa with the active catalogue independently of location and recap', async () => {
     await sight(0, { lat: 50, lng: 8 })
     await sight(0, { lat: 49, lng: 8 })
@@ -181,7 +262,7 @@ describe('Germany-wide personal progress', () => {
     const personal = await identity.progress()
     await progress()
     expect(await regional.setCounts({ regionId: regionIds[0], tiles: ['bird', 'plant'] })).toEqual(before)
-    expect(before).toMatchObject({ total: 4, seen: { bird: 1, plant: 1 }, studied: { bird: 1, plant: 0 } })
+    expect(before).toMatchObject({ total: priorMembershipCount + 4, seen: { bird: 1, plant: 1 }, studied: { bird: 1, plant: 0 } })
     expect(await identity.progress()).toEqual(personal)
   })
 
