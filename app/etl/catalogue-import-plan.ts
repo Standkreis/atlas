@@ -1,7 +1,16 @@
 /** Pure target-identity and before/after planning contracts for the checked Germany cutover. */
 import { canonicalContent, contentDigest } from './catalogue-gallery-transfer'
 import type { ValidatedCatalogueImport } from './catalogue-import-validation'
-import type { ReferenceAsset, ReferenceAssetReview, ReferenceReviewEvidence } from './reference-gallery-preservation'
+import {
+  makeReferenceGalleryReceipt,
+  planTargetReferenceGallery,
+  referenceAssetFingerprint,
+  type ReferenceAsset,
+  type ReferenceAssetReview,
+  type ReferenceReviewEvidence,
+} from './reference-gallery-preservation'
+import { normalizedRemoteUrl } from '../src/domain/referenceImages'
+import { referenceAssetFromSnapshot } from './catalogue-import-review'
 
 export type CatalogueTargetRow = Readonly<Record<string, unknown>>
 export type CatalogueMutationPhase = 'materialize' | 'publish'
@@ -208,4 +217,201 @@ export function catalogueTargetPlanFingerprint(plan: Omit<CatalogueTargetPlan, '
 export function assertCatalogueTargetPlan(plan: CatalogueTargetPlan) {
   if (catalogueTargetPlanFingerprint(plan) !== plan.fingerprint) throw new Error('catalogue target plan fingerprint mismatch')
   return plan
+}
+
+const rowKeyText = (table: CatalogueTargetTable, row: CatalogueTargetRow) => canonicalContent(catalogueMutationKey(table, row))
+
+function targetRowIndex(table: CatalogueTargetTable, rows: readonly CatalogueTargetRow[]) {
+  const result = new Map<string, CatalogueTargetRow>()
+  for (const row of rows) {
+    const key = rowKeyText(table, row)
+    if (result.has(key)) throw new Error(`target snapshot has duplicate ${table} primary key ${key}`)
+    result.set(key, row)
+  }
+  return result
+}
+
+function addMutation(
+  mutations: PlannedCatalogueRowMutation[],
+  phase: CatalogueMutationPhase,
+  table: CatalogueTargetTable,
+  before: CatalogueTargetRow | null,
+  after: CatalogueTargetRow | null,
+) {
+  if (!before && !after) return
+  const key = catalogueMutationKey(table, after ?? before!)
+  if (before && after && canonicalContent(catalogueMutationKey(table, before)) !== canonicalContent(key)) {
+    throw new Error(`${table} primary keys cannot change in place`)
+  }
+  if (!before || !after || canonicalContent(before) !== canonicalContent(after)) mutations.push({ phase, table, key, before, after })
+}
+
+export function catalogueTargetSnapshotFingerprint(snapshot: TargetCatalogueSnapshot) {
+  return contentDigest(CATALOGUE_TARGET_SNAPSHOT_TABLES.map((table) => ({
+    table,
+    rows: catalogueTargetRowsFingerprint(table, snapshot.tables.get(table) ?? []),
+  })))
+}
+
+const requiredString = (value: unknown, label: string) => {
+  if (typeof value !== 'string' || !value) throw new Error(`${label} must be a non-empty string`)
+  return value
+}
+
+function uniqueByString(rows: readonly CatalogueTargetRow[], field: string, label: string) {
+  const result = new Map<string, CatalogueTargetRow>()
+  for (const row of rows) {
+    const value = requiredString(row[field], `${label}.${field}`)
+    if (result.has(value)) throw new Error(`${label} has duplicate ${field} ${value}`)
+    result.set(value, row)
+  }
+  return result
+}
+
+const avatarAssetIds = (target: TargetCatalogueSnapshot) => new Set(
+  (target.tables.get('Identity') ?? []).map((row) => row.avatarAssetId).filter((id): id is string => typeof id === 'string'),
+)
+
+const asReferenceAsset = (row: CatalogueTargetRow, avatars: ReadonlySet<string>): ReferenceAsset =>
+  referenceAssetFromSnapshot({ ...row, avatarOf: avatars.has(requiredString(row.id, 'Asset.id')) })
+
+function sameReuseIdentity(source: ReferenceAsset, target: ReferenceAsset, mappedTaxonId: string, correction: string | null) {
+  if (target.taxonId !== mappedTaxonId || source.origin !== target.origin ||
+    normalizedRemoteUrl(source.sourceUrl) !== normalizedRemoteUrl(target.sourceUrl) ||
+    normalizedRemoteUrl(source.url) !== normalizedRemoteUrl(target.url)) return false
+  const fields = ['kind', 'author', 'licence', 'sourceUrl', 'origin', 'caption', 'meta', 'byteSize'] as const
+  if (fields.some((field) => canonicalContent(source[field] ?? null) !== canonicalContent(target[field] ?? null))) return false
+  return (correction ?? target.licenceUrl) === source.licenceUrl
+}
+
+/**
+ * Adapt mapped Assets to #61's reviewed preservation planner. Existing assets are never deleted;
+ * reviewed source rows either reuse one exact target identity or retain their frozen source UUID.
+ */
+export function buildReviewedGalleryPlan(options: {
+  catalogueVersionId: string
+  taxonIdBySourceId: ReadonlyMap<string, string>
+  sourceAssets: readonly CatalogueTargetRow[]
+  target: TargetCatalogueSnapshot
+  review: TargetGalleryReview
+}): PlannedTargetGallery {
+  const catalogueVersionId = requiredString(options.catalogueVersionId, 'catalogueVersionId')
+  if (!options.review.reviewer.trim() || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(options.review.reviewedAt)) {
+    throw new Error('target gallery review requires a reviewer and UTC timestamp')
+  }
+  const avatars = avatarAssetIds(options.target)
+  const targetRows = options.target.tables.get('Asset') ?? []
+  const targetById = uniqueByString(targetRows, 'id', 'target Asset')
+  const sourceById = uniqueByString(options.sourceAssets, 'id', 'source Asset')
+  const sourceAssetIdToTargetId = new Map<string, string>()
+  const reusedTargetIds = new Set<string>()
+  const incomingRows: CatalogueTargetRow[] = []
+  const sourceForTarget = new Map<string, ReferenceAsset>()
+  const reviewedReuseDrafts = new Map<string, TargetReferenceReviewDraft>()
+
+  for (const sourceRow of options.sourceAssets) {
+    const source = asReferenceAsset(sourceRow, new Set())
+    const sourceId = source.id
+    const mappedTaxonId = options.taxonIdBySourceId.get(requiredString(source.taxonId, `source Asset ${sourceId}.taxonId`))
+    if (!mappedTaxonId) throw new Error(`source Asset ${sourceId} has no mapped Taxon`)
+    const reuseId = options.review.reuseTargetAssetIdBySourceId.get(sourceId)
+    if (reuseId) {
+      const targetRow = targetById.get(reuseId)
+      if (!targetRow || reusedTargetIds.has(reuseId)) throw new Error(`source Asset ${sourceId} has invalid non-unique target reuse`)
+      const target = asReferenceAsset(targetRow, avatars)
+      const draft = options.review.reviewAsset({ kind: 'existing', catalogueVersionId, taxonId: mappedTaxonId, asset: target, sourceAsset: source })
+      if (!sameReuseIdentity(source, target, mappedTaxonId, draft.correctedLicenceUrl)) throw new Error(`source Asset ${sourceId} reuse identity or metadata conflicts`)
+      reusedTargetIds.add(reuseId)
+      sourceAssetIdToTargetId.set(sourceId, reuseId)
+      sourceForTarget.set(reuseId, source)
+      reviewedReuseDrafts.set(reuseId, draft)
+      continue
+    }
+    if (targetById.has(sourceId)) throw new Error(`new source Asset ${sourceId} UUID collides with target data`)
+    const after = { ...sourceRow, taxonId: mappedTaxonId }
+    incomingRows.push(after)
+    sourceAssetIdToTargetId.set(sourceId, sourceId)
+    sourceForTarget.set(sourceId, source)
+  }
+  if (sourceAssetIdToTargetId.size !== sourceById.size || new Set(sourceAssetIdToTargetId.values()).size !== sourceAssetIdToTargetId.size) {
+    throw new Error('source reference identities are not one-to-one')
+  }
+
+  const mappedTaxa = new Set(options.taxonIdBySourceId.values())
+  const existingRows = targetRows.filter((row) => mappedTaxa.has(String(row.taxonId)) && row.kind === 'image' && row.ownerId === null && row.sightingId === null && !avatars.has(String(row.id)))
+  const existingByTaxon = Map.groupBy(existingRows, (row) => requiredString(row.taxonId, 'target Asset.taxonId'))
+  const incomingByTaxon = Map.groupBy(incomingRows, (row) => requiredString(row.taxonId, 'incoming Asset.taxonId'))
+  const receiptRows: CatalogueTargetRow[] = []
+  const visibilityRows: CatalogueTargetRow[] = []
+  let eligibleAssets = 0
+  let hiddenAssets = 0
+
+  for (const taxonId of [...mappedTaxa].sort()) {
+    const existingAssets = (existingByTaxon.get(taxonId) ?? []).map((row) => asReferenceAsset(row, avatars))
+    const incomingAssets = (incomingByTaxon.get(taxonId) ?? []).map((row) => asReferenceAsset(row, avatars))
+    if (incomingAssets.some((asset) => sourceForTarget.get(asset.id)?.taxonId == null)) throw new Error(`Taxon ${taxonId} has an unbound source Asset`)
+    const reviews: ReferenceAssetReview[] = [...existingAssets, ...incomingAssets].map((asset) => {
+      const sourceAsset = sourceForTarget.get(asset.id) ?? null
+      const draft = reviewedReuseDrafts.get(asset.id) ?? options.review.reviewAsset({ kind: incomingAssets.includes(asset) ? 'incoming' : 'existing', catalogueVersionId, taxonId, asset, sourceAsset })
+      return {
+        assetId: asset.id,
+        decision: draft.decision,
+        hiddenReason: draft.hiddenReason,
+        correctedLicenceUrl: draft.correctedLicenceUrl,
+        sourceAssetFingerprint: referenceAssetFingerprint(asset),
+        evidence: draft.evidence,
+        evidenceFingerprint: draft.evidenceFingerprint,
+        reviewer: options.review.reviewer,
+        reviewedAt: options.review.reviewedAt,
+      }
+    })
+    const input = { catalogueVersionId, taxonId, existingAssets, incomingAssets, reviews }
+    const planned = planTargetReferenceGallery(input)
+    const receipt = makeReferenceGalleryReceipt(input, {
+      evidence: options.review.receiptEvidence,
+      reviewer: options.review.reviewer,
+      reviewedAt: options.review.reviewedAt,
+    })
+    eligibleAssets += planned.visibility.filter((row) => row.eligible).length
+    hiddenAssets += planned.visibility.filter((row) => !row.eligible).length
+    receiptRows.push({
+      catalogueVersionId,
+      taxonId,
+      sourceSnapshot: receipt.sourceSnapshot,
+      sourceFingerprint: receipt.sourceFingerprint,
+      evidence: receipt.evidence,
+      evidenceFingerprint: receipt.evidenceFingerprint,
+      resultSnapshot: receipt.resultSnapshot,
+      resultFingerprint: receipt.resultFingerprint,
+      reviewer: receipt.reviewer,
+      reviewedAt: receipt.reviewedAt,
+      createdAt: receipt.reviewedAt,
+    })
+    visibilityRows.push(...planned.visibility.map((row) => ({ ...row, createdAt: row.reviewedAt })))
+  }
+
+  const assetMutations: PlannedCatalogueRowMutation[] = []
+  for (const row of incomingRows) addMutation(assetMutations, 'materialize', 'Asset', null, row)
+  const receiptMutations: PlannedCatalogueRowMutation[] = []
+  const targetReceipts = targetRowIndex('ReferenceGalleryReceipt', options.target.tables.get('ReferenceGalleryReceipt') ?? [])
+  for (const row of receiptRows) addMutation(receiptMutations, 'materialize', 'ReferenceGalleryReceipt', targetReceipts.get(rowKeyText('ReferenceGalleryReceipt', row)) ?? null, row)
+  const visibilityMutations: PlannedCatalogueRowMutation[] = []
+  const targetVisibility = targetRowIndex('ReferenceAssetVisibility', options.target.tables.get('ReferenceAssetVisibility') ?? [])
+  for (const row of visibilityRows) addMutation(visibilityMutations, 'materialize', 'ReferenceAssetVisibility', targetVisibility.get(rowKeyText('ReferenceAssetVisibility', row)) ?? null, row)
+
+  return {
+    sourceAssetIdToTargetId,
+    assetMutations,
+    receiptMutations,
+    visibilityMutations,
+    summary: {
+      sourceAssets: options.sourceAssets.length,
+      reusedAssets: reusedTargetIds.size,
+      insertedAssets: incomingRows.length,
+      retainedExistingAssets: existingRows.length,
+      eligibleAssets,
+      hiddenAssets,
+      receipts: receiptRows.length,
+    },
+  }
 }
