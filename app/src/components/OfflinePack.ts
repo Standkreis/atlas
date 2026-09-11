@@ -33,10 +33,18 @@ export async function verifiedAt(regionId: string, catalogueVersion: string | nu
 export async function invalidateRegionalPacks(catalogueVersion: string | null) {
   const keep = catalogueVersion === null ? null : versionedPackPrefix(catalogueVersion)
   if (typeof caches !== 'undefined') {
-    const names = await caches.keys()
-    await Promise.all(names.filter((name) => catalogueVersion === null
+    const stale = (name: string) => catalogueVersion === null
       ? name.startsWith('dex-pack-v2-')
-      : name.startsWith('dex-pack-') && !name.startsWith(keep!)).map((name) => caches.delete(name)))
+      : name.startsWith('dex-pack-') && !name.startsWith(keep!)
+    // The service worker may already hold a cache-name snapshot while serving an image. If its
+    // `caches.open(name)` lands just after the first deletion, it recreates an empty stale cache.
+    // Two bounded follow-up sweeps close that CacheStorage race without touching private data.
+    for (const delay of [0, 50, 250]) {
+      if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
+      const names = (await caches.keys()).filter(stale)
+      if (!names.length) break
+      await Promise.all(names.map((name) => caches.delete(name)))
+    }
   }
   try {
     const markerPrefix = catalogueVersion === null ? null : `dex.offline.ready.v2.${segment(catalogueVersion)}.`

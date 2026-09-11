@@ -53,7 +53,8 @@ describe('offline pack readiness', () => {
   it('removes only stale regional pack caches and markers after an online transition', async () => {
     const deleted: string[] = []
     const current = packCache('region', 'v2')
-    vi.stubGlobal('caches', { keys: async () => ['dex-images', 'dex-pack-legacy', current, 'dex-pack-v2-old-region'], delete: async (name: string) => { deleted.push(name); return true } })
+    const cacheNames = new Set(['dex-images', 'dex-pack-legacy', current, 'dex-pack-v2-old-region'])
+    vi.stubGlobal('caches', { keys: async () => [...cacheNames], delete: async (name: string) => { deleted.push(name); return cacheNames.delete(name) } })
     const values = new Map([[readyKey('legacy'), 'old'], [readyKey('region', 'v2'), 'new'], ['dex.persist.identity', 'owner']])
     vi.stubGlobal('localStorage', {
       get length() { return values.size }, key: (i: number) => [...values.keys()][i] ?? null,
@@ -67,7 +68,8 @@ describe('offline pack readiness', () => {
   })
   it('removes only v2 packs and markers after rollback to the legacy catalogue', async () => {
     const deleted: string[] = []
-    vi.stubGlobal('caches', { keys: async () => ['dex-images', 'dex-pack-legacy', 'dex-pack-v2-active-region', 'dex-pack-v2-old-region'], delete: async (name: string) => { deleted.push(name); return true } })
+    const cacheNames = new Set(['dex-images', 'dex-pack-legacy', 'dex-pack-v2-active-region', 'dex-pack-v2-old-region'])
+    vi.stubGlobal('caches', { keys: async () => [...cacheNames], delete: async (name: string) => { deleted.push(name); return cacheNames.delete(name) } })
     const values = new Map([[readyKey('legacy'), 'legacy'], [readyKey('region', 'active'), 'active'], ['dex.persist.identity', 'owner']])
     vi.stubGlobal('localStorage', {
       get length() { return values.size }, key: (i: number) => [...values.keys()][i] ?? null,
@@ -78,5 +80,16 @@ describe('offline pack readiness', () => {
     expect(values.has(readyKey('legacy'))).toBe(true)
     expect(values.has(readyKey('region', 'active'))).toBe(false)
     expect(values.get('dex.persist.identity')).toBe('owner')
+  })
+  it('re-sweeps a stale pack recreated by an in-flight service-worker lookup', async () => {
+    const stale = 'dex-pack-v2-old-region'
+    let deletes = 0
+    vi.stubGlobal('caches', {
+      keys: async () => deletes < 2 ? [stale] : [],
+      delete: async () => { deletes++; return true },
+    })
+    vi.stubGlobal('localStorage', { length: 0, key: () => null, removeItem: () => {} })
+    await invalidateRegionalPacks(null)
+    expect(deletes).toBe(2)
   })
 })
