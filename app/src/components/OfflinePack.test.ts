@@ -10,7 +10,7 @@ beforeEach(() => {
   images = new Map(urls.map(url => [url, new Response('jpeg')]))
   vi.stubGlobal('localStorage', { getItem: () => saved })
   vi.stubGlobal('navigator', { serviceWorker: { controller: {} } })
-  vi.stubGlobal('caches', { open: async () => ({ match: async (url: string) => images.get(url) }) })
+  vi.stubGlobal('caches', { match: async (url: string) => images.get(url) })
 })
 afterEach(() => vi.unstubAllGlobals())
 
@@ -81,15 +81,20 @@ describe('offline pack readiness', () => {
     expect(values.has(readyKey('region', 'active'))).toBe(false)
     expect(values.get('dex.persist.identity')).toBe('owner')
   })
-  it('re-sweeps a stale pack recreated by an in-flight service-worker lookup', async () => {
-    const stale = 'dex-pack-v2-old-region'
-    let deletes = 0
+  it('does not recreate a pack deleted after its readiness marker was read', async () => {
+    saved = JSON.stringify({ version: 2, catalogueVersion: 'v2', at, urls })
+    const names = new Set([packCache('region', 'v2')])
+    let release!: () => void
+    vi.stubGlobal('localStorage', { getItem: () => saved })
     vi.stubGlobal('caches', {
-      keys: async () => deletes < 2 ? [stale] : [],
-      delete: async () => { deletes++; return true },
+      match: vi.fn(() => new Promise<Response | undefined>((resolve) => { release = () => resolve(names.size ? new Response('jpeg') : undefined) })),
+      keys: async () => [...names],
     })
-    vi.stubGlobal('localStorage', { length: 0, key: () => null, removeItem: () => {} })
-    await invalidateRegionalPacks(null)
-    expect(deletes).toBe(2)
+    const checking = verifiedAt('region', 'v2', urls)
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    names.clear()
+    release()
+    expect(await checking).toBeNull()
+    expect(names.size).toBe(0)
   })
 })

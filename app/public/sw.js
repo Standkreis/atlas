@@ -220,8 +220,9 @@ async function image(req) {
   const c = await caches.open(IMAGES)
   for (const name of await caches.keys()) {
     if (!name.startsWith('dex-pack-')) continue
-    const pack = await caches.open(name)
-    const saved = await pack.match(req.url)
+    // A read must not recreate a pack deleted by a catalogue transition after this names
+    // snapshot. CacheStorage.match returns undefined when that named cache no longer exists.
+    const saved = await caches.match(req.url, { cacheName: name })
     if (saved?.ok) return saved
   }
   const hit = await c.match(req.url)

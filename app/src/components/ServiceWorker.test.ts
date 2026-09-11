@@ -9,6 +9,7 @@ function worker() {
   const caches = {
     keys: async () => [...stores.keys()],
     delete: async (name: string) => stores.delete(name),
+    match: async (request: string | Request, options?: { cacheName?: string }) => options?.cacheName ? stores.get(options.cacheName)?.get(key(request)) : undefined,
     open: async (name: string) => {
       if (!stores.has(name)) stores.set(name, new Map())
       const store = stores.get(name)!
@@ -62,5 +63,21 @@ describe('service worker privacy and offline reference packs', () => {
     await pack.put(url, new Response('public reference'))
     expect(await (await sw.request(url))?.text()).toBe('public reference')
     expect(sw.fetch).not.toHaveBeenCalled()
+  })
+  it('does not recreate a pack deleted after the service worker reads its name', async () => {
+    const sw = worker()
+    const name = 'dex-pack-v2-old-region'
+    const url = 'https://upload.wikimedia.org/delayed.jpg'
+    const pack = await sw.caches.open(name)
+    await pack.put(url, new Response('old reference'))
+    const match = sw.caches.match
+    let release!: () => void
+    sw.caches.match = vi.fn((request: string | Request, options?: { cacheName?: string }) => new Promise<Response | undefined>((resolve) => { release = () => { void match(request, options).then(resolve) } }))
+    const response = sw.request(url)
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    await sw.caches.delete(name)
+    release()
+    expect((await response)?.status).toBe(404)
+    expect(await sw.caches.keys()).not.toContain(name)
   })
 })

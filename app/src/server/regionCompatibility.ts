@@ -28,8 +28,8 @@ export type ActiveGermanyCatalogue = NonNullable<Awaited<ReturnType<typeof activ
 
 /**
  * Resolve stored/requested region UUIDs without mutating them. Before cutover (no matched active
- * German catalogue) every ID passes through. After cutover only active-registry members and the
- * four reviewed legacy outcomes survive.
+ * German catalogue), existing ready IDs pass through. After cutover only active-registry members
+ * and the four reviewed legacy outcomes survive.
  */
 export async function resolveRegionIds(db: CompatibilityDb, ids: readonly string[], snapshot?: ActiveGermanyCatalogue | null) {
   const unique = [...new Set(ids)]

@@ -24,8 +24,10 @@ export async function verifiedAt(regionId: string, catalogueVersion: string | nu
   if (!navigator.serviceWorker?.controller) return null
   const pack = packOf(regionId, catalogueVersion)
   if (!pack || pack.urls.length !== urls.length || pack.urls.some((u, i) => u !== urls[i])) return null
-  const cache = await caches.open(packCache(regionId, catalogueVersion))
-  for (const url of urls) if (!(await cache.match(url))?.ok) return null
+  const cacheName = packCache(regionId, catalogueVersion)
+  // CacheStorage.match with cacheName is a read. `caches.open` would recreate an empty pack if a
+  // catalogue transition deleted it after the readiness marker was read.
+  for (const url of urls) if (!(await caches.match(url, { cacheName }))?.ok) return null
   return pack.at
 }
 
@@ -36,15 +38,7 @@ export async function invalidateRegionalPacks(catalogueVersion: string | null) {
     const stale = (name: string) => catalogueVersion === null
       ? name.startsWith('dex-pack-v2-')
       : name.startsWith('dex-pack-') && !name.startsWith(keep!)
-    // The service worker may already hold a cache-name snapshot while serving an image. If its
-    // `caches.open(name)` lands just after the first deletion, it recreates an empty stale cache.
-    // Two bounded follow-up sweeps close that CacheStorage race without touching private data.
-    for (const delay of [0, 50, 250]) {
-      if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
-      const names = (await caches.keys()).filter(stale)
-      if (!names.length) break
-      await Promise.all(names.map((name) => caches.delete(name)))
-    }
+    await Promise.all((await caches.keys()).filter(stale).map((name) => caches.delete(name)))
   }
   try {
     const markerPrefix = catalogueVersion === null ? null : `dex.offline.ready.v2.${segment(catalogueVersion)}.`
