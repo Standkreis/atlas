@@ -12,7 +12,7 @@ import { clearPrivateData, PRIVATE_RESET_KEY, PRIVATE_PAUSE_KEY, purgePrivatePho
 import { acceptIdentity, expectedIdentity, identityFetch, invalidateIdentity } from '@/components/ClientIdentity'
 import { IDENTITY_KEY, pauseOutbox, resumeOutbox, load, flush } from '@/components/Queue'
 import { invalidateRegionalPacks } from '@/components/OfflinePack'
-import { CATALOGUE_VERSION_KEY, catalogueVersionForStorage, catalogueVersionFromStorage, catalogueVersionFromStorageEvent, catalogueVersionOf, catalogueVersionToAdopt, keepForCatalogue, type CatalogueVersionState } from '@/components/CatalogueCache'
+import { CATALOGUE_VERSION_KEY, catalogueVersionForStorage, catalogueVersionFromStorage, catalogueVersionFromStorageEvent, keepForCatalogue, watchCatalogueCache, type CatalogueVersionState } from '@/components/CatalogueCache'
 
 export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>()
 
@@ -128,14 +128,6 @@ function makeQueryClient() {
 function watchIdentity(qc: QueryClient) {
   return qc.getQueryCache().subscribe((e) => {
     if (e.type !== 'updated' || e.action.type !== 'success') return
-    const observedVersion = catalogueVersionOf(e.query.state.data)
-    const previous = currentCatalogueVersion()
-    const catalogueVersion = catalogueVersionToAdopt(previous, observedVersion, isPath(e.query.queryKey, ['identity', 'me']))
-    if (catalogueVersion !== undefined && catalogueVersion !== previous) {
-      try { localStorage.setItem(CATALOGUE_VERSION_KEY, catalogueVersionForStorage(catalogueVersion)) } catch { /* private mode */ }
-      qc.removeQueries({ predicate: (query) => !keepForCatalogue(query.queryKey, query.state.data, catalogueVersion) })
-      void invalidateRegionalPacks(catalogueVersion).catch(() => {})
-    }
     if (!isPath(e.query.queryKey, ['identity', 'me'])) return
     const id = (e.query.state.data as { id?: string } | undefined)?.id
     if (!id) return
@@ -150,7 +142,17 @@ function watchIdentity(qc: QueryClient) {
 }
 
 export function TRPCReactProvider({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(makeQueryClient)
+  // Install generation tracking while the QueryClient is created, before child useQuery hooks
+  // can begin their first requests.
+  const [{ queryClient, catalogue }] = useState(() => {
+    const queryClient = makeQueryClient()
+    const catalogue = watchCatalogueCache(queryClient, {
+      readVersion: currentCatalogueVersion,
+      writeVersion: (version) => { try { localStorage.setItem(CATALOGUE_VERSION_KEY, catalogueVersionForStorage(version)) } catch { /* private mode */ } },
+      onTransition: (version) => { void invalidateRegionalPacks(version).catch(() => {}) },
+    })
+    return { queryClient, catalogue }
+  })
   useEffect(() => {
     const unsubscribe = watchIdentity(queryClient)
     void purgePrivatePhotos().catch(() => {})
@@ -161,8 +163,7 @@ export function TRPCReactProvider({ children }: { children: ReactNode }) {
         const catalogueVersion = catalogueVersionFromStorageEvent(event.newValue)
         // Preserve the authoritative rollback distinction after an older tab removes the key.
         if (event.newValue === null) try { localStorage.setItem(CATALOGUE_VERSION_KEY, catalogueVersionForStorage(null)) } catch { /* private mode */ }
-        queryClient.removeQueries({ predicate: (query) => !keepForCatalogue(query.queryKey, query.state.data, catalogueVersion) })
-        void invalidateRegionalPacks(catalogueVersion).catch(() => {})
+        catalogue.transition(catalogueVersion)
         return
       }
       if (event.key !== PRIVATE_RESET_KEY && event.key !== IDENTITY_KEY) return
@@ -174,7 +175,7 @@ export function TRPCReactProvider({ children }: { children: ReactNode }) {
       if (previous) void clearPrivateData(false, previous).catch(() => {})
     }
     window.addEventListener('storage', reset)
-    return () => { unsubscribe(); window.removeEventListener('storage', reset) }
+    return () => { catalogue.unsubscribe(); unsubscribe(); window.removeEventListener('storage', reset) }
   }, [queryClient])
   const [trpcClient] = useState(() =>
     // `x-dex-locale` (handoff 0016 A5): the page's language, so a procedure that writes prose (the scan's ladder) answers in it.

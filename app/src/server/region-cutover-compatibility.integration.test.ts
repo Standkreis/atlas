@@ -4,6 +4,7 @@ import { db } from './db'
 import { identityRouter } from './routers/identity'
 import { dexRouter } from './routers/dex'
 import { regionsRouter } from './routers/regions'
+import { taxonRouter } from './routers/taxon'
 import type { Context } from './trpc'
 
 const registryId = `cutover-registry-${randomUUID()}`
@@ -99,6 +100,8 @@ describe('canonical/retired region compatibility', () => {
     expect(legacyPicker.map((row) => row.id).sort()).toEqual([ids.mainz, ids.southWest].sort())
     const compatibility = await regionsRouter.createCaller(ctx).compatibility({ regionIds: [ids.oldMainz, ids.kyoto] })
     expect(compatibility.resolutions.map((row) => row.regionId)).toEqual([ids.mainz, null])
+    const globalPage = await taxonRouter.createCaller(ctx).page({ gbifKey: (await db.taxon.findUniqueOrThrow({ where: { id: taxonId }, select: { gbifKey: true } })).gbifKey })
+    expect(globalPage).toMatchObject({ catalogueVersion: catalogueId, registryVersion: registryId })
   })
 
   it('keeps legacy behavior until the matched catalogue and registry are active', async () => {
@@ -107,6 +110,13 @@ describe('canonical/retired region compatibility', () => {
     expect(me.catalogueVersion).toBeNull()
     expect(me.regionIds).toEqual([ids.kyoto, ids.oldSouthWest, ids.oldMainz, ids.schagen])
     expect(me.region?.id).toBe(ids.kyoto)
+    const missing = randomUUID()
+    const compatibility = await regionsRouter.createCaller(await context(identityA)).compatibility({ regionIds: [ids.kyoto, missing] })
+    expect(compatibility.catalogueVersion).toBeNull()
+    expect(compatibility.resolutions).toEqual([
+      { inputId: ids.kyoto, regionId: ids.kyoto, canonicalKey: null, reason: 'active' },
+      { inputId: missing, regionId: null, canonicalKey: null, reason: 'unknown' },
+    ])
     await db.catalogueVersion.update({ where: { id: catalogueId }, data: { status: 'active' } })
   })
 })

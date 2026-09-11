@@ -69,10 +69,11 @@ unrelated outbox work.
 ## Versioned browser state
 
 `identity.me` publishes the active catalogue and registry IDs and is always rechecked on mount,
-reconnect, and focus. Every successful version-bearing regional response can also advance the
-client handshake. The persister rejects stale or unversioned regional results once a current
-version is known. Personal journal, sighting, study, identity ownership, and outbox stores are not
-cleared by a catalogue transition.
+reconnect, and focus. Only that identity handshake (or its cross-tab storage event) establishes and
+changes the client catalogue generation; regional responses cannot advance or roll it back. The
+persister rejects stale or unversioned regional results once a current version is known. Personal
+journal, sighting, study, identity ownership, and outbox stores are not cleared by a catalogue
+transition.
 
 The original array-shaped `sighting.outside` procedure remains stable for already-open clients.
 Catalogue-aware clients use the distinct `sighting.outsideVersioned` query and cache key. This avoids

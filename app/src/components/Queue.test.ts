@@ -175,6 +175,18 @@ describe('durable, identity-owned outbox', () => {
     expect((q.rowOf('scan') as { payload: object }).payload).toMatchObject({ regionId: canonicalRegion, place: 'Current region', requiresRegion: false, idPending: false })
   })
 
+  it('retains a post-cutover scan whose canonical region is missing after rollback', async () => {
+    harness.compatibility.mockResolvedValueOnce({ catalogueVersion: null, registryVersion: null, resolutions: [{ inputId: canonicalRegion, regionId: null, canonicalKey: null, reason: 'unknown' }] })
+    const q = await import('./Queue')
+    const blob = new Blob(['post-cutover photo'])
+    await q.enqueue({ id: 'photo', kind: 'photo', payload: {}, blob })
+    await q.enqueue({ id: 'scan', kind: 'scan', payload: { at: new Date().toISOString(), place: 'Removed canonical region', regionId: canonicalRegion, photoRow: 'photo', idPending: true } })
+    await q.flush()
+    expect(harness.identify).not.toHaveBeenCalled()
+    expect(q.rowOf('photo')?.blob).toBe(blob)
+    expect(q.rowOf('scan')).toMatchObject({ dead: false, lastError: 'region-retired', payload: { regionId: canonicalRegion, photoRow: 'photo', idPending: true, requiresRegion: true } })
+  })
+
   it('retains a queued scan and photo on retryable catalogue maintenance', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'maintenance' }), { status: 503 })))
     const q = await import('./Queue')

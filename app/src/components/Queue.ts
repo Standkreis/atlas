@@ -343,7 +343,6 @@ async function transitionScanRegions(): Promise<Set<string>> {
       for (const scan of valid) if (batch.includes(scan.payload.regionId)) blocked.add(scan.id)
       continue
     }
-    if (!result.catalogueVersion) continue
     const byInput = new Map(result.resolutions.map((resolution) => [resolution.inputId, resolution]))
     for (const scan of valid.filter((row) => batch.includes(row.payload.regionId))) {
       const resolution = byInput.get(scan.payload.regionId)

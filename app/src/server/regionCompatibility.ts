@@ -34,10 +34,24 @@ export type ActiveGermanyCatalogue = NonNullable<Awaited<ReturnType<typeof activ
 export async function resolveRegionIds(db: CompatibilityDb, ids: readonly string[], snapshot?: ActiveGermanyCatalogue | null) {
   const unique = [...new Set(ids)]
   const catalogue = snapshot === undefined ? await activeGermanyCatalogue(db) : snapshot
-  if (!catalogue) return {
-    catalogueVersion: null,
-    registryVersion: null,
-    resolutions: unique.map((inputId): RegionResolution => ({ inputId, regionId: inputId, canonicalKey: null, reason: 'active' })),
+  if (!catalogue) {
+    // Legacy mode still accepts every existing ready region, including the reviewed historical
+    // fixtures. An arbitrary/missing UUID cannot be passed through: a queued scan created after
+    // activation may outlive a rollback which removed that canonical data cohort.
+    const ready = unique.length ? await db.region.findMany({
+      where: { id: { in: unique }, status: 'ready' }, select: { id: true, canonicalKey: true },
+    }) : []
+    const byId = new Map(ready.map((row) => [row.id, row]))
+    return {
+      catalogueVersion: null,
+      registryVersion: null,
+      resolutions: unique.map((inputId): RegionResolution => {
+        const row = byId.get(inputId)
+        return row
+          ? { inputId, regionId: inputId, canonicalKey: row.canonicalKey, reason: 'active' }
+          : { inputId, regionId: null, canonicalKey: null, reason: 'unknown' }
+      }),
+    }
   }
   const rows = unique.length ? await db.region.findMany({
     where: { id: { in: unique } },

@@ -9,7 +9,7 @@ import { publicProcedure, router } from '../trpc'
 import { leadAsset, leadAssetSelection, referenceAssetOrder, referenceImageWhere, referenceVisibilitySelection } from '../leadAssetSelection'
 import { referenceGallery, type ReferenceRow } from '@/domain/referenceImages'
 import { taxonNames } from '@/domain/taxonNames'
-import { resolveRegionIds } from '../regionCompatibility'
+import { activeGermanyCatalogue, resolveRegionIds } from '../regionCompatibility'
 
 const thisMonth = () => new Date().getMonth() + 1
 // A card on the species page (look-alike, ecology chip) carries its first image, greyscaled by dex state (handoff 0007 Track B),
@@ -122,6 +122,9 @@ export const taxonRouter = router({
     .query(async ({ ctx, input }) => {
       const month = input.month ?? thisMonth()
       const resolution = input.regionId ? await resolveRegionIds(ctx.db, [input.regionId]) : null
+      // Global species pages still contain catalogue-owned gallery visibility. Bind them to the
+      // active catalogue even without a region so their offline cache changes at cutover.
+      const globalCatalogue = input.regionId ? null : await activeGermanyCatalogue(ctx.db)
       const t = await ctx.db.taxon.findUnique({
         where: { gbifKey: input.gbifKey },
         include: { assets: { where: { OR: [referenceImageWhere, { kind: 'sound', ownerId: null, sightingId: null, avatarOf: null }] }, orderBy: [...referenceAssetOrder], include: { avatarOf: { select: { id: true } }, referenceVisibility: referenceVisibilitySelection } }, interactionsFrom: { include: { target: { select: taxonCard } } } },
@@ -138,8 +141,8 @@ export const taxonRouter = router({
       const grouped: Partial<Record<InteractionKind, (ReturnType<typeof card> & { inSet: boolean; evidence: { realRecords: number; studyCount: number; origin: string } })[]>> = {}
       for (const i of t.interactionsFrom.filter((edge) => edge.prose && edge.real > 0)) (grouped[i.kind] ??= []).push({ ...card(i.target), inSet: inSet.has(i.targetId), evidence: { realRecords: i.real, studyCount: Object.keys((i.studies ?? {}) as object).length, origin: i.origin } })
       return {
-        catalogueVersion: resolution?.catalogueVersion ?? null,
-        registryVersion: resolution?.registryVersion ?? null,
+        catalogueVersion: resolution?.catalogueVersion ?? globalCatalogue?.id ?? null,
+        registryVersion: resolution?.registryVersion ?? globalCatalogue?.registryVersionId ?? null,
         id: t.id,
         gbifKey: t.gbifKey,
         wikidataId: t.wikidataId,
