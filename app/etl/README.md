@@ -282,51 +282,19 @@ Two texts per taxon and language, written by a model from the fact sheet and not
 
 `--run` defaults to the region's slug (`mainz-bingen`). A taxon whose `inputHash` (sha1 of both sheets in both languages) equals the stored one is skipped; a changed fact or edge makes it pending again. `content --region <name>` (not `--force`) runs the step at its end for the taxa it filled (prompts only, with the region's default run). `--purge [--region <name>]` sets `prose` back to null; the run folders stay.
 
-## 🚀 Filling production — Neon (handoff [0011](../../docs/handoffs/0011-vercel.md))
+## 🚀 Checked production transfer
 
-Production is **Neon Postgres** behind Vercel ([docs/DEPLOY.md](../../docs/DEPLOY.md)); no VM, no tunnel. The ETL runs on the laptop, whose `.cache/` turns a fill into minutes, against the **unpooled** Neon URL (`DATABASE_URL_UNPOOLED`; the pooled one drops long transactions). Sightings, photos and identities never travel; only the set tables do. Migrations are not the ETL's job: Vercel's build runs `prisma migrate deploy`.
+Production is Neon Postgres behind Vercel ([deployment guide](../../docs/DEPLOY.md)).
+Generate and validate every regional/catalogue/content artifact in **local Postgres first**.
+Use the [checked Germany import and recovery runbook](../../docs/operations/germany-checked-import.md)
+for target identity mapping, preservation-first galleries, write-gated atomic activation and guarded recovery.
 
-| Situation | Do | Time |
-| --- | --- | --- |
-| The dev DB already holds the region, fully filled (`contentAt` set on every taxon of the set) | **Option 2**, dump and restore | minutes |
-| New region, or a content refresh | Fill the dev DB first, verify in the app, then Option 2 | ETL once, locally |
-| Neon must be the first to see it | Option 1 | region ≈ 2 min, content ≈ **75 min** per region |
+The former handoff-0011 direct-Neon ETL and whole-table dump/restore recipes are superseded for
+populated targets. Do not run `region`, `content`, `facts`, `sounds`, `recode` or a filtered SQL dump
+directly against production as a catalogue-transfer shortcut. They do not establish the required
+target identity, personal-data preservation, reviewed gallery visibility or rollback evidence.
+Historical handoffs retain their context; they are not current production commands.
 
-The content job is ≈ 30 sequential rate-limited requests per taxon across eight hosts (2026-09-06, Mainz-Bingen: 929 taxa, 16,000+ GBIF calls, 75 min); the `.cache/` only helps on a repeat of the same region. Running it against Neon when the laptop already has the data is wasted time, learned the hard way.
-
-**Option 1 — the ETL against Neon** (when the data does not exist locally):
-
-```sh
-cd app
-npx vercel env pull --environment production /tmp/dex-prod.env   # never into the repo
-export DATABASE_URL="$(grep '^DATABASE_URL_UNPOOLED=' /tmp/dex-prod.env | cut -d= -f2- | tr -d '"')"
-npm run etl -- region "Mainz-Bingen"                # Region, Taxon, Plausibility, Lookalike (2026-09-06: 111 s, 1,617 GBIF requests, 929 species)
-npm run etl -- content --region "Mainz-Bingen"      # images, intros, facts, edges for the set
-rm /tmp/dex-prod.env
-```
-
-**Facts and sounds on Neon** (handoff 0021 D9; both idempotent, both read only the shell): after the set tables are there, from `app/` with the unpooled URL in `DATABASE_URL` as above and `XENO_CANTO_API_KEY` plus `BLOB_READ_WRITE_TOKEN` loaded from `app/.env.local` (`set -a; . ./.env.local; set +a`, nothing echoed):
-
-```sh
-npm run etl -- facts --region "Mainz-Bingen"        # 2026-09-07 dev: 889 taxa, 25 s, 655 GBIF + 1 Wikidata + 6 GIFT requests
-npm run etl -- sounds --region "Mainz-Bingen"       # 2026-09-07 dev: 89 taxa, 79 clips (23 MB) in 3 min into the shared Blob store under sounds/<gbifKey>.mp3
-```
-
-After 0025 lands, once per database: `npm run etl -- facts --force` (bird habitat gains the stratum word; only changed rows are written) and `npm run etl -- sounds --region <name>` per region (the WAV-only taxa get their transcoded clip; the Blob objects from the dev run are reused, only the Asset rows are new).
-
-After a content run from a build older than 0024, or once per database after 0024 lands: `npm run etl -- recode` (no network, seconds).
-
-The clips are keyed by GBIF key, not Asset id, so Option 2 below (dump the tables) carries the sound rows to Neon and the one Blob store already holds their files: run `sounds` on Neon only when the dev DB never had the region.
-
-The region job is one transaction; a dropped connection leaves the region `failed` and the next run replaces it. `content` is one transaction per taxon and resumes where it stopped. `ETL_BUDGET` and `ETL_YEARS` are read from the laptop's environment as always.
-
-**Option 2 — copy the set tables from the dev DB** (the default when the laptop already holds the region; filter other regions and user assets out first if the dev DB holds more than the one set):
-
-```sh
-# laptop: only the tables the ETL owns, in dependency order; never Identity, Sighting, Study, Filter
-pg_dump postgresql://dex:dex@localhost:5433/dex --data-only \
-  -t '"Region"' -t '"Taxon"' -t '"Plausibility"' -t '"Lookalike"' -t '"Asset"' > set.sql
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f set.sql     # DATABASE_URL = the unpooled Neon URL from above
-```
-
-`Asset` holds the reference images of the content job **and** user photos (`origin = 'user'`): dump it only into an empty production DB, or filter the user rows out first (`DELETE FROM "Asset" WHERE origin = 'user'` on a scratch copy). Afterwards `/api/health` still says `ok` and the phone's region search finds the set. A taxon with `contentAt` null is healed by the hourly sweep cron (`/api/cron/sweep`, handoff 0011) or the next `content` run from here.
+Production schema migrations remain Vercel's Production-build responsibility. Data transformation
+requires the separately agreed concrete migration plan, a fresh checked backup, full local rehearsal,
+verified capacity, current release evidence and independent production verification.
