@@ -554,16 +554,32 @@ const INBOUND_REFERENCES: readonly InboundReference[] = [
   { targetTable: 'ReferenceGalleryReceipt', sourceTable: 'ReferenceAssetVisibility', sourceColumns: ['catalogueVersionId', 'taxonId'], targetColumns: ['catalogueVersionId', 'taxonId'] },
 ]
 
-function insertedFinalRows(receipt: CatalogueApplyReceipt, table: CatalogueTargetTable) {
-  const final = new Map(finalImages(receipt.mutations).map((mutation) => [`${mutation.table}:${keyText(mutation.key)}`, mutation]))
-  return initialImages(receipt.mutations)
-    .filter((mutation) => mutation.table === table && mutation.before === null && final.get(`${mutation.table}:${keyText(mutation.key)}`)?.after)
-    .map((mutation) => final.get(`${mutation.table}:${keyText(mutation.key)}`)!.after!)
-}
+type CatalogueRecoveryIndex = Readonly<{
+  initial: readonly PlannedCatalogueRowMutation[]
+  final: readonly PlannedCatalogueRowMutation[]
+  insertedByTable: ReadonlyMap<CatalogueTargetTable, readonly CatalogueTargetRow[]>
+  ownedFinalKeys: ReadonlySet<string>
+}>
 
-function ownedFinalKeys(receipt: CatalogueApplyReceipt) {
-  return new Set(finalImages(receipt.mutations).filter((mutation) => mutation.after)
-    .map((mutation) => `${mutation.table}:${keyText(mutation.key)}`))
+function catalogueRecoveryIndex(mutations: readonly PlannedCatalogueRowMutation[]): CatalogueRecoveryIndex {
+  const initial = initialImages(mutations), final = finalImages(mutations)
+  const finalByKey = new Map(final.map((mutation) => [`${mutation.table}:${keyText(mutation.key)}`, mutation]))
+  const inserted = new Map<CatalogueTargetTable, CatalogueTargetRow[]>()
+  for (const mutation of initial) {
+    if (mutation.before !== null) continue
+    const after = finalByKey.get(`${mutation.table}:${keyText(mutation.key)}`)?.after
+    if (!after) continue
+    const rows = inserted.get(mutation.table) ?? []
+    rows.push(after)
+    inserted.set(mutation.table, rows)
+  }
+  return {
+    initial,
+    final,
+    insertedByTable: inserted,
+    ownedFinalKeys: new Set(final.filter((mutation) => mutation.after)
+      .map((mutation) => `${mutation.table}:${keyText(mutation.key)}`)),
+  }
 }
 
 async function inboundRows(tx: Tx, reference: InboundReference, targets: readonly CatalogueTargetRow[]) {
@@ -580,25 +596,24 @@ async function inboundRows(tx: Tx, reference: InboundReference, targets: readonl
   ).then((rows) => rows.map(({ row }) => row))
 }
 
-async function assertNoNewInboundReferences(tx: Tx, receipt: CatalogueApplyReceipt) {
-  const owned = ownedFinalKeys(receipt)
+async function assertNoNewInboundReferences(tx: Tx, index: CatalogueRecoveryIndex) {
   const blockers: string[] = []
   for (const reference of INBOUND_REFERENCES) {
-    const inserted = insertedFinalRows(receipt, reference.targetTable)
+    const inserted = index.insertedByTable.get(reference.targetTable) ?? []
     for (const row of await inboundRows(tx, reference, inserted)) {
       const id = `${reference.sourceTable}:${keyText(currentKey(reference.sourceTable, row))}`
-      if (!owned.has(id)) blockers.push(`${reference.sourceTable}.${reference.label ?? reference.sourceColumns.join('+')}:${keyText(currentKey(reference.sourceTable, row))}`)
+      if (!index.ownedFinalKeys.has(id)) blockers.push(`${reference.sourceTable}.${reference.label ?? reference.sourceColumns.join('+')}:${keyText(currentKey(reference.sourceTable, row))}`)
     }
   }
 
-  const regionIds = insertedFinalRows(receipt, 'Region').flatMap((row) => typeof row.id === 'string' ? [row.id] : [])
+  const regionIds = (index.insertedByTable.get('Region') ?? []).flatMap((row) => typeof row.id === 'string' ? [row.id] : [])
   if (regionIds.length) {
     const filters = await tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
       `SELECT to_jsonb(f) AS row FROM "Filter" f WHERE f."regionIds" && $1::text[] ORDER BY f.id`, regionIds)
-    for (const { row } of filters) if (!owned.has(`Filter:${keyText(currentKey('Filter', row))}`)) blockers.push(`Filter.regionIds:${keyText(currentKey('Filter', row))}`)
+    for (const { row } of filters) if (!index.ownedFinalKeys.has(`Filter:${keyText(currentKey('Filter', row))}`)) blockers.push(`Filter.regionIds:${keyText(currentKey('Filter', row))}`)
     const prose = await tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
       `SELECT to_jsonb(t) AS row FROM "Taxon" t WHERE t.prose->>'version' = '1' AND t.prose->'regions' ?| $1::text[] ORDER BY t.id`, regionIds)
-    for (const { row } of prose) if (!owned.has(`Taxon:${keyText(currentKey('Taxon', row))}`)) blockers.push(`Taxon.prose.regions:${keyText(currentKey('Taxon', row))}`)
+    for (const { row } of prose) if (!index.ownedFinalKeys.has(`Taxon:${keyText(currentKey('Taxon', row))}`)) blockers.push(`Taxon.prose.regions:${keyText(currentKey('Taxon', row))}`)
     const scans = await tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
       `SELECT to_jsonb(s) AS row FROM "ScanWork" s WHERE EXISTS (
         SELECT 1 FROM jsonb_path_query(s.result, 'strict $.**.regionId') value
@@ -630,10 +645,10 @@ async function recoverMutations(tx: Tx, mutations: readonly PlannedCatalogueRowM
   }
 }
 
-async function verifyRecovered(db: Db, receipt: CatalogueApplyReceipt, committedFingerprint: string) {
+async function verifyRecovered(db: Db, receipt: CatalogueApplyReceipt, committedFingerprint: string, index: CatalogueRecoveryIndex) {
   await db.$transaction(async (tx) => {
-    const rows = await currentMutationRows(tx, initialImages(receipt.mutations))
-    assertMutationImages(initialImages(receipt.mutations), rows, 'before')
+    const rows = await currentMutationRows(tx, index.initial)
+    assertMutationImages(index.initial, rows, 'before')
     await assertProtectedScopes(tx, receipt.protectedScopes)
     if (await currentTargetFingerprint(tx) !== committedFingerprint) throw new Error('complete post-recovery target verification mismatch')
   }, { isolationLevel: 'RepeatableRead' })
@@ -645,6 +660,7 @@ export async function recoverCatalogueTarget(db: Db, options: {
   faultInjection?: CatalogueStoreFaultInjection
 }) {
   assertReceipt(options.receipt)
+  const recovery = catalogueRecoveryIndex(options.receipt.mutations)
   await db.$transaction((tx) => closeCatalogueGate(tx, {
     operationId: options.receipt.operationId,
     targetCatalogueId: options.receipt.catalogueVersionId,
@@ -658,20 +674,20 @@ export async function recoverCatalogueTarget(db: Db, options: {
       targetCatalogueId: options.receipt.catalogueVersionId,
     })
     await lockTargetTables(tx)
-    const after = await currentMutationRows(tx, finalImages(options.receipt.mutations))
-    assertMutationImages(finalImages(options.receipt.mutations), after, 'after')
+    const after = await currentMutationRows(tx, recovery.final)
+    assertMutationImages(recovery.final, after, 'after')
     await assertProtectedScopes(tx, options.receipt.protectedScopes)
-    await assertNoNewInboundReferences(tx, options.receipt)
+    await assertNoNewInboundReferences(tx, recovery)
     await recoverMutations(tx, options.receipt.mutations)
     await options.faultInjection?.afterWrites?.(tx)
-    const before = await currentMutationRows(tx, initialImages(options.receipt.mutations))
-    assertMutationImages(initialImages(options.receipt.mutations), before, 'before')
+    const before = await currentMutationRows(tx, recovery.initial)
+    assertMutationImages(recovery.initial, before, 'before')
     await assertProtectedScopes(tx, options.receipt.protectedScopes)
     return currentTargetFingerprint(tx)
   }, { isolationLevel: 'Serializable', timeout: 120_000, maxWait: 30_000 })
 
   await options.faultInjection?.afterCommit?.()
-  await verifyRecovered(db, options.receipt, committedFingerprint)
+  await verifyRecovered(db, options.receipt, committedFingerprint, recovery)
   await db.$transaction((tx) => openCatalogueGate(tx, { operationId: options.receipt.operationId }))
   return options.receipt
 }

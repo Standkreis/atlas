@@ -12,6 +12,7 @@ import {
   type CatalogueApplyReceipt,
 } from '../../etl/catalogue-import-store'
 import {
+  cataloguePostgresTimestamp,
   catalogueTargetPlanFingerprint,
   catalogueProtectionScope,
   type CatalogueTargetPlan,
@@ -106,6 +107,7 @@ afterEach(async () => {
   await db.region.deleteMany({ where: { id: { in: [...ids] } } })
   await db.taxon.deleteMany({ where: { id: { in: [...ids] } } })
   await db.catalogueVersion.deleteMany({ where: { id: { in: [...ids] } } })
+  await db.regionRegistrySource.deleteMany({ where: { id: { in: [...ids] } } })
   await db.regionRegistryVersion.deleteMany({ where: { id: { in: [...ids] } } })
   ids.clear(); assertStillValid.mockClear()
 })
@@ -249,6 +251,54 @@ describe('checked catalogue import store', () => {
     expect(await db.regionRegistryVersion.findUniqueOrThrow({ where: { id: newRegistryId } })).toMatchObject({ active: false })
     expect(await db.catalogueVersion.findUniqueOrThrow({ where: { id: oldCatalogueId } })).toMatchObject({ status: 'active' })
     expect(await db.catalogueVersion.findUniqueOrThrow({ where: { id: newCatalogueId } })).toMatchObject({ status: 'audited' })
+  })
+
+  it('recovers an inserted row updated during publication while ignoring its operation-owned references', async () => {
+    const registryVersionId = randomUUID(), sourceId = randomUUID()
+    ;[registryVersionId, sourceId].forEach((id) => ids.add(id))
+    const snapshot = await snapshotCatalogueTarget(db)
+    const importedAt = cataloguePostgresTimestamp('2026-09-11T05:00:00.000Z')
+    const inactiveRegistry: CatalogueTargetRow = {
+      id: registryVersionId,
+      countryCode: `test-${randomUUID()}`,
+      version: `recovery-index-${randomUUID()}`,
+      artifactSha256: 'a'.repeat(64),
+      expectedRegions: 0,
+      expectedSourceUnits: 0,
+      active: false,
+      importedAt,
+      activatedAt: null,
+    }
+    const activeRegistry: CatalogueTargetRow = { ...inactiveRegistry, active: true, activatedAt: importedAt }
+    const registrySource: CatalogueTargetRow = {
+      id: sourceId,
+      registryVersionId,
+      role: 'regions',
+      name: 'Recovery index fixture',
+      url: 'https://example.test/recovery-index.json',
+      topicDate: '2026-09-11',
+      downloadedAt: importedAt,
+      sha256: 'b'.repeat(64),
+      licenceId: 'test-only',
+      licenceUrl: null,
+      attribution: 'Test fixture',
+      metadata: null,
+    }
+    const mutations: PlannedCatalogueRowMutation[] = [
+      { phase: 'materialize', table: 'RegionRegistryVersion', key: { id: registryVersionId }, before: null, after: inactiveRegistry },
+      { phase: 'materialize', table: 'RegionRegistrySource', key: { id: sourceId }, before: null, after: registrySource },
+      { phase: 'publish', table: 'RegionRegistryVersion', key: { id: registryVersionId }, before: inactiveRegistry, after: activeRegistry },
+    ]
+    const targetPlan = plan(snapshot, mutations, [], { catalogueVersionId: randomUUID(), registryVersionId })
+    const applyReceipt = receipt(targetPlan)
+
+    await applyCatalogueTargetPlan(db, { validated, plan: targetPlan, receipt: applyReceipt })
+    expect(await db.regionRegistryVersion.findUniqueOrThrow({ where: { id: registryVersionId } })).toMatchObject({ active: true })
+    expect(await db.regionRegistrySource.findUniqueOrThrow({ where: { id: sourceId } })).toMatchObject({ registryVersionId })
+
+    await recoverCatalogueTarget(db, { receipt: applyReceipt })
+    expect(await db.regionRegistrySource.findUnique({ where: { id: sourceId } })).toBeNull()
+    expect(await db.regionRegistryVersion.findUnique({ where: { id: registryVersionId } })).toBeNull()
   })
 
   it('leaves maintenance closed and writes nothing while an admitted write has not drained', async () => {
