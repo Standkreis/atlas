@@ -111,12 +111,53 @@ scope is unchanged from the earlier backup. Two personal, non-global photo rows 
 this session's operation; the new quiescent backup must capture current personal state rather than
 reuse historical totals. No unexplained active writer was observed.
 
-Authenticated current and old Preview health checks pass. Development OIDC tokens are rejected by
-protected immutable Production deployments with `TRUSTED_SOURCES_ENVIRONMENT_MISMATCH`; this is
-not WAF enforcement. Shared-browser Vercel sign-in is the outstanding access precondition. AC power
-was subsequently connected and verified charging. No production transformation or firewall
-modification has occurred. The full local receipt and related evidence were additionally copied
-to owner-only persistent recovery storage outside Git, excluding credentials and browser profiles.
+The owner verified healthy current and old immutable Production pages in his own authenticated
+browser, then confirmed both became Forbidden after the approved fence was activated. No deployment
+protection bypass or shared credential was introduced. Root separately proved public Production
+and authenticated current/old Preview changed from healthy HTTP 200 to HTTP 403 with explicit deny
+headers. Firewall metrics attributed those three probes to the exact temporary rule; request-ID
+log queries showed no matching invocation records.
+
+Maintenance began at **19:26:49.758 UTC**. The exact reviewed deny rule
+`rule_germany_catalogue_cutover_deny_all_http_80s24f` was activated in configuration version **1**, with
+no remaining draft or bypass. Initial explicit enablement created an enabled draft; the platform's
+change list recorded only the subsequent rule insertion. The full semantic projection, not an
+assumed change-list count, was verified before publishing. AC power is connected and charging.
+All required before/after access evidence was established by **19:30:40 UTC**. A conservative
+1,800-second platform function ceiling plus 30-second margin puts the earliest fresh backup at
+**20:01:10 UTC**; this does not claim every old deployment was configured for 1,800 seconds.
+
+The full local receipt and related evidence, plus the fence proofs, are copied to owner-only
+persistent recovery storage outside Git, excluding credentials and browser profiles. Fence evidence
+files and their directory were explicitly flushed.
+
+### 🛠️ First production attempt: safely aborted
+
+The fresh quiescent backup (SHA-256
+`68fb9b22a7bf8982d1833e2e7804c0d8761988405d909983142a714be258a8bb`, 9,569,680 bytes)
+restored successfully into a new local PG18 database, with all 34 public-table digests matching.
+The exact-bound checked apply then exceeded its aggregate Prisma transaction deadline:
+120,000ms configured, 125,939ms elapsed. This does not identify the precise failed query phase.
+Both maintenance fences remained closed during investigation; no blind retry or inverse ran.
+
+At **20:26:15 UTC**, an independent full receipt reread and comparison of all 31 product tables
+proved both the immutable backup and live target still matched the planned before-state:
+`226059543c727306684c9871af7c1af9fdeb2d0ca4d708c89d80fcdc1939eebf`.
+The failed CLI had exited and no other client backend remained. No catalogue transformation
+committed; the exact protected data survived unchanged.
+
+After independent review, live-fence verification and those checks, the repository's matching-owner,
+target and empty-admission helpers reopened the gate at **20:27:48 UTC**. The exact temporary WAF
+rule was removed and disabled/zero-rule semantics restored in published configuration **2**, with
+no draft. The API change list showed only rule removal; the separately requested disabled boolean
+was verified in the resulting configuration. By **20:29:14 UTC**, public Production health was
+200/`ok:true`, build `mtx9ezd9`; current and old authenticated Preview were healthy too.
+
+[Execution and abort evidence](https://github.com/Standkreis/atlas/issues/29#issuecomment-5640268308)
+records the bindings. Backup, receipt, failed log, monitor and exact rollback/gate/WAF proofs are
+retained and flushed in owner-only persistent recovery storage. The existing app remains available.
+[Child #102](https://github.com/Standkreis/atlas/issues/102) owns the narrow aggregate-budget fix,
+tests and fresh full-size local rehearsal. A new exact-bound production attempt remains pending.
 
 The actual fence/drain, fresh backup/restore, exact-bound production plan/apply, independent audit,
 reopening and deployed browser/media/audio/offline/analytics smoke evidence must replace this pending
