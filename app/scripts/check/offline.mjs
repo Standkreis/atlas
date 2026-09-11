@@ -107,9 +107,12 @@ try {
   let legacyObserved = false
   for (let i = 0; i < 200 && !legacyObserved; i++) {
     await sleep(100)
-    legacyObserved = await evaluate(`localStorage.getItem('dex.catalogue.version') === '__dex_catalogue_legacy__'`)
+    legacyObserved = await evaluate(`document.readyState === 'complete'
+      && performance.getEntriesByType('navigation')[0]?.type === 'reload'
+      && performance.getEntriesByType('resource').some(entry => entry.name.includes('/api/trpc/identity.me'))
+      && localStorage.getItem('dex.catalogue.version') === '__dex_catalogue_legacy__'`)
   }
-  assert.equal(legacyObserved, true, 'identity.me authoritative null is persisted as legacy')
+  assert.equal(legacyObserved, true, 'reloaded document completes its identity.me legacy handshake')
   const transitionResult = await evaluate(`(async () => {
     const data = async (path, input) => {
       const response = await fetch('/api/trpc/' + path + '?input=' + encodeURIComponent(JSON.stringify({ json: input })));

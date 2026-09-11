@@ -47,13 +47,14 @@ self.addEventListener('activate', (event) => {
     return
   }
   event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => (k.startsWith('dex-shell-') || k.startsWith('dex-static-')) && k !== SHELL && k !== STATIC).map((k) => caches.delete(k))))
+      caches.keys()
+        .then((keys) => Promise.all(keys.filter((k) => (k.startsWith('dex-shell-') || k.startsWith('dex-static-')) && k !== SHELL && k !== STATIC).map((k) => caches.delete(k))))
       .then(async () => {
-        for (const name of await caches.keys()) {
-          const cache = await caches.open(name)
-          for (const key of await cache.keys()) if (new URL(key.url).pathname.startsWith('/api/photo/')) await cache.delete(key)
-        }
+        // Old workers put user photos in the shared image cache. Do not enumerate and open every
+        // cache name: a catalogue transition can delete a regional pack after the names snapshot,
+        // and opening that stale name would recreate an empty incompatible pack.
+        const cache = await caches.open(IMAGES)
+        for (const key of await cache.keys()) if (new URL(key.url).pathname.startsWith('/api/photo/')) await cache.delete(key)
       })
       .then(() => self.clients.claim()),
   )
