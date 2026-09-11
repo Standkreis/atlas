@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { invalidateRegionalPacks, packCache, readyKey, regionalPackUrls, verifiedAt } from './OfflinePack'
+import { invalidateRegionalPacks, packCache, readyKey, regionalPackUrls, resumeRegionalPackCleanup, verifiedAt } from './OfflinePack'
 
 const at = '2026-09-08T12:00:00.000Z'
 const urls = ['https://images.test/a.jpg', 'https://images.test/b.jpg']
@@ -65,6 +65,23 @@ describe('offline pack readiness', () => {
     expect(values.has(readyKey('legacy'))).toBe(false)
     expect(values.has(readyKey('region', 'v2'))).toBe(true)
     expect(values.get('dex.persist.identity')).toBe('owner')
+  })
+
+  it('resumes an interrupted cleanup from a known startup marker', async () => {
+    const cacheNames = new Set(['dex-pack-v2-stale-region'])
+    const values = new Map([['dex.offline.ready.v2.stale.region', JSON.stringify({ version: 2 })]])
+    vi.stubGlobal('caches', { keys: async () => [...cacheNames], delete: async (name: string) => cacheNames.delete(name) })
+    vi.stubGlobal('localStorage', {
+      get length() { return values.size }, key: (i: number) => [...values.keys()][i] ?? null,
+      getItem: (key: string) => values.get(key) ?? null, removeItem: (key: string) => { values.delete(key) },
+    })
+
+    await resumeRegionalPackCleanup(undefined)
+    expect([...cacheNames]).toEqual(['dex-pack-v2-stale-region'])
+
+    await resumeRegionalPackCleanup(null)
+    expect([...cacheNames]).toEqual([])
+    expect(localStorage.getItem('dex.offline.ready.v2.stale.region')).toBeNull()
   })
   it('removes only v2 packs and markers after rollback to the legacy catalogue', async () => {
     const deleted: string[] = []

@@ -50,3 +50,13 @@ export async function invalidateRegionalPacks(catalogueVersion: string | null) {
     }
   } catch { /* private mode */ }
 }
+
+/**
+ * Finish an idempotent cleanup when a page starts with an already-authoritative marker.
+ * A navigation can commit localStorage synchronously and then abandon the outgoing page's
+ * asynchronous CacheStorage deletion; the replacement page must not rely on another version
+ * change or network response to resume it.
+ */
+export async function resumeRegionalPackCleanup(catalogueVersion: string | null | undefined) {
+  if (catalogueVersion !== undefined) await invalidateRegionalPacks(catalogueVersion)
+}

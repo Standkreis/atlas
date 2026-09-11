@@ -11,7 +11,7 @@ import type { AppRouter } from '@/server/routers/_app'
 import { clearPrivateData, PRIVATE_RESET_KEY, PRIVATE_PAUSE_KEY, purgePrivatePhotos } from '@/components/PrivateData'
 import { acceptIdentity, expectedIdentity, identityFetch, invalidateIdentity } from '@/components/ClientIdentity'
 import { IDENTITY_KEY, pauseOutbox, resumeOutbox, load, flush } from '@/components/Queue'
-import { invalidateRegionalPacks } from '@/components/OfflinePack'
+import { invalidateRegionalPacks, resumeRegionalPackCleanup } from '@/components/OfflinePack'
 import { CATALOGUE_VERSION_KEY, catalogueVersionForStorage, catalogueVersionFromStorage, catalogueVersionFromStorageEvent, keepForCatalogue, watchCatalogueCache, type CatalogueVersionState } from '@/components/CatalogueCache'
 
 export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>()
@@ -156,6 +156,9 @@ export function TRPCReactProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribe = watchIdentity(queryClient)
     void purgePrivatePhotos().catch(() => {})
+    // localStorage commits before CacheStorage deletion. If navigation abandoned the page that
+    // observed a catalogue transition, this page resumes that safe, idempotent public-pack cleanup.
+    void resumeRegionalPackCleanup(currentCatalogueVersion()).catch(() => {})
     const reset = (event: StorageEvent) => {
       if (event.key === PRIVATE_PAUSE_KEY) { if (event.newValue) pauseOutbox(); else resumeOutbox(); return }
       if (event.key === CATALOGUE_VERSION_KEY) {
