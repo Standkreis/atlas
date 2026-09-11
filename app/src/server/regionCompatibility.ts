@@ -89,11 +89,6 @@ export async function resolveRegionIds(db: CompatibilityDb, ids: readonly string
 
 export async function resolveRegionSelection(db: CompatibilityDb, regionIds: readonly string[], activeRegionId: string | null, snapshot?: ActiveGermanyCatalogue | null) {
   const resolved = await resolveRegionIds(db, [...regionIds, ...(activeRegionId ? [activeRegionId] : [])], snapshot)
-  if (!resolved.catalogueVersion) return {
-    ...resolved,
-    regionIds: [...new Set(regionIds)],
-    activeRegionId,
-  }
   const byInput = new Map(resolved.resolutions.map((row) => [row.inputId, row.regionId]))
   const mappedIds = [...new Set(regionIds.flatMap((id) => byInput.get(id) ?? []))]
   const mappedActive = activeRegionId ? byInput.get(activeRegionId) ?? null : null

@@ -187,4 +187,13 @@ describe('catalogue-aware persisted queries', () => {
     expect(qc.getQueryData(me)).toMatchObject({ catalogueVersion: 'v2', region: { id: 'new' } })
     watcher.unsubscribe()
   })
+
+  it('continues tracking for the QueryClient lifetime after provider effect cleanup', async () => {
+    const { qc, watcher, transitions, version } = watched('v1')
+    // Passive-effect cleanup owns the window and identity listeners, not this watcher.
+    await qc.fetchQuery({ queryKey: key(['identity', 'me']), queryFn: async () => ({ id: 'me', catalogueVersion: 'v2' }) })
+    expect(version()).toBe('v2')
+    expect(transitions).toEqual(['v2'])
+    watcher.unsubscribe()
+  })
 })

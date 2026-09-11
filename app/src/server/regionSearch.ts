@@ -82,8 +82,8 @@ export async function personalRegions(db: SearchDb, identityId: string, recentId
   const [catalogue, filter] = await Promise.all([
     activeGermanyCatalogue(db), db.filter.findUnique({ where: { identityId }, select: { regionId: true, regionIds: true } }),
   ])
-  // The registry-only branch preserves the pre-cutover canonical picker. It passes IDs through;
-  // successor/retired restrictions begin only with the matched active catalogue.
+  // The registry-only branch preserves ready pre-cutover regions. Successor/retired restrictions
+  // begin only with the matched active catalogue; missing/non-ready IDs still fail closed.
   const registry = catalogue?.registryVersion ?? await activeRegistry(db)
   if (!registry) return { registryVersion: null, catalogueVersion: null, activeRegionId: null, regionTransitions: [], selected: [], recent: [], unavailableIds: [...new Set([...(filter?.regionIds ?? []), ...recentIds])] }
   const selection = await resolveRegionSelection(db, filter?.regionIds ?? [], filter?.regionId ?? null, catalogue)

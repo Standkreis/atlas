@@ -175,8 +175,11 @@ export function TRPCReactProvider({ children }: { children: ReactNode }) {
       if (previous) void clearPrivateData(false, previous).catch(() => {})
     }
     window.addEventListener('storage', reset)
-    return () => { catalogue.unsubscribe(); unsubscribe(); window.removeEventListener('storage', reset) }
-  }, [queryClient])
+    // `catalogue` is owned by this QueryClient and intentionally stays subscribed for the
+    // client's whole lifetime. Unsubscribing it in passive cleanup breaks React StrictMode's
+    // setup → cleanup → setup cycle because the stable state initializer does not run again.
+    return () => { unsubscribe(); window.removeEventListener('storage', reset) }
+  }, [queryClient, catalogue])
   const [trpcClient] = useState(() =>
     // `x-dex-locale` (handoff 0016 A5): the page's language, so a procedure that writes prose (the scan's ladder) answers in it.
     createTRPCClient<AppRouter>({ links: [identityBoundaryLink, splitLink({
