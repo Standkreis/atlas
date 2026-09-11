@@ -130,6 +130,52 @@ afterEach(async () => {
 afterAll(async () => { await db.$disconnect() })
 
 describe('checked catalogue import store', () => {
+  it('uses the bounded nationwide budget on every long path without extending short gate transactions', async () => {
+    const f = await fixture(), targetPlan = plan(f.snapshot, f.mutations), applyReceipt = receipt(targetPlan)
+    const transactions = vi.spyOn(db, '$transaction')
+    try {
+      await snapshotCatalogueTarget(db)
+      await applyCatalogueTargetPlan(db, { validated, plan: targetPlan, receipt: applyReceipt })
+      await recoverCatalogueTarget(db, { receipt: applyReceipt })
+      const repeatable = { isolationLevel: 'RepeatableRead', timeout: 600_000, maxWait: 30_000 }
+      const serializable = { isolationLevel: 'Serializable', timeout: 600_000, maxWait: 30_000 }
+      expect(transactions.mock.calls.map((call) => call[1])).toEqual([
+        repeatable,
+        undefined, serializable, repeatable, undefined,
+        undefined, serializable, repeatable, undefined,
+      ])
+    } finally { transactions.mockRestore() }
+    expect(catalogueTargetSnapshotFingerprint(await snapshotCatalogueTarget(db))).toBe(catalogueTargetSnapshotFingerprint(f.snapshot))
+  })
+
+  it('survives more than 120 seconds of short SQL operations and still rolls back an injected failure', async () => {
+    const f = await fixture(), targetPlan = plan(f.snapshot, f.mutations), applyReceipt = receipt(targetPlan)
+    let completedShortStatements = 0
+    let elapsedMs = 0
+    await expect(applyCatalogueTargetPlan(db, { validated, plan: targetPlan, receipt: applyReceipt,
+      faultInjection: { afterWrites: async (tx) => {
+        const started = performance.now()
+        // Neither statement reaches statement_timeout. Together they exceed the old aggregate
+        // deadline using real PostgreSQL time, not fake timers or a mocked transaction client.
+        for (let index = 0; index < 2; index++) {
+          await tx.$queryRawUnsafe('SELECT pg_sleep(61)::text AS waited')
+          completedShortStatements++
+        }
+        elapsedMs = performance.now() - started
+        const [limits] = await tx.$queryRawUnsafe<{ statementBound: boolean, lockBound: boolean }[]>(
+          `SELECT current_setting('statement_timeout')::interval = interval '120 seconds' AS "statementBound",
+                  current_setting('lock_timeout')::interval = interval '30 seconds' AS "lockBound"`)
+        expect(limits).toEqual({ statementBound: true, lockBound: true })
+        throw new Error('injected failure after the old aggregate deadline')
+      } } })).rejects.toThrow('injected failure after the old aggregate deadline')
+    expect(completedShortStatements).toBe(2)
+    expect(elapsedMs).toBeGreaterThan(120_000)
+    expect(await db.region.findUnique({ where: { id: f.newRegionId } })).toBeNull()
+    expect(await db.filter.findUniqueOrThrow({ where: { identityId: f.identityId } })).toMatchObject({ regionId: f.oldRegionId })
+    expect(await readCatalogueCutoverState(db)).toMatchObject({ state: 'maintenance', activeWrites: 0 })
+    expect(catalogueTargetSnapshotFingerprint(await snapshotCatalogueTarget(db))).toBe(catalogueTargetSnapshotFingerprint(f.snapshot))
+  }, 360_000)
+
   it('captures all fixed target tables with raw timestamp strings and a non-mutating map facade', async () => {
     const rowId = randomUUID(); ids.add(rowId)
     await db.region.create({ data: { id: rowId, name: 'Snapshot region', higher: 'Fixture' } })

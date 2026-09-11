@@ -67,6 +67,26 @@ Gate/admission rows are operational state managed through their advisory-lock pr
 of the immutable target fingerprint. The operator must separately verify `_prisma_migrations` as
 described below; the CLI does not perform that history check or rewrite it.
 
+### 11 September aggregate transaction budget refinement — #102
+
+Long importer transactions have a fixed **600,000 ms aggregate deadline**: the repeatable
+target snapshot, serializable apply/inverse, and their post-commit verification reads.
+Each SQL statement remains bounded at **120,000 ms**, lock acquisition at **30,000 ms**,
+and Prisma transaction acquisition `maxWait` at **30,000 ms**. Short gate transactions
+retain their existing defaults. No environment or operator override bypasses these bounds.
+
+The first production attempt reported Prisma aggregate expiry at 125,939 ms against the old
+120,000 ms transaction deadline. That error identifies the aggregate limit, not an individual
+slow query or the exact failed phase. Whole-operation network transfer, sequential statements
+and before/after-image computation all consume that deadline. Increasing this bounded budget
+does not remove any SQL limit, write admission, atomic publication, preservation or inverse check.
+
+After any timeout, keep the HTTP fence and inspect the exact committed state before taking
+another action. A missing success log or unchanged physical database size is not rollback proof.
+A retry requires the reviewed merged code head, a fresh unchanged checkpoint and regenerated
+exact-bound config/plan/receipt/action manifests under #29. The budget refinement changes no
+source, gallery, licence, preservation, cost or migration scope, and is not production success.
+
 ## Operator commands
 
 Run from the clean checked release worktree's `app/` directory. Securely configure `DATABASE_URL`

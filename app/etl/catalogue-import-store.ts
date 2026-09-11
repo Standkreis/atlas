@@ -73,7 +73,11 @@ const TABLES = {
 const WRITE_TABLES = new Set<string>(Object.keys(CATALOGUE_TARGET_PRIMARY_KEYS))
 const SHA256 = /^[a-f\d]{64}$/
 const BATCH_SIZE = 1_000
-const CATALOGUE_TRANSACTION_OPTIONS = { timeout: 120_000, maxWait: 30_000 } as const
+// The aggregate deadline includes every bounded statement, network round trip and local
+// before/after-image check. A nationwide remote import can exceed two minutes without any
+// individual statement approaching its separate 120-second limit. Keep this importer-only,
+// fixed and bounded; short gate transactions retain their existing options.
+const CATALOGUE_TRANSACTION_OPTIONS = { timeout: 600_000, maxWait: 30_000 } as const
 
 function quote(identifier: string) { return `"${identifier}"` }
 function tableContract(table: string): TableContract {
