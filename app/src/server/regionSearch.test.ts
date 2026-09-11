@@ -11,6 +11,7 @@ function fixture(count = 2) {
   const db = {
     regionRegistryVersion: { findFirst: vi.fn().mockResolvedValue({ id: 'registry-v1', version: '2024' }) },
     catalogueVersion: { findFirst: vi.fn().mockResolvedValue(null) },
+    region: { findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) => where.id.in.filter((id) => id !== 'retired').map((id) => ({ id, canonicalKey: null }))) },
     regionRegistryEntry: { findMany: vi.fn().mockResolvedValue(Array.from({ length: count }, (_, i) => entry(i))), findFirst: vi.fn().mockResolvedValue(entry(0)) },
     catalogueRegionBuild: { findMany: vi.fn().mockResolvedValue([{ registryEntryId: 'entry-0', catalogueVersionId: 'catalogue-v1', regionSize: 42, nowCounts: Array(12).fill(12), perTile: { bird: 42 }, completedAt: new Date('2026-09-08') }]) },
     filter: { findUnique: vi.fn().mockResolvedValue({ regionId: 'region-0', regionIds: ['region-0'] }) },
@@ -72,7 +73,7 @@ describe('bounded German region search', () => {
     expect(result.selected.map((row) => row.id)).toEqual(['region-0'])
     expect(result.recent.map((row) => row.id)).toEqual(['region-1'])
     expect(result.unavailableIds).toEqual(['retired'])
-    expect(spies.regionRegistryEntry.findMany.mock.calls[0][0].where.regionId.in).toEqual(['region-0', 'region-1', 'retired'])
+    expect(spies.regionRegistryEntry.findMany.mock.calls[0][0].where.regionId.in).toEqual(['region-0', 'region-1'])
   })
 })
 
