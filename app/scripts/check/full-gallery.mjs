@@ -1,9 +1,13 @@
 // Real target galleries: select from reviewed visibility, then require the public DTO to agree.
 import assert from 'node:assert/strict'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import pg from 'pg'
 import { browserJourney, q, sleep } from './journey.mjs'
 
 const [base = 'http://localhost:3002'] = process.argv.slice(2)
+const evidence = process.env.BROWSER_EVIDENCE_DIR
+if (evidence) mkdirSync(evidence, { recursive: true })
 const database = new URL(process.env.DATABASE_URL ?? '')
 assert.ok(['localhost', '127.0.0.1'].includes(database.hostname) && /^\/dex_check_[a-z0-9_]+$/.test(database.pathname))
 const db = new pg.Client({ connectionString: database.href })
@@ -80,6 +84,10 @@ await browserJourney(base, async ({ send, evaluate, wait, click, key, viewport, 
       }
     }
     assert.equal([...requests.values()].some(r => hidden.includes(r.url)), false, 'hidden target references are never requested')
+    if (evidence) {
+      const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
+      writeFileSync(join(evidence, `real-gallery-${locale}-${width}-${count}.png`), Buffer.from(shot.data, 'base64'))
+    }
     matrix.push({ locale, width, gbifKey, images: count })
   }
   // A real non-lead fails in place, without promoting or reordering the gallery.

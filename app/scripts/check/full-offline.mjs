@@ -59,6 +59,12 @@ await browserJourney(base, async ({ send, evaluate, wait, click, viewport, reque
   await click('[data-testid=change-region]'); await click(`[data-testid=region-row][data-region="${regionId}"] [data-testid=region-pick]`)
   await wait(`!${q('[data-testid=region-sheet]')}`); await noPack()
   await wait(`${q('[data-testid=offline-download-line]')}?.textContent===${JSON.stringify(estimate)}`)
+  await click('[data-testid=change-region]'); await click('[data-testid=region-add]')
+  const unavailableRegion = await search('Berlin')
+  await click('[data-testid=region-result]'); await wait(`document.querySelectorAll('[data-testid=region-row]').length===3`)
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' })
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' })
+  await wait(`!${q('[data-testid=region-sheet]')}`); await noPack()
   const workers=[]
   for(const target of (await send('Target.getTargets')).targetInfos.filter(t=>t.type==='service_worker'&&t.url.startsWith(base))) {
     const {sessionId}=await send('Target.attachToTarget',{targetId:target.targetId,flatten:true})
@@ -114,6 +120,10 @@ await browserJourney(base, async ({ send, evaluate, wait, click, viewport, reque
   assert.equal(await evaluate(`document.querySelectorAll('[data-testid=grid] [data-taxon]').length`),cells)
   await wait(`[...document.querySelectorAll('[data-testid=grid] img')].some(i=>i.naturalWidth>0)`)
   await click('[data-testid=tab-you]');await wait(`${q('[data-testid=offline-download]')}.dataset.status==='ready'`)
+  await click('[data-testid=change-region]')
+  await click(`[data-testid=region-row][data-region="${unavailableRegion}"] [data-testid=region-pick]`)
+  await wait(`${q('[data-testid=region-line]')}?.textContent.includes('Berlin')`, 'undownloaded uncached region is named')
+  assert.equal(await evaluate(`${q('[data-testid=region-row][data-active]')}.dataset.region`),regionId,'unavailable region preserves downloaded selection')
   await network(false);await evaluate(`window.dispatchEvent(new Event('online'))`)
   await wait(`fetch('/api/health').then(r=>r.ok,()=>false)`)
   console.log(JSON.stringify({offlineJourney:'pass',locale,cancelResume:true,quotaFailure:true,transportFailure:true,evictionRepair:true,pageAndWorkerOffline:true,reconnect:true,secondRegionImplicitPack:false}))

@@ -81,6 +81,18 @@ try {
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: name, code: name, modifiers, ...native })
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: name, code: name, modifiers, ...native, text: undefined })
   }
+  const regionalProgress = async () => {
+    const expected = await evaluate(`(async () => {
+      const api=async(path,input)=>{const r=await fetch('/api/trpc/'+path+(input?'?input='+encodeURIComponent(JSON.stringify({json:input})):''));if(!r.ok)throw new Error(path+' '+r.status);return(await r.json()).result.data.json};
+      const me=await api('identity.me'),progress=await api('identity.progress');
+      const set=await api('dex.set',{regionId:me.region.id,tiles:['bird','mammal','amphibian','reptile','fish','insect','plant','fungus'],nowOnly:false});
+      const species=set.species.filter(t=>!progress.tiles.length||progress.tiles.includes(t.tile));
+      return {region:me.region.id,possible:species.length,seen:species.filter(t=>progress.seen.includes(t.id)).length,studied:species.filter(t=>progress.studied.includes(t.id)).length};
+    })()`)
+    await wait(`${selector('[data-testid=region-card][data-active]')}?.dataset.possible===${JSON.stringify(String(expected.possible))}`, 'local denominator follows selected region and groups')
+    const actual = await evaluate(`(() => {const d=${selector('[data-testid=region-card][data-active]')}.dataset;return {region:d.region,possible:+d.possible,seen:+d.seen,studied:+d.studied}})()`)
+    assert.deepEqual(actual, expected, 'local progress intersects the selected region; national membership is independent')
+  }
   const actionFits = async (testId) => {
     for (const [width, height, mobile] of [[320, 568, true], [390, 844, true], [1440, 900, false]]) {
       await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile })
@@ -389,6 +401,7 @@ try {
   await wait(`${selector('[data-testid=germany-discovered] dd')}?.textContent.trim() === '1'`, 'national discovery refreshes on Profile mount')
   await wait(`${selector('[data-testid=germany-studied] dd')}?.textContent.trim() === '1'`, 'location-independent study contributes nationally')
   const nationalDenominator = await evaluate(`${selector('[data-testid=germany-denominator]')}.textContent`)
+  await regionalProgress()
   assert.notEqual(await evaluate(`${selector('[data-testid=germany-sightings] dd')}.textContent.trim()`), '1', 'observation without confirmed German land containment is not a German sighting')
   await click('[data-testid=tab-journal]')
   await wait(selector('[data-testid=row][data-kind=sighting]'))
@@ -478,6 +491,8 @@ try {
       assert.equal(await evaluate(`${selector('[data-testid=germany-discovered] dd')}.textContent.trim()`), '1')
       assert.equal(await evaluate(`${selector('[data-testid=germany-studied] dd')}.textContent.trim()`), '1')
       assert.equal(await evaluate(`${selector('[data-testid=germany-denominator]')}.textContent`), nationalDenominator)
+      assert.equal(await evaluate(`${selector('[data-testid=germany-regions] dd')}.textContent.trim()`), '1', 'only one German land region was visited')
+      await regionalProgress()
     }
     await send('Emulation.clearGeolocationOverride')
     console.log('UX: positive study/discovery, Germany land, outside-Germany and captive exclusion passed after region switch')

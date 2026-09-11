@@ -1,6 +1,7 @@
 // Reproduces the CI production-browser suite against a disposable database.
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import assert from 'node:assert/strict'
 import { stopOwnedProcess } from './owned-process.mjs'
 import pg from 'pg'
 import landManifest from '../../src/server/data/germany-land.manifest.json' with { type: 'json' }
@@ -59,6 +60,7 @@ try {
     const { rows: states } = await fixtureDb.query(`SELECT c."expectedRegions", c."completedRegions", c."unionTaxa", count(b.id)::int AS builds FROM "CatalogueVersion" c JOIN "RegionRegistryVersion" v ON v.id = c."registryVersionId" AND v.active JOIN "CatalogueRegionBuild" b ON b."catalogueVersionId" = c.id AND b.status = 'complete' WHERE c."countryCode" = 'DE' AND c.status = 'active' GROUP BY c.id`)
     const state = states[0]
     if (states.length !== 1 || state.expectedRegions !== 362 || state.completedRegions !== 362 || state.builds !== 362 || state.unionTaxa < 1) throw new Error('Full-catalogue browser checks require one active, complete 362-region local catalogue')
+    console.log(JSON.stringify({ fullCatalogue: { regions: state.builds, nationalTaxa: state.unionTaxa }, database: database.pathname.slice(1) }))
     const { rows: [{ count }] } = await fixtureDb.query(`SELECT count(*)::int AS count FROM "Plausibility" p JOIN "Region" r ON r.id = p."regionId" WHERE r.name = 'Mainz-Bingen' AND r.status = 'ready'`)
     if (count < 1) throw new Error('Full-catalogue browser checks require activated Mainz-Bingen live rows')
   } else {
@@ -135,6 +137,10 @@ try {
     await cleanup.query(`DELETE FROM "Asset" WHERE id = ANY($1::text[])`, [previewAssetIds])
     for (const asset of shiftedPreviewAssets) await cleanup.query(`UPDATE "Asset" SET position = $1 WHERE id = $2`, [asset.position, asset.id])
     for (const row of previewVisibility) await cleanup.query('INSERT INTO "ReferenceAssetVisibility" SELECT * FROM json_populate_record(NULL::"ReferenceAssetVisibility", $1::json)', [JSON.stringify(row.snapshot)])
+    const restoredAssets = await cleanup.query('SELECT id, position FROM "Asset" WHERE id = ANY($1::text[]) ORDER BY id', [shiftedPreviewAssets.map(row => row.id)])
+    assert.deepEqual(restoredAssets.rows, shiftedPreviewAssets, 'original gallery positions restored exactly')
+    const restoredVisibility = await cleanup.query('SELECT to_json(v) AS snapshot FROM "ReferenceAssetVisibility" v WHERE "assetId" = ANY($1::text[]) ORDER BY "assetId"', [previewVisibility.map(row => row.snapshot.assetId)])
+    assert.deepEqual(restoredVisibility.rows, [...previewVisibility].sort((a, b) => a.snapshot.assetId.localeCompare(b.snapshot.assetId)), 'reviewed visibility restored without timestamp or evidence changes')
     await cleanup.query('DELETE FROM "Identity" WHERE id = ANY($1::text[])', [ownedIdentities])
     if (!fullCatalogue) {
       await cleanup.query(`DELETE FROM "CatalogueTaxon" WHERE "catalogueVersionId" = 'browser-catalogue-de'`)

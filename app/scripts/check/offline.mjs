@@ -101,7 +101,7 @@ try {
   })()`)
   catalogueDb = new pg.Client({ connectionString: database.toString() })
   await catalogueDb.connect()
-  const rollback = await catalogueDb.query(`UPDATE "CatalogueVersion" SET status = 'audited'::"CatalogueStatus" WHERE "countryCode" = 'DE' AND status = 'active'::"CatalogueStatus" RETURNING id, "updatedAt"`)
+  const rollback = await catalogueDb.query(`UPDATE "CatalogueVersion" SET status = 'audited'::"CatalogueStatus" WHERE "countryCode" = 'DE' AND status = 'active'::"CatalogueStatus" RETURNING id, "updatedAt"::text`)
   rolledBack = rollback.rows
   assert.ok(rolledBack.length > 0, 'browser rollback changes an active local catalogue')
   await send('Page.reload')
