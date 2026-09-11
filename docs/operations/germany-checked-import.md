@@ -51,7 +51,21 @@ Südwestpfalz combines Landkreis Südwestpfalz, Pirmasens and Zweibrücken. Main
 7. Verify every final after-image and protected scope before commit, then perform independent post-commit readback while maintenance remains closed. Only successful verification reopens writes. Transaction failure, interruption or post-commit uncertainty must not automatically open the gate.
 8. Capture the committed outcome and gate state externally, then exercise authenticated browser journeys, offline recovery and production health independently. Repository merge success is not release verification.
 
-The fixed snapshot contains 31 product/data tables. Gate/admission rows are operational state managed through their advisory-lock protocol, not part of the immutable target fingerprint. `_prisma_migrations` is checked as schema preflight, not rewritten by the catalogue importer.
+The fixed snapshot contains the following 31 product/data tables, defined by
+[`CATALOGUE_TARGET_SNAPSHOT_TABLES`](../../app/etl/catalogue-import-plan.ts) and the store's fixed
+column contracts:
+
+- Identity, EmailCode, Passkey, Filter, Region.
+- RegionRegistryVersion, RegionRegistrySource, RegionRegistryEntry, RegionRegistryAlias,
+  RegionSourceUnit, RegionQueryUnit.
+- CatalogueVersion, CatalogueRegionBuild, CataloguePlausibility, CatalogueLookalike, CatalogueTaxon,
+  CatalogueTaxonomyResolution, CatalogueHabitatBatch.
+- TaxonEnrichmentWork, Taxon, Plausibility, Lookalike, Interaction, Asset.
+- ReferenceAssetVisibility, ReferenceGalleryReceipt, Sighting, Study, QuotaBucket, ScanWork, PhotoDeletion.
+
+Gate/admission rows are operational state managed through their advisory-lock protocol, not part
+of the immutable target fingerprint. The operator must separately verify `_prisma_migrations` as
+described below; the CLI does not perform that history check or rewrite it.
 
 ## Operator commands
 
@@ -103,7 +117,27 @@ intent precedes database writes but is explicitly not a success receipt.
 
 ## Client and cache checks
 
-The compatibility deployment must precede catalogue activation. Check catalogue identity changes from the legacy null identity to the new version and on recovery to the old version. Verify TanStack live/persisted query invalidation, IndexedDB pack metadata/readiness, `dex-region-*` CacheStorage cleanup, service-worker interruption/reload, cross-tab invalidation and old-controller behavior. A cache read must not recreate a deleted pack.
+The compatibility deployment must precede catalogue activation. Check catalogue identity changes
+from the legacy null identity to the new version and on recovery to the old version. Verify the
+following exact surfaces, including interruption/reload, cross-tab and old-controller behavior:
+
+- `localStorage['dex.catalogue.version']`: version ID or `__dex_catalogue_legacy__`; absent means
+  not yet observed, not an authoritative legacy catalogue.
+- Live TanStack queries and `localStorage['dex.queries']` (buster `dex-cache-v2`). The catalogue-scoped
+  paths are `dex.set`, `dex.setCounts`, `dex.regions`, `regions.personal`, `regions.search`,
+  `regions.locate`, `identity.germanyProgress`, `identity.me`, `sighting.outside`,
+  `sighting.outsideVersioned`, `taxon.page`, `taxon.mapCentre`.
+- CacheStorage packs `dex-pack-<region>` and `dex-pack-v2-<encoded-catalogue>-<region>`;
+  localStorage readiness `dex.offline.ready.<region>` and
+  `dex.offline.ready.v2.<encoded-catalogue>.<region>`. A read must not recreate a deleted pack.
+- IndexedDB database/store `dex-outbox`/`outbox`, localStorage fallback `dex.outbox.fallback`, and
+  owner marker `dex.persist.identity`. These are not bulk-cleared on catalogue changes.
+- Private-photo cache `dex-images`; public pack cleanup must not widen into private data deletion,
+  and private cleanup must not open deleted public packs.
+
+The executable definitions are [CatalogueCache](../../app/src/components/CatalogueCache.ts),
+[OfflinePack](../../app/src/components/OfflinePack.ts), [Queue](../../app/src/components/Queue.ts),
+and [query persistence](../../app/src/trpc/client.tsx).
 
 Keep sighting/outside caches and queued scan UUID handling consistent with the new catalogue identity. A queued canonical scan whose region disappears after rollback must retain its photo/draft and offer explicit region recovery. Batch validation must not prevent unrelated valid queue work. Private-photo cleanup owns the legacy private image cache; it must not open removed public pack names. Do not clear all site data as a substitute for these checks.
 
@@ -117,6 +151,52 @@ Keep sighting/outside caches and queued scan UUID handling consistent with the n
 - After a successful inverse, verify original mutation images, preserved scopes and the complete committed target state before reopening; repeat client identity/cache and region-recovery journeys.
 
 ## Rehearsal and release evidence
+
+Use a securely configured database client; do not put production credential URLs in command
+arguments or captures. Before planning, execute this read-only schema query and compare every
+successful migration's checksum with SHA-256 of the checked worktree's corresponding
+`app/prisma/migrations/<migration_name>/migration.sql`. Require exactly the expected migration
+names, completed/non-rolled-back rows, no failures and matching checksums. Record the comparison
+outside Git. A successful table read alone is not schema-history proof.
+
+```sql
+SELECT migration_name, checksum,
+       finished_at IS NOT NULL AS finished,
+       rolled_back_at IS NOT NULL AS rolled_back
+FROM "_prisma_migrations" ORDER BY migration_name;
+```
+
+Create the secure backup with a client compatible with the source major version and retain its
+custom-format archive. Record `shasum -a 256 /private/reviewed/target-before.dump`, bytes and mode
+0600. Restore with `pg_restore --exit-on-error --no-owner --no-privileges` into a **new local**
+database configured through PostgreSQL environment variables, never over the source or a live
+target. Compare table row counts and canonical row digests between the approved backup snapshot
+and restored clone; record the restore result before running the importer.
+
+Run these read-only measurements before import, periodically from a second local connection during
+apply/recovery, immediately after each commit/readback, and after exact recovery. Save timestamped
+samples outside Git. Use a 2-second sampling interval for the rehearsal and capture explicit phase
+boundaries; a sampled maximum is a measured lower bound, not a guarantee about an unobserved spike.
+
+```sql
+SELECT clock_timestamp() AS measured_at,
+       pg_database_size(current_database()) AS database_bytes,
+       (SELECT state FROM "CatalogueCutoverGate" WHERE "countryCode"='DE') AS gate,
+       (SELECT count(*) FROM "CatalogueWriteAdmission" WHERE "countryCode"='DE') AS admissions;
+SELECT relname, pg_total_relation_size(oid) AS total_bytes,
+       pg_indexes_size(oid) AS index_bytes
+FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r'
+ORDER BY pg_total_relation_size(oid) DESC;
+```
+
+Report the gate-close and verified-reopen timestamps separately from total CLI runtime: parsing,
+hashing and private-file staging happen before the write pause. On failure, report the still-closed
+maintenance duration, never a successful pause. External receipt/backup bytes are reported
+separately from the database footprint; there is no extra JSONB staging table. Compare the largest
+observed live/index/recovery footprint plus prudent headroom with the integration's verified plan
+limit. Account for the hosting provider's separate history/WAL accounting and confirm the actual
+offer before any paid change. A clone left with aborted/dead rows is not a fresh baseline for a
+subsequent rehearsal: retain its evidence and use another fresh restore.
 
 The #63 close-out must include the exact checked code and input pins, production-copy backup/restore proof, full-sized plan/apply/recovery results, fault-injection results, final gallery and personal-content audits, before/live/index/recovery storage peak, write-pause measurement, and comparison with the verified hosting limit. The #28 close-out turns these into the concrete owner-reviewable production plan. #29 refreshes time-sensitive evidence and the production snapshot, executes only the approved plan, and independently verifies the deployed system.
 
