@@ -19,11 +19,12 @@ import {
   type PlannedCatalogueRowMutation,
   type TargetCatalogueSnapshot,
 } from '../../etl/catalogue-import-plan'
-import type { ValidatedCatalogueImport, ValidatedImportEvidence } from '../../etl/catalogue-import-validation'
+import type { ValidatedCatalogueReleaseImport, ValidatedImportEvidence } from '../../etl/catalogue-import-validation'
 
 const sourceEvidence: ValidatedImportEvidence = { files: [], tables: [], decodedFingerprint: '1'.repeat(64) }
 const assertStillValid = vi.fn(async () => undefined)
-const validated = { pins: {}, tables: new Map(), evidence: sourceEvidence, assertStillValid } as unknown as ValidatedCatalogueImport
+const validated = { pins: {}, tables: new Map(), evidence: sourceEvidence, releaseEvidence: [], assertStillValid,
+  assertReleaseEvidenceStillValid: assertStillValid } as unknown as ValidatedCatalogueReleaseImport
 
 const ids = new Set<string>()
 

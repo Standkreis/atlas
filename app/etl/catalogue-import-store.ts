@@ -1,5 +1,6 @@
 /** Checked target snapshot, atomic catalogue apply, and guarded recovery for issue #63. */
 import { contentDigest } from './catalogue-gallery-transfer'
+import { catalogueImportDigest } from './catalogue-import-json'
 import {
   CATALOGUE_APPLY_ORDER,
   CATALOGUE_TARGET_SNAPSHOT_TABLES,
@@ -14,7 +15,7 @@ import {
   type CatalogueTargetRow,
   type CatalogueTargetTable,
 } from './catalogue-import-plan'
-import type { ValidatedCatalogueImport } from './catalogue-import-validation'
+import type { ValidatedCatalogueImport, ValidatedCatalogueReleaseImport } from './catalogue-import-validation'
 import {
   GERMANY_CATALOGUE_COUNTRY,
   catalogueWriteDrain,
@@ -415,20 +416,21 @@ export function createCatalogueApplyReceipt(options: {
     protectedScopes: options.plan.protectedScopes,
     mutations: options.plan.mutations,
   }
-  return deepFreeze({ ...payload, fingerprint: contentDigest(payload) })
+  return deepFreeze({ ...payload, fingerprint: catalogueImportDigest(payload) })
 }
 
 function assertReceipt(receipt: CatalogueApplyReceipt, plan?: CatalogueTargetPlan) {
   const { fingerprint, ...payload } = receipt
   if (receipt.schemaVersion !== 1 || receipt.countryCode !== GERMANY_CATALOGUE_COUNTRY || !receipt.operationId ||
-    receipt.sourceEvidenceFingerprint !== contentDigest(receipt.sourceEvidence) || !SHA256.test(fingerprint) || contentDigest(receiptPayload(payload)) !== fingerprint) {
+    receipt.sourceEvidenceFingerprint !== contentDigest(receipt.sourceEvidence) || !SHA256.test(fingerprint) || catalogueImportDigest(receiptPayload(payload)) !== fingerprint) {
     throw new Error('catalogue apply receipt is invalid')
   }
   validateMutations(receipt.mutations)
   receipt.protectedScopes.forEach(validateScope)
   if (plan && (receipt.planFingerprint !== plan.fingerprint || receipt.catalogueVersionId !== plan.catalogueVersionId ||
     receipt.registryVersionId !== plan.registryVersionId || receipt.targetSnapshotFingerprint !== plan.targetSnapshotFingerprint ||
-    contentDigest(receipt.mutations) !== contentDigest(plan.mutations) || contentDigest(receipt.protectedScopes) !== contentDigest(plan.protectedScopes))) {
+    catalogueImportDigest(receipt.mutations) !== catalogueImportDigest(plan.mutations) ||
+    catalogueImportDigest(receipt.protectedScopes) !== catalogueImportDigest(plan.protectedScopes))) {
     throw new Error('catalogue apply receipt does not bind the supplied target plan')
   }
 }
@@ -452,7 +454,7 @@ async function verifyApplied(db: Db, receipt: CatalogueApplyReceipt, committedFi
  * only then reopen. A drain or post-commit failure intentionally leaves maintenance closed.
  */
 export async function applyCatalogueTargetPlan(db: Db, options: {
-  validated: ValidatedCatalogueImport
+  validated: ValidatedCatalogueReleaseImport
   plan: CatalogueTargetPlan
   receipt: CatalogueApplyReceipt
   faultInjection?: CatalogueStoreFaultInjection

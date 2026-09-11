@@ -3,8 +3,11 @@ import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
+import { parseReviewFile, sha256 as catalogueAuditDigest } from './catalogue-audit'
+import { parseContentNetworkReview, parseContentUrlReport, type ContentNetworkReview, type ContentUrlCheckReport } from './catalogue-content-audit'
 import { ASSET_TRANSFER_COLUMNS, CONTENT_WORK_VERSIONS, WORK_TRANSFER_COLUMNS, canonicalContent, contentDigest } from './catalogue-gallery-transfer'
 import { TRANSFER_SPECS, type TransferSpec, type TransferTable } from './catalogue-transfer'
+import { safeReferenceUrl, successfulReferenceStatus } from './gallery-network-audit'
 
 export type ImportEvidenceFile = { path: string; sha256: string; bytes?: number }
 export type ImportTransferBundle = { audit: ImportEvidenceFile; manifest: ImportEvidenceFile; artifact: ImportEvidenceFile }
@@ -27,6 +30,11 @@ export type CatalogueImportBundleInput = {
   gallery: ImportTransferBundle
   maxLineBytes?: number
 }
+export type CatalogueReleaseEvidenceInput = {
+  networkReview: ImportEvidenceFile
+  auditUrlReport: ImportEvidenceFile
+  currentUrlReport: ImportEvidenceFile
+}
 export type ValidatedImportFile = { role: string; path: string; sha256: string; bytes: number }
 export type ValidatedImportTable = { table: string; columns: readonly string[]; rows: number; digest: string }
 export type ValidatedImportEvidence = { files: readonly ValidatedImportFile[]; tables: readonly ValidatedImportTable[]; decodedFingerprint: string }
@@ -40,6 +48,14 @@ export type ValidatedCatalogueImport = {
   /** Re-hash the exact six inputs immediately before opening the apply transaction. */
   assertStillValid(): Promise<void>
 }
+declare const VALIDATED_RELEASE_IMPORT: unique symbol
+export type ValidatedCatalogueReleaseImport = Omit<ValidatedCatalogueImport, 'assertStillValid'> & {
+  readonly [VALIDATED_RELEASE_IMPORT]: true
+  readonly releaseEvidence: readonly ValidatedImportFile[]
+  /** Re-hash frozen source/review evidence and require current URL checks at the apply edge. */
+  assertStillValid(): Promise<void>
+  assertReleaseEvidenceStillValid(now?: Date): Promise<void>
+}
 
 type JsonRecord = Record<string, unknown>
 type ParsedArtifact = { tables: Map<string, JsonRecord[]>; evidence: ValidatedImportFile; tableEvidence: TransferTable[] }
@@ -47,12 +63,18 @@ type ParsedArtifact = { tables: Map<string, JsonRecord[]>; evidence: ValidatedIm
 const SHA256 = /^[a-f\d]{64}$/
 const DEFAULT_MAX_LINE_BYTES = 1024 * 1024
 const MAX_JSON_BYTES = 32 * 1024 * 1024
+const URL_CHECK_MAX_AGE_MS = 24 * 60 * 60_000
 const BASE_EXCLUDES = ['Asset', 'EmailCode', 'Filter', 'Identity', 'Passkey', 'Sighting', 'Study']
 const GALLERY_EXCLUDES = ['Identity', 'Filter', 'Sighting', 'Study', 'Passkey', 'EmailCode', 'personal/owned/avatar Asset', 'sound Asset', 'outside-union Asset', 'unrelated/incomplete enrichment work']
 const GALLERY_SPECS: TransferSpec[] = [
   { table: 'Asset', columns: ASSET_TRANSFER_COLUMNS, sql: 'validated artifact' },
   { table: 'TaxonEnrichmentWork', columns: WORK_TRANSFER_COLUMNS, sql: 'validated artifact' },
 ]
+
+type FrozenReviewBindings = Readonly<{
+  galleryNetwork: JsonRecord
+}>
+const FROZEN_REVIEW_BINDINGS = new WeakMap<object, FrozenReviewBindings>()
 
 const PRIMARY_KEYS: Record<string, readonly string[]> = {
   Region: ['id'], RegionRegistryVersion: ['id'], RegionRegistrySource: ['id'], RegionRegistryEntry: ['id'],
@@ -339,10 +361,45 @@ function validateBaseAudit(value: JsonRecord, pins: CatalogueImportPins) {
   equal(catalogue.status, 'active', 'base audit catalogue status')
   const review = record(value.review, 'base audit review summary')
   const required = integer(review.required, 'base audit required reviews')
+  if (required < 1) throw new Error('base audit must contain reviewed targets')
+  const targets = array(value.reviewTargets, 'base audit review targets').map((value, index) => {
+    const target = record(value, `base audit review target ${index}`)
+    exactKeys(target, ['id', 'key', 'name', 'state', 'reasons', 'evidence', 'review'], `base audit review target ${index}`)
+    string(target.id, `base audit review target ${index} id`)
+    string(target.key, `base audit review target ${index} key`)
+    string(target.name, `base audit review target ${index} name`)
+    string(target.state, `base audit review target ${index} state`)
+    array(target.reasons, `base audit review target ${index} reasons`).forEach((reason) => string(reason, `base audit review target ${index} reason`))
+    record(target.evidence, `base audit review target ${index} evidence`)
+    return target
+  })
+  equal(targets.length, required, 'base audit review target count')
+  if (new Set(targets.map((target) => target.id)).size !== targets.length) throw new Error('base audit has duplicate review targets')
+  const reviews = targets.map((target, index) => {
+    const targetReview = record(target.review, `base audit review target ${index} review`)
+    equal(targetReview.targetId, target.id, `base audit review target ${index} binding`)
+    return targetReview
+  })
+  // Reuse the producer's strict reviewer/check schema. The evidence fingerprint is reconstructed
+  // from the immutable target evidence embedded in this already-pinned audit.
+  parseReviewFile({
+    schemaVersion: 1,
+    catalogueId: pins.catalogueId,
+    inputFingerprint: pins.inputFingerprint,
+    responseFingerprint: pins.responseFingerprint,
+    unionFingerprint: pins.unionFingerprint,
+    evidenceFingerprint: catalogueAuditDigest(targets.map((target) => Object.fromEntries(Object.entries(target).filter(([key]) => key !== 'review')))),
+    regionExclusions: [],
+    reviews,
+  })
+  const passed = reviews.filter((item) => {
+    const checks = record(item.checks, 'base audit review checks')
+    return ['species', 'naming', 'seasonality', 'boundary'].every((check) => checks[check] === 'pass')
+  }).length
   equal(review.failed, 0, 'base audit failed reviews')
   equal(review.missing, 0, 'base audit missing reviews')
-  equal(review.passed, required, 'base audit passed reviews')
-  equal(array(value.reviewTargets, 'base audit review targets').length, required, 'base audit review target count')
+  equal(review.passed, passed, 'base audit passed review evidence')
+  equal(passed, required, 'base audit passed reviews')
 }
 
 function validateGalleryAudit(value: JsonRecord, pins: CatalogueImportPins) {
@@ -362,12 +419,15 @@ function validateGalleryAudit(value: JsonRecord, pins: CatalogueImportPins) {
   equal(versions.names, CONTENT_WORK_VERSIONS.names, 'content audit names version')
   const network = record(value.network, 'content audit network')
   equal(network.status, 'sample-passed', 'content audit sample review')
-  equal(network.reviewed, array(network.targets, 'content audit network targets').length, 'content audit reviewed samples')
+  const targets = array(network.targets, 'content audit network targets')
+  equal(integer(network.reviewed, 'content audit reviewed samples'), targets.length, 'content audit reviewed samples')
+  if (network.evidenceFingerprint !== null) requireSha256(network.evidenceFingerprint, 'content audit network evidence fingerprint')
   const checks = record(network.urlChecks, 'content audit URL checks')
   equal(checks.supplied, true, 'content audit URL report supplied')
-  equal(checks.failed, 0, 'content audit failed URLs')
-  equal(checks.pending, 0, 'content audit pending URLs')
-  equal(checks.passed, checks.urls, 'content audit passed URLs')
+  requireSha256(checks.reportFingerprint, 'content audit URL report fingerprint')
+  equal(integer(checks.failed, 'content audit failed URLs'), 0, 'content audit failed URLs')
+  equal(integer(checks.pending, 'content audit pending URLs'), 0, 'content audit pending URLs')
+  equal(integer(checks.passed, 'content audit passed URLs'), integer(checks.urls, 'content audit URLs'), 'content audit passed URLs')
 }
 
 function table(tables: ReadonlyMap<string, readonly JsonRecord[]>, name: string) {
@@ -464,6 +524,20 @@ function validateRelationships(tables: ReadonlyMap<string, readonly JsonRecord[]
       throw new Error('gallery artifact contains an unqualified reference Asset')
     }
   }
+  const network = record(contentAudit.network, 'content audit network')
+  const networkTargets = array(network.targets, 'content audit network targets')
+  if ((assets.length > 0) !== (networkTargets.length > 0)) throw new Error('content audit network target coverage does not match gallery Assets')
+  if (networkTargets.length && network.evidenceFingerprint === null) throw new Error('content audit lacks bound network review evidence')
+  const assetsById = new Map(assets.map((asset) => [string(asset.id, 'Asset.id'), asset]))
+  const targetIds = new Set<string>()
+  for (const [index, value] of networkTargets.entries()) {
+    const target = record(value, `content audit network target ${index}`)
+    const assetId = string(target.assetId, `content audit network target ${index} assetId`)
+    if (targetIds.has(assetId)) throw new Error('content audit has duplicate network targets')
+    targetIds.add(assetId)
+    const asset = assetsById.get(assetId)
+    if (!asset || target.url !== asset.url) throw new Error(`content audit network target ${assetId} does not bind a gallery Asset`)
+  }
   const work = table(tables, 'TaxonEnrichmentWork'), workByTaxon = new Map<string, Set<string>>()
   for (const row of work) {
     const taxonId = string(row.taxonId, 'TaxonEnrichmentWork.taxonId')
@@ -551,6 +625,8 @@ export async function validateCatalogueImportBundle(input: CatalogueImportBundle
 
   validateBaseAudit(baseAudit.value, pins)
   validateGalleryAudit(galleryAudit.value, pins)
+  equal(canonicalContent(record(galleryManifest.value.catalogue, 'gallery manifest catalogue')),
+    canonicalContent(record(galleryAudit.value.catalogue, 'content audit catalogue')), 'gallery manifest/content audit catalogue envelope')
   const baseContract = validateBaseManifest(baseManifest.value, pins, files.baseArtifact)
   const galleryContract = validateGalleryManifest(galleryManifest.value, pins, files.galleryArtifact)
   const base = await parseArtifact(files.baseArtifact, 'base artifact', pins.catalogueId, TRANSFER_SPECS, baseContract.tables, maxLineBytes)
@@ -584,5 +660,147 @@ export async function validateCatalogueImportBundle(input: CatalogueImportBundle
       equal(file.bytes, expected.bytes, `${expected.role} changed after validation`)
     })
   }
-  return Object.freeze({ pins: frozenPins, tables: exposedTables, evidence, assertStillValid }) as ValidatedCatalogueImport
+  const validated = Object.freeze({ pins: frozenPins, tables: exposedTables, evidence, assertStillValid }) as ValidatedCatalogueImport
+  FROZEN_REVIEW_BINDINGS.set(validated, deepFreeze({
+    galleryNetwork: JSON.parse(canonicalContent(galleryAudit.value.network)) as JsonRecord,
+  }) as FrozenReviewBindings)
+  return validated
+}
+
+async function readEvidenceJson(file: ImportEvidenceFile, role: string) {
+  const normalized = normalizedFile(file, role)
+  const bytes = await readFile(normalized.path)
+  if (bytes.length > MAX_JSON_BYTES) throw new Error(`${role} exceeds the JSON size limit`)
+  const evidence: ValidatedImportFile = {
+    role,
+    path: normalized.path,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    bytes: bytes.length,
+  }
+  equal(evidence.sha256, normalized.sha256, `${role} file SHA-256`)
+  if (normalized.bytes !== undefined) equal(evidence.bytes, normalized.bytes, `${role} file bytes`)
+  let value: unknown
+  try { value = JSON.parse(decodeUtf8(bytes, role)) } catch { throw new Error(`${role} is not valid JSON`) }
+  return { value, evidence }
+}
+
+function galleryUrlContract(source: ValidatedCatalogueImport) {
+  const assets = [...(source.tables.get('Asset') ?? [])].sort((a, b) => string(a.id, 'Asset.id').localeCompare(string(b.id, 'Asset.id')))
+  const targets = assets.map((asset) => ({
+    id: string(asset.id, 'Asset.id'),
+    taxonId: string(asset.taxonId, 'Asset.taxonId'),
+    position: integer(asset.position, 'Asset.position'),
+    url: string(asset.url, 'Asset.url'),
+  }))
+  return {
+    assets: targets.length,
+    urls: new Set(targets.map((asset) => asset.url)),
+    targetsFingerprint: createHash('sha256').update(JSON.stringify(targets)).digest('hex'),
+  }
+}
+
+function validateBoundNetworkReview(review: ContentNetworkReview, source: ValidatedCatalogueImport, network: JsonRecord, now: Date) {
+  equal(review.catalogueId, source.pins.catalogueId, 'network review catalogue id')
+  equal(review.contentFingerprint, source.pins.contentFingerprint, 'network review content fingerprint')
+  equal(contentDigest(review), network.evidenceFingerprint, 'network review evidence fingerprint')
+  const reviewedAt = Date.parse(review.reviewedAt)
+  if (!Number.isFinite(reviewedAt) || reviewedAt > now.getTime()) throw new Error('network review timestamp is invalid or in the future')
+  const targets = array(network.targets, 'content audit network targets').map((value, index) => record(value, `content audit network target ${index}`))
+  const samples = new Map<string, ContentNetworkReview['samples'][number]>()
+  for (const sample of review.samples) {
+    if (samples.has(sample.assetId)) throw new Error(`network review repeats sample ${sample.assetId}`)
+    samples.set(sample.assetId, sample)
+  }
+  for (const target of targets) {
+    const assetId = string(target.assetId, 'content audit network target assetId')
+    const sample = samples.get(assetId)
+    if (!sample || sample.url !== target.url || !sample.rendered || !(sample.sourcePageChecked || sample.officialApiEvidence) ||
+      !sample.attributionChecked || !sample.licenceChecked) throw new Error(`network review does not approve bound target ${assetId}`)
+  }
+  equal(samples.size, targets.length, 'network review sample cardinality')
+  equal(network.reviewed, targets.length, 'network review audited cardinality')
+}
+
+function validateUrlReport(report: ContentUrlCheckReport, source: ValidatedCatalogueImport, now?: Date) {
+  const contract = galleryUrlContract(source)
+  equal(report.catalogueId, source.pins.catalogueId, 'URL report catalogue id')
+  equal(report.unionFingerprint, source.pins.unionFingerprint, 'URL report union fingerprint')
+  equal(report.targetsFingerprint, contract.targetsFingerprint, 'URL report target fingerprint')
+  equal(report.assets, contract.assets, 'URL report Asset count')
+  equal(report.urls, contract.urls.size, 'URL report URL count')
+  equal(report.failed, 0, 'URL report failed count')
+  equal(report.pending, 0, 'URL report pending count')
+  equal(report.passed, contract.urls.size, 'URL report passed count')
+  const generatedAt = Date.parse(report.generatedAt)
+  if (!Number.isFinite(generatedAt)) throw new Error('URL report generatedAt is invalid')
+  if (now && (generatedAt > now.getTime() || now.getTime() - generatedAt >= URL_CHECK_MAX_AGE_MS)) throw new Error('current URL report is stale or from the future')
+  const seen = new Set<string>()
+  for (const check of report.checks) {
+    const checkedAt = Date.parse(check.checkedAt)
+    if (!contract.urls.has(check.url) || seen.has(check.url) || check.ok !== true || !Number.isInteger(check.status) ||
+      !successfulReferenceStatus(check.method, Number(check.status)) || typeof check.contentType !== 'string' || !check.contentType.startsWith('image/') ||
+      typeof check.finalUrl !== 'string' || !safeReferenceUrl(check.finalUrl) || check.reason !== null || !Number.isFinite(checkedAt) ||
+      checkedAt > generatedAt || generatedAt - checkedAt >= URL_CHECK_MAX_AGE_MS || (now && (checkedAt > now.getTime() || now.getTime() - checkedAt >= URL_CHECK_MAX_AGE_MS))) {
+      throw new Error(`URL report has an invalid, duplicate, stale, or unbound check for ${check.url}`)
+    }
+    seen.add(check.url)
+  }
+  equal(seen.size, contract.urls.size, 'URL report checked URL cardinality')
+}
+
+/**
+ * Bind immutable source audits to their original review inputs and a separately refreshable URL
+ * report. This does not regenerate or alter the frozen source audit/content fingerprints.
+ */
+export async function validateCatalogueReleaseEvidence(
+  source: ValidatedCatalogueImport,
+  input: CatalogueReleaseEvidenceInput,
+  options: { now?: Date } = {},
+): Promise<ValidatedCatalogueReleaseImport> {
+  const bindings = FROZEN_REVIEW_BINDINGS.get(source)
+  if (!bindings) throw new Error('release evidence requires a validator-produced catalogue source')
+  const now = options.now ?? new Date()
+  if (!Number.isFinite(now.getTime())) throw new Error('release evidence time is invalid')
+  await source.assertStillValid()
+  const [reviewJson, auditReportJson, currentReportJson] = await Promise.all([
+    readEvidenceJson(input.networkReview, 'network review'),
+    readEvidenceJson(input.auditUrlReport, 'audit URL report'),
+    readEvidenceJson(input.currentUrlReport, 'current URL report'),
+  ])
+  const review = parseContentNetworkReview(reviewJson.value)
+  const auditReport = parseContentUrlReport(auditReportJson.value)
+  const currentReport = parseContentUrlReport(currentReportJson.value)
+  validateBoundNetworkReview(review, source, bindings.galleryNetwork, now)
+  validateUrlReport(auditReport, source)
+  const auditChecks = record(bindings.galleryNetwork.urlChecks, 'content audit URL checks')
+  equal(contentDigest(auditReport), auditChecks.reportFingerprint, 'audit URL report fingerprint')
+  equal(auditReport.urls, auditChecks.urls, 'audit URL report audited URL count')
+  equal(auditReport.passed, auditChecks.passed, 'audit URL report audited pass count')
+  equal(auditReport.failed, auditChecks.failed, 'audit URL report audited failure count')
+  equal(auditReport.pending, auditChecks.pending, 'audit URL report audited pending count')
+  validateUrlReport(currentReport, source, now)
+  await source.assertStillValid()
+
+  const releaseEvidence = Object.freeze([reviewJson.evidence, auditReportJson.evidence, currentReportJson.evidence]
+    .map((file) => Object.freeze({ ...file })))
+  const frozenCurrentReport = deepFreeze(currentReport) as ContentUrlCheckReport
+  const assertReleaseEvidenceStillValid = async (at = new Date()) => {
+    if (!Number.isFinite(at.getTime())) throw new Error('release evidence time is invalid')
+    await source.assertStillValid()
+    const current = await Promise.all(releaseEvidence.map((file) => digestFile(file.path)))
+    current.forEach((file, index) => {
+      const expected = releaseEvidence[index]!
+      equal(file.sha256, expected.sha256, `${expected.role} changed after release validation`)
+      equal(file.bytes, expected.bytes, `${expected.role} changed after release validation`)
+    })
+    validateUrlReport(frozenCurrentReport, source, at)
+  }
+  return Object.freeze({
+    pins: source.pins,
+    tables: source.tables,
+    evidence: source.evidence,
+    releaseEvidence,
+    assertStillValid: () => assertReleaseEvidenceStillValid(),
+    assertReleaseEvidenceStillValid,
+  }) as ValidatedCatalogueReleaseImport
 }
