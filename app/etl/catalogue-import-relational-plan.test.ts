@@ -227,8 +227,9 @@ describe('planCatalogueTarget', () => {
     expect(mutation(plan, 'CatalogueVersion', 'publish').find((row) => row.key.id === 'catalogue-old')!.after?.status).toBe('retired')
     expect(mutation(plan, 'ReferenceGalleryReceipt')).toHaveLength(2)
 
-    const protectedAssets = plan.protectedScopes.find((scope) => scope.table === 'Asset' && scope.selector.kind === 'all')!
+    const protectedAssets = plan.protectedScopes.find((scope) => scope.table === 'Asset' && scope.selector.kind === 'keys')!
     expect(protectedAssets.beforeRows).toBe(1)
+    expect(protectedAssets.selector).toEqual({ kind: 'keys', keys: [{ id: 'old-sound' }] })
     expect(plan.protectedScopes.some((scope) => scope.table === 'Interaction' && scope.selector.kind === 'all')).toBe(true)
     expect(plan.protectedScopes.some((scope) => scope.table === 'Taxon' && scope.selector.kind === 'keys' && scope.selector.keys.some((key) => key.id === 'outside-taxon'))).toBe(true)
 

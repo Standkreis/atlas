@@ -15,6 +15,7 @@ import {
   cataloguePostgresTimestamp,
   catalogueTargetPlanFingerprint,
   catalogueProtectionScope,
+  type CatalogueProtectionScope,
   type CatalogueTargetPlan,
   type CatalogueTargetRow,
   type PlannedCatalogueRowMutation,
@@ -42,8 +43,9 @@ function plan(
   mutations: readonly PlannedCatalogueRowMutation[],
   protectedTables: readonly string[] = [],
   identifiers?: Readonly<{ catalogueVersionId: string, registryVersionId: string }>,
+  exactProtectedScopes: readonly CatalogueProtectionScope[] = [],
 ): CatalogueTargetPlan {
-  const protectedScopes = protectedTables.map((name) => catalogueProtectionScope(name, table(snapshot, name)))
+  const protectedScopes = [...protectedTables.map((name) => catalogueProtectionScope(name, table(snapshot, name))), ...exactProtectedScopes]
   const unsigned = {
     schemaVersion: 1,
     catalogueVersionId: identifiers?.catalogueVersionId ?? `catalogue-${randomUUID()}`,
@@ -452,6 +454,60 @@ describe('checked catalogue import store', () => {
     await expect(recoverCatalogueTarget(db, { receipt: applyReceipt })).rejects.toThrow('newer inbound references')
     expect(await db.asset.findUnique({ where: { id: assetId } })).not.toBeNull()
     expect(await db.scanWork.findUnique({ where: { key: scanKey } })).not.toBeNull()
+  })
+
+  it('permits an inserted Asset beside an exact protected old row and still rejects old-row drift', async () => {
+    const f = await fixture(), existingAssetId = randomUUID(), incomingAssetId = randomUUID(), secondIncomingAssetId = randomUUID()
+    ;[existingAssetId, incomingAssetId, secondIncomingAssetId].forEach((id) => ids.add(id))
+    await db.asset.create({ data: {
+      id: existingAssetId,
+      kind: 'image',
+      url: 'https://images.example.test/existing.jpg',
+      author: 'Existing author',
+      licence: 'CC BY 4.0',
+      licenceUrl: 'https://creativecommons.org/licenses/by/4.0/',
+      sourceUrl: 'https://example.test/source/existing',
+      origin: 'commons',
+      caption: 'Existing reference',
+      position: 0,
+      taxonId: f.taxonId,
+      byteSize: 123,
+    } })
+    const snapshot = await snapshotCatalogueTarget(db)
+    const existingAsset = byId(snapshot, 'Asset', existingAssetId)
+    const assetScope = catalogueProtectionScope('Asset', [existingAsset], {
+      kind: 'keys', keys: [{ id: existingAssetId }],
+    })
+    const incomingAsset: CatalogueTargetRow = {
+      ...existingAsset,
+      id: incomingAssetId,
+      url: 'https://images.example.test/incoming.jpg',
+      sourceUrl: 'https://example.test/source/incoming',
+      caption: 'Incoming reference',
+    }
+    const mutations: PlannedCatalogueRowMutation[] = [
+      { phase: 'materialize', table: 'Asset', key: { id: incomingAssetId }, before: null, after: incomingAsset },
+    ]
+    const targetPlan = plan(snapshot, mutations, [], undefined, [assetScope])
+    const applyReceipt = receipt(targetPlan)
+
+    await applyCatalogueTargetPlan(db, { validated, plan: targetPlan, receipt: applyReceipt })
+    expect(await db.asset.findUniqueOrThrow({ where: { id: existingAssetId } })).toMatchObject({ author: 'Existing author' })
+    expect(await db.asset.findUniqueOrThrow({ where: { id: incomingAssetId } })).toMatchObject({ caption: 'Incoming reference' })
+    await recoverCatalogueTarget(db, { receipt: applyReceipt })
+    expect(await db.asset.findUnique({ where: { id: incomingAssetId } })).toBeNull()
+
+    await db.asset.update({ where: { id: existingAssetId }, data: { author: 'Changed after review' } })
+    const driftedSnapshot = await snapshotCatalogueTarget(db)
+    const secondIncoming = { ...incomingAsset, id: secondIncomingAssetId }
+    const driftPlan = plan(driftedSnapshot, [
+      { phase: 'materialize', table: 'Asset', key: { id: secondIncomingAssetId }, before: null, after: secondIncoming },
+    ], [], undefined, [assetScope])
+    await expect(applyCatalogueTargetPlan(db, {
+      validated, plan: driftPlan, receipt: receipt(driftPlan),
+    })).rejects.toThrow('protected scope')
+    expect(await db.asset.findUnique({ where: { id: secondIncomingAssetId } })).toBeNull()
+    expect(await db.asset.findUniqueOrThrow({ where: { id: existingAssetId } })).toMatchObject({ author: 'Changed after review' })
   })
 
   it('rejects recovery when a new Filter array, prose key, or ScanWork result references an inserted region', async () => {

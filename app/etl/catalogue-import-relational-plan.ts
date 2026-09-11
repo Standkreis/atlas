@@ -661,8 +661,10 @@ export function planCatalogueTarget(input: {
   const protectedScopes: CatalogueProtectionScope[] = CATALOGUE_PERSONAL_PROTECTION_TABLES.map((table) =>
     catalogueProtectionScope(table, targetRows(target, table)))
   protectedScopes.push(catalogueProtectionScope('CatalogueHabitatBatch', targetRows(target, 'CatalogueHabitatBatch')))
-  // Every old Asset, including sounds, personal media and out-of-union references, is immutable.
-  protectedScopes.push(catalogueProtectionScope('Asset', targetRows(target, 'Asset')))
+  // Every old Asset, including sounds, personal media and out-of-union references, is immutable;
+  // key the scope so reviewed new Asset insertions do not change the protected row cardinality.
+  const protectedAssets = keyedScope('Asset', targetRows(target, 'Asset'))
+  if (protectedAssets) protectedScopes.push(protectedAssets)
   const protectedCandidates: readonly CatalogueTargetTable[] = [
     'Region', 'Taxon', 'Plausibility', 'Lookalike', 'Filter', 'RegionRegistryVersion', 'CatalogueVersion',
     'RegionRegistrySource', 'RegionRegistryEntry', 'RegionRegistryAlias', 'RegionSourceUnit', 'RegionQueryUnit',
