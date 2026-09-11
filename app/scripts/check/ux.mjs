@@ -3,7 +3,8 @@
 // CHROME=/path/to/chrome supports Linux CI. No paid API calls or external messages.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { ownedDebugPort, stopOwnedProcess } from './owned-process.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { checkGermanyContrast } from './germany-contrast.mjs'
@@ -14,9 +15,8 @@ const fullCatalogue = process.env.UX_FULL_CATALOGUE === '1'
 const profile = mkdtempSync(join(tmpdir(), 'dex-ux-'))
 const evidenceDir = process.env.BROWSER_EVIDENCE_DIR
 if (evidenceDir) mkdirSync(evidenceDir, { recursive: true })
-const port = 9300 + Math.floor(Math.random() * 500)
 const chrome = process.env.CHROME ?? (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome')
-const proc = spawn(chrome, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
+const proc = spawn(chrome, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 let chromeFailure
 proc.on('error', (error) => { chromeFailure = error })
@@ -26,6 +26,7 @@ let offlineSwitchRegionId = null
 let offlineUnavailableRegionId = null
 let territoryFixture = null
 try {
+  const port = await ownedDebugPort(proc, profile)
   let target
   for (let i = 0; i < 200 && !target && !chromeFailure; i++) {
     target = await fetch(`http://127.0.0.1:${port}/json`).then((r) => r.json()).then((rows) => rows.find((r) => r.type === 'page')).catch(() => null)
@@ -80,6 +81,18 @@ try {
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: name, code: name, modifiers, ...native })
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: name, code: name, modifiers, ...native, text: undefined })
   }
+  const regionalProgress = async () => {
+    const expected = await evaluate(`(async () => {
+      const api=async(path,input)=>{const r=await fetch('/api/trpc/'+path+(input?'?input='+encodeURIComponent(JSON.stringify({json:input})):''));if(!r.ok)throw new Error(path+' '+r.status);return(await r.json()).result.data.json};
+      const me=await api('identity.me'),progress=await api('identity.progress');
+      const set=await api('dex.set',{regionId:me.region.id,tiles:['bird','mammal','amphibian','reptile','fish','insect','plant','fungus'],nowOnly:false});
+      const species=set.species.filter(t=>!progress.tiles.length||progress.tiles.includes(t.tile));
+      return {region:me.region.id,possible:species.length,seen:species.filter(t=>progress.seen.includes(t.taxonId)).length,studied:species.filter(t=>progress.studied.includes(t.taxonId)).length};
+    })()`)
+    await wait(`${selector('[data-testid=region-card][data-active]')}?.dataset.possible===${JSON.stringify(String(expected.possible))}`, 'local denominator follows selected region and groups')
+    const actual = await evaluate(`(() => {const d=${selector('[data-testid=region-card][data-active]')}.dataset;return {region:d.region,possible:+d.possible,seen:+d.seen,studied:+d.studied}})()`)
+    assert.deepEqual(actual, expected, 'local progress intersects the selected region; national membership is independent')
+  }
   const actionFits = async (testId) => {
     for (const [width, height, mobile] of [[320, 568, true], [390, 844, true], [1440, 900, false]]) {
       await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile })
@@ -94,6 +107,7 @@ try {
   }
   await send('Page.enable')
   await send('Network.enable')
+  if (process.env.BROWSER_JOURNEY_ID) await send('Network.setCookie', { name: 'dex_id', value: process.env.BROWSER_JOURNEY_ID, url: base, httpOnly: true, sameSite: 'Lax' })
   await send('Fetch.enable', { patterns: [{ urlPattern: 'https://atlas-fixture.invalid/*' }] })
   await send('Browser.setPermission', { permission: { name: 'geolocation' }, setting: 'denied', origin: base })
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `
@@ -304,7 +318,7 @@ try {
     await wait(`!${selector('[data-testid=region-add]')}.disabled`, 'Südwestpfalz add settles')
     await sleep(300)
     assert.equal(externalMediaRequestCount(), imagesBeforeSouthWest, 'adding a saved region starts no image fetch or render')
-    assert.equal(await evaluate(`(async () => !(await caches.has('dex-pack-${offlineSwitchRegionId}')) && localStorage.getItem('dex.offline.ready.${offlineSwitchRegionId}') === null)()`), true, 'adding a saved region creates no offline pack')
+    assert.equal(await evaluate(`(async () => !(await caches.keys()).some(name => name.startsWith('dex-pack-')) && !Object.keys(localStorage).some(name => name.startsWith('dex.offline.ready.')))()`), true, 'adding a saved region creates no legacy or versioned offline pack')
     await click(`[data-testid=region-row][data-region="${offlineSwitchRegionId}"] [data-testid=region-pick]`)
     await wait(`!${selector('[data-testid=region-sheet]')}`, 'switch closes region management')
     await click('[data-testid=tab-dex]')
@@ -343,7 +357,7 @@ try {
     await wait(`!${selector('[data-testid=region-add]')}.disabled`, 'Hamburg retry settles')
     await sleep(300)
     assert.equal(externalMediaRequestCount(), imagesBeforeHamburg, 'adding an uncached region starts no image fetch or render')
-    assert.equal(await evaluate(`(async () => !(await caches.has('dex-pack-${offlineUnavailableRegionId}')) && localStorage.getItem('dex.offline.ready.${offlineUnavailableRegionId}') === null)()`), true, 'adding an uncached region creates no offline pack')
+    assert.equal(await evaluate(`(async () => !(await caches.keys()).some(name => name.startsWith('dex-pack-')) && !Object.keys(localStorage).some(name => name.startsWith('dex.offline.ready.')))()`), true, 'adding an uncached region creates no legacy or versioned offline pack')
     await click(`[data-testid=region-row][data-region="${initialRegionId}"] [data-testid=region-remove]`)
     await wait(`document.querySelectorAll('[data-testid=region-row]').length === 3`, 'inactive Mainz-Bingen is removed')
     assert.equal(await evaluate(`${selector('[data-testid=region-row][data-active] [data-testid=region-remove]')}.disabled`), true, 'active region remains protected with multiple saved regions')
@@ -367,7 +381,18 @@ try {
   await wait(selector('[data-testid=empty]'), 'successful empty journal after retry')
   await click('[data-testid=tab-dex]')
   await wait(selector('[data-testid=grid] a'))
-  await click('[data-testid=grid] a')
+  const progressSpeciesUrl = await evaluate(`(() => {
+    const queries=JSON.parse(localStorage.getItem('dex.queries')).json.clientState.queries;
+    for(const row of queries.flatMap(q=>q.state.data?.species??[])) {
+      const link=document.querySelector('[data-testid=grid] [data-taxon="'+row.taxonId+'"] a');
+      if(row.tile==='bird'&&link)return link.href;
+    }
+    return null;
+  })()`)
+  assert.ok(progressSpeciesUrl, 'a visible catalogue bird supports a genuine captive-exclusion sample')
+  await evaluate(`[...document.querySelectorAll('[data-testid=grid] a')].find(a=>a.href===${JSON.stringify(progressSpeciesUrl)}).click()`)
+  await click('[data-testid=study]')
+  await wait(`${selector('[data-testid=study]')}.getAttribute('aria-pressed') === 'true'`, 'study is saved without location')
   await click('[data-testid=log]')
   await click('[data-testid=wildness-wild]')
   await click('[data-testid=save-submit]')
@@ -382,6 +407,9 @@ try {
   const journalName = await evaluate(`${selector('[data-testid=row]')}.textContent.trim()`)
   await click('[data-testid=tab-you]')
   await wait(`${selector('[data-testid=germany-discovered] dd')}?.textContent.trim() === '1'`, 'national discovery refreshes on Profile mount')
+  await wait(`${selector('[data-testid=germany-studied] dd')}?.textContent.trim() === '1'`, 'location-independent study contributes nationally')
+  const nationalDenominator = await evaluate(`${selector('[data-testid=germany-denominator]')}.textContent`)
+  await regionalProgress()
   assert.notEqual(await evaluate(`${selector('[data-testid=germany-sightings] dd')}.textContent.trim()`), '1', 'observation without confirmed German land containment is not a German sighting')
   await click('[data-testid=tab-journal]')
   await wait(selector('[data-testid=row][data-kind=sighting]'))
@@ -418,6 +446,7 @@ try {
   await wait(`${selector('[data-testid=germany-progress]')}?.dataset.state === 'ready'`, 'Germany progress opens from persisted data offline')
   await wait(`!!${selector('[data-testid=germany-offline]')}`, 'cached national result is qualified as offline')
   assert.equal(await evaluate(`${selector('[data-testid=germany-discovered] dd')}.textContent.trim()`), '1', 'location-independent discovery refreshes and persists')
+  assert.equal(await evaluate(`${selector('[data-testid=germany-studied] dd')}.textContent.trim()`), '1', 'study survives offline reload')
   assert.notEqual(await evaluate(`${selector('[data-testid=germany-sightings] dd')}.textContent.trim()`), '1', 'unconfirmed German land containment does not become a German sighting')
   await wait(selector('[data-testid=display-name]'), 'profile opens from the shell offline')
   await click('[data-testid=change-region]')
@@ -449,6 +478,38 @@ try {
     // Dispatch the event explicitly so this deterministic check exercises RegionReplay's real reconnect path.
     await evaluate(`window.dispatchEvent(new Event('online'))`)
     await wait(`localStorage.getItem('dex.region.pending') === null`, 'online replay acknowledges and clears the pending region intent')
+    await send('Network.setBlockedURLs', { urls: ['*sighting.place*', '*api.gbif.org/*', `${base}/api/tiles/*`] })
+    await send('Browser.setPermission', { permission: { name: 'geolocation' }, setting: 'granted', origin: base })
+    // Keep the same catalogue taxon: territorial counts depend on coordinates/wildness,
+    // while the discovered/studied membership stays one across regional switches.
+    for (const sample of [
+      { latitude: 49.992, longitude: 8.247, wildness: 'wild', german: '1' },
+      { latitude: 48.8566, longitude: 2.3522, wildness: 'wild', german: '1' },
+      { latitude: 49.992, longitude: 8.247, wildness: 'kept', german: '1' },
+    ]) {
+      await send('Emulation.setGeolocationOverride', { latitude: sample.latitude, longitude: sample.longitude, accuracy: 10 })
+      await send('Page.navigate', { url: progressSpeciesUrl })
+      await click('[data-testid=log]')
+      await wait(`${selector('[data-testid=save-where]')} && !${selector('[data-testid=save-locate]')} && !${selector('[data-testid=save-denied]')}`, 'deterministic location granted')
+      await click(`[data-testid=wildness-${sample.wildness}]`)
+      await click('[data-testid=save-submit]')
+      await wait(`!${selector('[data-testid=log-save]')}`, 'repeat sighting accepted')
+      const acknowledgedId = await evaluate(`new URL(location.href).searchParams.get('again')`)
+      assert.ok(acknowledgedId, 'repeat sighting has a stable result ID')
+      const readSighting = `fetch('/api/trpc/journal.get?input='+encodeURIComponent(JSON.stringify({json:{id:${JSON.stringify(acknowledgedId)}}}))).then(r=>r.json()).then(r=>r.result?.data?.json)`
+      await wait(readSighting, 'server acknowledges this exact sighting')
+      const actualSighting = await evaluate(`(${readSighting}).then(s=>({lat:s.lat,lng:s.lng,wildness:s.wildness}))`)
+      assert.deepEqual(actualSighting, { lat: sample.latitude, lng: sample.longitude, wildness: sample.wildness === 'kept' ? 'captive' : 'wild' }, 'acknowledged point and wildness match the intended sample')
+      await send('Page.navigate', { url: `${base}/${locale}/you` })
+      await wait(`${selector('[data-testid=germany-sightings] dd')}?.textContent.trim() === ${JSON.stringify(sample.german)}`, 'only German wild land observations count territorially')
+      assert.equal(await evaluate(`${selector('[data-testid=germany-discovered] dd')}.textContent.trim()`), '1')
+      assert.equal(await evaluate(`${selector('[data-testid=germany-studied] dd')}.textContent.trim()`), '1')
+      assert.equal(await evaluate(`${selector('[data-testid=germany-denominator]')}.textContent`), nationalDenominator)
+      assert.equal(await evaluate(`${selector('[data-testid=germany-regions] dd')}.textContent.trim()`), '1', 'only one German land region was visited')
+      await regionalProgress()
+    }
+    await send('Emulation.clearGeolocationOverride')
+    console.log('UX: positive study/discovery, Germany land, outside-Germany and captive exclusion passed after region switch')
   } else {
     await click('[data-testid=region-add]')
     await wait(selector('[data-testid=region-picker-panel]'))
@@ -457,7 +518,5 @@ try {
   console.log(JSON.stringify({ locale, viewport: '390x844 + 1280x900', onboarding: 'pass', dialogs: 'pass', regionManagement: 'pass', radioKeyboard: 'pass', navigation: 'pass', germanyProgress: 'pass', journalError: 'pass', manualSave: 'pass', offlineReload: 'pass', species: cellCount, workerSessions: workers.length }))
 } finally {
   ws?.close()
-  proc.kill()
-  await new Promise((resolve) => { if (proc.exitCode !== null) resolve(); else { proc.once('exit', resolve); setTimeout(resolve, 2000) } })
-  rmSync(profile, { recursive: true, force: true })
+  await stopOwnedProcess(proc, profile)
 }

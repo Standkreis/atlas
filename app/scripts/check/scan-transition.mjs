@@ -2,11 +2,13 @@
 // intercepts every upload/identify attempt locally, and never reaches a model or media provider.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { ownedDebugPort, stopOwnedProcess } from './owned-process.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const [base = 'http://localhost:3002', locale = 'en', identityId = '00000000-0000-4000-8000-000000000001'] = process.argv.slice(2)
+const [base = 'http://localhost:3002', locale = 'en', identityId = process.env.BROWSER_IDENTITY_ID] = process.argv.slice(2)
+if (!identityId) throw new Error('Run through browser.mjs to create an owned scan identity')
 if (!['en', 'de'].includes(locale) || !['localhost', '127.0.0.1'].includes(new URL(base).hostname)) throw new Error('Queued-scan checks require en/de and a localhost server')
 const expected = locale === 'de'
   ? { region: 'Dieses Foto wartet für eine nicht mehr verfügbare Region.', maintenance: 'Der Atlas wird gerade aktualisiert · die Bestimmung wird wiederholt' }
@@ -14,9 +16,8 @@ const expected = locale === 'de'
 const evidenceDir = process.env.BROWSER_EVIDENCE_DIR
 if (evidenceDir) mkdirSync(evidenceDir, { recursive: true })
 const profile = mkdtempSync(join(tmpdir(), 'dex-scan-transition-'))
-const port = 9700 + Math.floor(Math.random() * 180)
 const executable = process.env.CHROME ?? (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome')
-const chrome = spawn(executable, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
+const chrome = spawn(executable, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
 const photoId = '00000000-0062-4000-8000-000000000001'
 const scanId = '00000000-0062-4000-8000-000000000002'
 const retiredRegionId = '00000000-0062-4000-8000-000000000003'
@@ -26,6 +27,7 @@ let ws
 let uploadMaintenance = 0
 let identifyRequests = 0
 try {
+  const port = await ownedDebugPort(chrome, profile)
   let target
   for (let i = 0; i < 200 && !target; i++) {
     target = await fetch(`http://127.0.0.1:${port}/json`).then(response => response.json()).then(rows => rows.find(row => row.type === 'page')).catch(() => null)
@@ -148,7 +150,5 @@ try {
   console.log(JSON.stringify(result))
 } finally {
   ws?.close()
-  chrome.kill('SIGTERM')
-  await sleep(500)
-  rmSync(profile, { recursive: true, force: true })
+  await stopOwnedProcess(chrome, profile)
 }

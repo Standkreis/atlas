@@ -2,7 +2,8 @@
 // fulfilled by CDP, so this test observes outbound payloads without contacting Vercel.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
+import { ownedDebugPort, stopOwnedProcess } from './owned-process.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -14,12 +15,12 @@ const expectDisabled = process.env.ANALYTICS_EXPECT_DISABLED === '1'
 const sightingId = '00000000-0000-4000-8200-000000000000'
 const encodedSightingId = '%300000000-0000-4000-8200-000000000000'
 const secondSightingId = '10000000-0000-4000-8200-000000000000'
-const identityId = '00000000-0000-4000-8000-000000000001'
+const identityId = process.env.BROWSER_IDENTITY_ID
+if (!identityId) throw new Error('Run through browser.mjs to create an owned analytics identity')
 const forbidden = [sightingId, encodedSightingId, secondSightingId, '%65n', identityId, 'secret-query', 'private-fragment', 'Private fixture note', '49.992', '8.247']
 const profile = mkdtempSync(join(tmpdir(), 'dex-analytics-'))
-const port = 9800 + Math.floor(Math.random() * 500)
 const executable = process.env.CHROME ?? (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome')
-const chrome = spawn(executable, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
+const chrome = spawn(executable, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const mockScript = `(() => {
@@ -47,6 +48,7 @@ const mockScript = `(() => {
 
 let websocket
 try {
+  const port = await ownedDebugPort(chrome, profile)
   let page
   for (let i = 0; i < 200 && !page; i++) {
     page = await fetch(`http://127.0.0.1:${port}/json`).then((response) => response.json()).then((rows) => rows.find((row) => row.type === 'page')).catch(() => null)
@@ -117,6 +119,9 @@ try {
 
   await send('Page.enable')
   await send('Network.enable')
+  // This audit intercepts page transport; worker-owned media requests belong to the
+  // separate offline gate and would otherwise bypass this interceptor on full data.
+  await send('Network.setBypassServiceWorker', { bypass: true })
   await send('Fetch.enable', { patterns: [
     { urlPattern: 'http://*/*' },
     { urlPattern: 'https://*/*' },
@@ -180,7 +185,7 @@ try {
     const unexpectedOrigins = [...new Set(requests
       .filter((url) => /^https?:/.test(url) && !url.startsWith(base) && !url.startsWith('https://atlas-fixture.invalid/'))
       .map((url) => new URL(url).origin))]
-    assert.ok(unexpectedOrigins.every((origin) => blockedThirdParty.has(origin)), 'every incidental third-party asset request is blocked before network access')
+    assert.ok(unexpectedOrigins.every((origin) => blockedThirdParty.has(origin)), `every incidental third-party asset request is blocked before network access: ${unexpectedOrigins.filter(origin => !blockedThirdParty.has(origin)).join(', ')}`)
 
     const emittedBeforeUnsafeReferrer = payloads.length
     await send('Page.navigate', {
@@ -198,7 +203,5 @@ try {
   }
 } finally {
   if (websocket?.readyState === WebSocket.OPEN) websocket.close()
-  chrome.kill('SIGTERM')
-  await new Promise((resolve) => { if (chrome.exitCode !== null) resolve(); else chrome.once('exit', resolve) })
-  rmSync(profile, { recursive: true, force: true })
+  await stopOwnedProcess(chrome, profile)
 }

@@ -1,7 +1,8 @@
 // Production-browser coverage for issue #38. The four gallery shapes are inserted only into the guarded disposable
 // dex_check_* database, and synthetic image responses keep the check independent of upstream hosts and API budgets.
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { ownedDebugPort, stopOwnedProcess } from './owned-process.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pg from 'pg'
@@ -19,9 +20,11 @@ const assetId = (count, position) => `00000000-0038-4001-${String(count).padStar
 const client = new pg.Client({ connectionString: database.toString() })
 await client.connect()
 try {
+  await client.query('BEGIN')
   for (const [shape, key] of Object.entries(keys)) {
     const count = shape === 'zero' ? 0 : shape === 'one' ? 1 : shape === 'two' ? 2 : 12
-    await client.query('DELETE FROM "Taxon" WHERE "id" = $1 OR "gbifKey" = $2', [taxonId(count), key])
+    const { rows } = await client.query('SELECT id FROM "Taxon" WHERE "id" = $1 OR "gbifKey" = $2', [taxonId(count), key])
+    assert.equal(rows.length, 0, 'reserved gallery identity must be absent; never overwrite existing rows')
     await client.query(`INSERT INTO "Taxon" ("id", "gbifKey", "sciName", "commonNames", "rank", "tile", "updatedAt")
       VALUES ($1, $2, $3, $4::jsonb, 'species', 'bird', now())
       ON CONFLICT ("gbifKey") DO UPDATE SET "sciName" = excluded."sciName", "commonNames" = excluded."commonNames"`,
@@ -34,17 +37,19 @@ try {
       [assetId(count, position), position, `https://gallery.test/${broken ? 'broken' : `${count}-${position + 1}`}.svg`, `Gallery author ${count}-${position + 1}`, `https://gallery.test/source/${count}-${position + 1}`, `Gallery image ${position + 1}`, taxonId(count)])
     }
   }
-} finally { await client.end() }
+  await client.query('COMMIT')
+} catch (error) { await client.query('ROLLBACK'); throw error }
+finally { await client.end() }
 
 const profile = mkdtempSync(join(tmpdir(), 'dex-gallery-'))
 const evidence = process.env.GALLERY_EVIDENCE_DIR || ''
 if (evidence) mkdirSync(evidence, { recursive: true })
-const port = 9900 + Math.floor(Math.random() * 80)
 const chrome = process.env.CHROME ?? (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome')
-const proc = (await import('node:child_process')).spawn(chrome, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
+const proc = (await import('node:child_process')).spawn(chrome, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 let ws
 try {
+  const port = await ownedDebugPort(proc, profile)
   let target
   for (let i = 0; i < 200 && !target; i++) {
     target = await fetch(`http://127.0.0.1:${port}/json`).then((response) => response.json()).then((rows) => rows.find((row) => row.type === 'page')).catch(() => null)
@@ -105,6 +110,7 @@ try {
   }
 
   await call('Page.enable')
+  if (process.env.BROWSER_JOURNEY_ID) await call('Network.setCookie', { name: 'dex_id', value: process.env.BROWSER_JOURNEY_ID, url: base, httpOnly: true, sameSite: 'Lax' })
   await call('Fetch.enable', { patterns: [{ urlPattern: 'https://gallery.test/*', requestStage: 'Request' }] })
   await call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] })
   await call('Emulation.setDeviceMetricsOverride', { width: 360, height: 800, deviceScaleFactor: 1, mobile: true })
@@ -157,7 +163,11 @@ try {
   console.log(JSON.stringify({ gallery: 'pass', states: [0, 1, 2, 12], phone: '360x800', desktop: '1440x900', keyboard: ['ArrowLeft', 'ArrowRight', 'Home', 'End'], brokenNonLead: 'isolated', activeAttribution: 'pass', eagerLeadLazyRest: 'pass' }))
 } finally {
   ws?.close()
-  proc.kill('SIGTERM')
-  await sleep(300)
-  rmSync(profile, { recursive: true, force: true })
+  await stopOwnedProcess(proc, profile)
+  const cleanup = new pg.Client({ connectionString: database.href })
+  try {
+    await cleanup.connect()
+    await cleanup.query('DELETE FROM "Taxon" WHERE id = ANY($1::text[])', [[0, 1, 2, 12].map(taxonId)])
+  } catch (error) { console.error('Gallery fixture cleanup failed:', error); process.exitCode = 1 }
+  finally { await cleanup.end() }
 }
