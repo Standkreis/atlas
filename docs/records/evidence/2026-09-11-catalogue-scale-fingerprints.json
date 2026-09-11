@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "issue": 94,
+  "sourceDumpSha256": "3b78b3ed27f1bed14b2700c92c605f6216ef543a2a3d4915823256b35f47b44b",
+  "targetFingerprint": "c243118fc884e513cc0e761700b5c9ff433b3ba5c3747d10784cc0333262f45d",
+  "previousComparatorEqual": true,
+  "beforeAfterMigrationEqual": true,
+  "tables": [
+    {
+      "table": "Identity",
+      "count": 85,
+      "fingerprint": "131791eb25fed0b76764813e7e21b69c74e4cd46106388728a8d7d6896aaee56"
+    },
+    {
+      "table": "EmailCode",
+      "count": 0,
+      "fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "Passkey",
+      "count": 0,
+      "fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "Filter",
+      "count": 8,
+      "fingerprint": "7ad6a1bb4609ca29118547357e30850e96dcd5304409a35fb679a8678b2f4f94"
+    },
+    {
+      "table": "Region",
+      "count": 363,
+      "fingerprint": "04ec3f9c6d19c1a66bab61e2633d6c7df5e2c5c9d1b1314faa2469ee1766ee3c"
+    },
+    {
+      "table": "RegionRegistryVersion",
+      "count": 1,
+      "fingerprint": "674fe615b7409e4d15e12def5d5bab649c634d00117d3a8a2c9cabd6eb2d0537"
+    },
+    {
+      "table": "RegionRegistrySource",
+      "count": 3,
+      "fingerprint": "4adf0f4b4194273f188e94c63946bcc9de27e39073309c559681e97b9e830f2e"
+    },
+    {
+      "table": "RegionRegistryEntry",
+      "count": 362,
+      "fingerprint": "dfd70011e4067fe230acfdd405b93280e5ea32e154a8fb159c6c9ae8d2095105"
+    },
+    {
+      "table": "RegionRegistryAlias",
+      "count": 1637,
+      "fingerprint": "840a2d334ddcce5d903fe2e115948f1a7a053276f063cfff383725d183ef82a6"
+    },
+    {
+      "table": "RegionSourceUnit",
+      "count": 400,
+      "fingerprint": "d0c3279cb56db054da42b29c67f8945db9cdb54b632d544d7170791a31bf888d"
+    },
+    {
+      "table": "RegionQueryUnit",
+      "count": 402,
+      "fingerprint": "543441dfd0ba7997e6540d2a6521184b278074bd6a0b29dc7b59a22f8ae482d4"
+    },
+    {
+      "table": "CatalogueVersion",
+      "count": 1,
+      "fingerprint": "323a22a28fd33e4778799808c13a5857dbebddb4ef90764334ffa38c2b29fee5"
+    },
+    {
+      "table": "CatalogueRegionBuild",
+      "count": 362,
+      "fingerprint": "93bccf7754779b7d78a82c0a360169f01bb5cadd3473e91eea31a86dbfcd0dba"
+    },
+    {
+      "table": "CataloguePlausibility",
+      "count": 214321,
+      "fingerprint": "47723c078338e6d4fa0b5dde602c362ef701a2b6418b03e51c3aea4a3869bcc2"
+    },
+    {
+      "table": "CatalogueLookalike",
+      "count": 151680,
+      "fingerprint": "c63b5f95701da8c4c66a2e586ca3944746cda3adf1cc354db2726dd7cecc29da"
+    },
+    {
+      "table": "CatalogueTaxon",
+      "count": 6874,
+      "fingerprint": "d59f9e843dd5d462771bdaf459ef65f270739458f0c3e9204d63f23362d6073a"
+    },
+    {
+      "table": "CatalogueTaxonomyResolution",
+      "count": 34739,
+      "fingerprint": "5e38dbcaba5bb4d82f1106164f8502e477edd3b3d1d7819fb325f83f7aed662f"
+    },
+    {
+      "table": "CatalogueHabitatBatch",
+      "count": 0,
+      "fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "TaxonEnrichmentWork",
+      "count": 13748,
+      "fingerprint": "375a7345704ebc85aa33ecdb7c5a1c17cae578761e6341a4138ff44bc49d53a1"
+    },
+    {
+      "table": "Taxon",
+      "count": 27467,
+      "fingerprint": "34a57a99f700518bd7fe9e4dbe991901ec4c41171d98694fee092b58eea95cac"
+    },
+    {
+      "table": "Plausibility",
+      "count": 214321,
+      "fingerprint": "21af27cc0cd60519cb429e37e36bc25fe730d1f533febc6cfbe682dececd3044"
+    },
+    {
+      "table": "Lookalike",
+      "count": 151680,
+      "fingerprint": "0a8ddc3352659f7c0f5b8b8b670e08d01e99a1d8c96950072900210e93e9e305"
+    },
+    {
+      "table": "Interaction",
+      "count": 186658,
+      "fingerprint": "aa7266e5faff8ab55ff9e70395b24a40548b2471692ec1b59faa166b15210ec0"
+    },
+    {
+      "table": "Asset",
+      "count": 36883,
+      "fingerprint": "4eda0ae10ca2fdc2f4841e3921eafecdc7a590885ce11e9f98f35280273591c9"
+    },
+    {
+      "table": "ReferenceAssetVisibility",
+      "count": 36651,
+      "fingerprint": "3a0c22fe21c21efa4307eeb5f0657e7868d055ac8cbdedd40562afb550d792ab"
+    },
+    {
+      "table": "ReferenceGalleryReceipt",
+      "count": 6874,
+      "fingerprint": "d2461745c5ff2103e4fa2e7ddacb53ffd0643ca63f97374b518cf9d85d2bfc1d"
+    },
+    {
+      "table": "Sighting",
+      "count": 29,
+      "fingerprint": "12a191edb075e43faf7cc5d1d8ba2d5749c275293b59bc112795f2809c8469fd"
+    },
+    {
+      "table": "Study",
+      "count": 11,
+      "fingerprint": "c3a521dd46b4b560e878b741df6dd5e7908bcc0618c40648231819b6ae632079"
+    },
+    {
+      "table": "QuotaBucket",
+      "count": 17,
+      "fingerprint": "eec45972e07d1f6e1effdaf7a1fc0fc52ca1c098488b74fdfe3df505435a7660"
+    },
+    {
+      "table": "ScanWork",
+      "count": 4,
+      "fingerprint": "b6283107c71b396c663d298ff1e75fd9cc148eb86680c7ed5f630d6a63b84b5a"
+    },
+    {
+      "table": "PhotoDeletion",
+      "count": 0,
+      "fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  ]
+}

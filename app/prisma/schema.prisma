@@ -578,6 +578,8 @@ model Lookalike {
   siblingId String
 
   @@id([taxonId, regionId, siblingId])
+  @@index([regionId])
+  @@index([siblingId])
 }
 
 enum InteractionKind {
@@ -607,6 +609,7 @@ model Interaction {
   prose    Boolean         @default(true)
 
   @@unique([sourceId, targetId, kind])
+  @@index([targetId])
 }
 
 enum AssetKind {

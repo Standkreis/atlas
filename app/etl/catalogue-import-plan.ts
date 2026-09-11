@@ -176,9 +176,14 @@ export function catalogueMutationKey(table: CatalogueTargetTable, row: Catalogue
 }
 
 export function canonicalCatalogueTargetRows(table: CatalogueTargetTable | string, rows: readonly CatalogueTargetRow[]) {
+  if (rows.length < 2) return [...rows]
   const fields = CATALOGUE_TARGET_PRIMARY_KEYS[table as CatalogueTargetTable]
   const key = (row: CatalogueTargetRow) => fields ? canonicalContent(Object.fromEntries(fields.map((field) => [field, row[field]]))) : canonicalContent(row)
-  return [...rows].sort((left, right) => key(left).localeCompare(key(right)))
+  // Full snapshots contain hundreds of thousands of rows. Keep the evidence ordering exactly,
+  // but construct each canonical key once instead of repeating that work in every comparison.
+  return rows.map((row) => ({ row, key: key(row) }))
+    .sort((left, right) => left.key.localeCompare(right.key))
+    .map(({ row }) => row)
 }
 
 export const catalogueTargetRowsFingerprint = (table: CatalogueTargetTable | string, rows: readonly CatalogueTargetRow[]) =>
