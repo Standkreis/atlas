@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { checkGermanyContrast } from './germany-contrast.mjs'
 
 const [base = 'http://localhost:3002', locale = 'en'] = process.argv.slice(2)
 if (!['localhost', '127.0.0.1'].includes(new URL(base).hostname)) throw new Error('Run UX checks against a local disposable server only')
@@ -23,6 +24,7 @@ proc.on('exit', (code, signal) => { if (!chromeFailure) chromeFailure = new Erro
 let ws
 let offlineSwitchRegionId = null
 let offlineUnavailableRegionId = null
+let territoryFixture = null
 try {
   let target
   for (let i = 0; i < 200 && !target && !chromeFailure; i++) {
@@ -38,7 +40,20 @@ try {
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data), task = pending.get(data.id)
     if (data.method === 'Network.requestWillBeSent') requests.push({ url: data.params.request.url, type: data.params.type })
-    if (data.method === 'Fetch.requestPaused') {
+    if (data.method === 'Fetch.requestPaused' && data.params.request.url.includes('identity.germanyProgress')) {
+      // Exercise zero and null-data rendering without editing the disposable catalogue or
+      // changing text in the DOM. All other responses remain the real local server response.
+      void (async () => {
+        if (territoryFixture === null) return send('Fetch.continueResponse', { requestId: data.params.requestId })
+        const response = await send('Fetch.getResponseBody', { requestId: data.params.requestId })
+        const body = JSON.parse(response.base64Encoded ? Buffer.from(response.body, 'base64').toString() : response.body)
+        for (const entry of Array.isArray(body) ? body : [body]) {
+          const progress = entry.result?.data?.json
+          if (progress?.countryCode === 'DE' && progress.catalogue) progress.territory = territoryFixture === 'unavailable' ? null : { regions: 362, germanSightings: 0, visitedRegions: 0 }
+        }
+        await send('Fetch.fulfillRequest', { requestId: data.params.requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }], body: Buffer.from(JSON.stringify(body)).toString('base64') })
+      })().catch(error => { console.error(error); proc.kill('SIGTERM') })
+    } else if (data.method === 'Fetch.requestPaused') {
       // Validated reference metadata points at this reserved test host. Serve local fixture bytes;
       // the browser never contacts an upstream image API during the regression check.
       const body = readFileSync(new URL('../../public/onboarding/bird.webp', import.meta.url)).toString('base64')
@@ -208,6 +223,10 @@ try {
   assert.equal(await evaluate(`${selector('[data-testid=germany-studied] dd')}.textContent.trim()`), '0', 'studied is separately labelled')
   assert.match(await evaluate(`${selector('[data-testid=germany-denominator]')}.textContent`), locale === 'de' ? /Arten in deutschen Regionalatlanten/ : /species in German regional atlases/, 'denominator is qualified')
   assert.equal(requests.some(({ url }) => /taxon\.page|sighting\.photos|gallery|asset/i.test(url)), false, 'summary requests no gallery or image payload')
+  await checkGermanyContrast({ send, evaluate, wait, evidenceDir, locale, setTerritoryFixture: async (value) => {
+    territoryFixture = value
+    await send('Fetch.enable', { patterns: [{ urlPattern: 'https://atlas-fixture.invalid/*' }, { urlPattern: '*identity.germanyProgress*', requestStage: 'Response' }] })
+  } })
   for (const [width, height, mobile] of [[320, 568, true], [390, 844, true], [1280, 900, false]]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile })
     assert.equal(await evaluate(`document.documentElement.scrollWidth <= innerWidth && ${selector('[data-testid=germany-progress]')}.getBoundingClientRect().width <= Math.min(innerWidth, 520)`), true, `Profile stays bounded at ${width}x${height}`)
