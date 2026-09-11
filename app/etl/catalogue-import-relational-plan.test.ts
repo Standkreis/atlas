@@ -73,7 +73,7 @@ function work(taxonId: string, kind: string, version: string): CatalogueTargetRo
 function validatedSource(overrides: Partial<Record<string, readonly CatalogueTargetRow[]>> = {}): ValidatedCatalogueImport {
   const source: Record<string, readonly CatalogueTargetRow[]> = {
     Region: [region({ prose: undefined })],
-    RegionRegistryVersion: [registry({ habitatRulesVersion: undefined, habitatSource: undefined })],
+    RegionRegistryVersion: [registry({ activatedAt: at, habitatRulesVersion: undefined, habitatSource: undefined })],
     RegionRegistrySource: [{
       id: 'registry-source', registryVersionId: 'registry-new', role: 'regions', name: 'Official', url: 'https://example.test/source',
       topicDate: '2026-01-01', downloadedAt: at, sha256: 'b'.repeat(64), licenceId: 'dl-de/by-2-0',
@@ -97,7 +97,7 @@ function validatedSource(overrides: Partial<Record<string, readonly CatalogueTar
       taxon({ prose: { version: 1, regions: { [sourceRegionId]: { marker: 'source' }, 'foreign-source': { marker: 'foreign' } } } }),
       taxon({ id: sourceTaxonB, gbifKey: 2, wikidataId: 'Q2', sciName: 'Second source', commonNames: { de: 'Zweite' }, genus: 'Source', prose: null }),
     ],
-    CatalogueVersion: [catalogue({ habitatRulesVersion: undefined, habitatSource: undefined })],
+    CatalogueVersion: [catalogue({ activatedAt: at, habitatRulesVersion: undefined, habitatSource: undefined })],
     CatalogueRegionBuild: [build({ habitatSummary: undefined })],
     CataloguePlausibility: [
       { id: 'source-p-a', regionBuildId: 'build-mainz', taxonId: sourceTaxonA, obs: 10, monthShare: [10], peak: 1, words: 'source a' },
@@ -187,7 +187,7 @@ describe('planCatalogueTarget', () => {
   it('maps the complete source graph, preserves rich target content and publishes only the reviewed live scope', () => {
     const source = validatedSource()
     const target = targetSnapshot()
-    const plan = planCatalogueTarget({ source, target, gallery })
+    const plan = planCatalogueTarget({ source, target, gallery, activationAt: later })
 
     expect(plan.mappings.regionIdBySourceId.get(sourceRegionId)).toBe(targetRegionId)
     expect(plan.mappings.taxonIdBySourceId.get(sourceTaxonA)).toBe(targetTaxonA)
@@ -198,7 +198,7 @@ describe('planCatalogueTarget', () => {
       id: targetTaxonA, gbifKey: 1, wikidataId: 'Q1', sciName: 'Source species', rank: 'species', tile: 'bird',
       class: 'Aves', order: 'Passeriformes', genus: 'Source', iucn: 'LC', tags: ['rich'], intro: { target: true },
       facts: { target: true }, commonNames: { de: 'Zielname', en: 'Target name', fr: 'Source' },
-      updatedAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00',
       prose: { version: 1, regions: {
         [targetRegionId]: { marker: 'target' }, [schagenId]: { marker: 'retained retired prose' },
         'foreign-source': { marker: 'foreign' }, 'foreign-target': { marker: 'keep' },
@@ -218,10 +218,12 @@ describe('planCatalogueTarget', () => {
 
     expect(mutation(plan, 'Filter', 'publish')[0]!.after).toEqual({
       id: 'filter', identityId: 'person', regionId: targetRegionId, regionIds: [targetRegionId],
-      tiles: ['bird'], nowOnly: true, updatedAt: at,
+      tiles: ['bird'], nowOnly: true, updatedAt: '2026-09-10T12:00:00',
     })
     expect(mutation(plan, 'RegionRegistryVersion', 'materialize')[0]!.after).toMatchObject({ id: 'registry-new', active: false, activatedAt: null })
     expect(mutation(plan, 'CatalogueVersion', 'materialize')[0]!.after).toMatchObject({ id: 'catalogue-new', status: 'audited', activatedAt: null, habitatRulesVersion: 0, habitatSource: null })
+    expect(mutation(plan, 'RegionRegistryVersion', 'publish').find((row) => row.key.id === 'registry-new')!.after?.activatedAt).toBe('2026-09-11T12:00:00')
+    expect(mutation(plan, 'CatalogueVersion', 'publish').find((row) => row.key.id === 'catalogue-new')!.after?.activatedAt).toBe('2026-09-11T12:00:00')
     expect(mutation(plan, 'CatalogueVersion', 'publish').find((row) => row.key.id === 'catalogue-old')!.after?.status).toBe('retired')
     expect(mutation(plan, 'ReferenceGalleryReceipt')).toHaveLength(2)
 
@@ -236,7 +238,7 @@ describe('planCatalogueTarget', () => {
     expect(Object.isFrozen(plan.mutations)).toBe(true)
     expect(Object.isFrozen(target.tables.get('Taxon')![0])).toBe(false)
 
-    const again = planCatalogueTarget({ source, target, gallery })
+    const again = planCatalogueTarget({ source, target, gallery, activationAt: later })
     expect(again.fingerprint).toBe(plan.fingerprint)
     expect(contentDigest(again.mutations)).toBe(contentDigest(plan.mutations))
     expect(createCatalogueApplyReceipt({ operationId: 'fixture', plan, validated: source, createdAt: later }).planFingerprint).toBe(plan.fingerprint)
@@ -247,31 +249,55 @@ describe('planCatalogueTarget', () => {
       taxon({ id: targetTaxonA, gbifKey: 1, wikidataId: 'Q1', sciName: 'old classification', prose: { version: 2, body: 'owner-rich' } }),
       taxon({ id: 'outside-taxon', gbifKey: 99, wikidataId: 'Q99' }),
     ] })
-    const plan = planCatalogueTarget({ source: validatedSource(), target, gallery })
+    const plan = planCatalogueTarget({ source: validatedSource(), target, gallery, activationAt: later })
     expect(mutation(plan, 'Taxon').find((row) => row.key.id === targetTaxonA)!.after?.prose).toEqual({ version: 2, body: 'owner-rich' })
+  })
+
+  it('rejects unequal prose values that remap onto one region and deduplicates equal values', () => {
+    const conflicting = validatedSource({ Taxon: [
+      taxon({ prose: { version: 1, regions: {
+        [sourceRegionId]: { text: 'source-id' }, [targetRegionId]: { text: 'target-id' },
+      } } }),
+      taxon({ id: sourceTaxonB, gbifKey: 2, wikidataId: 'Q2', prose: null }),
+    ] })
+    expect(() => planCatalogueTarget({ source: conflicting, target: targetSnapshot(), gallery, activationAt: later })).toThrow('source Taxon.prose maps conflicting prose')
+
+    const same = { text: 'same' }
+    const deduplicated = validatedSource({ Taxon: [
+      taxon({ prose: { version: 1, regions: { [sourceRegionId]: same, [targetRegionId]: same } } }),
+      taxon({ id: sourceTaxonB, gbifKey: 2, wikidataId: 'Q2', prose: null }),
+    ] })
+    const target = targetSnapshot({ Taxon: [
+      taxon({ id: targetTaxonA, gbifKey: 1, wikidataId: 'Q1', prose: null }),
+      taxon({ id: 'outside-taxon', gbifKey: 99, wikidataId: 'Q99', prose: null }),
+    ] })
+    const plan = planCatalogueTarget({ source: deduplicated, target, gallery, activationAt: later })
+    expect(mutation(plan, 'Taxon').find((row) => row.key.id === targetTaxonA)!.after?.prose).toEqual({
+      version: 1, regions: { [targetRegionId]: same },
+    })
   })
 
   it('rejects cross-GBIF Wikidata reuse, UUID collisions and ambiguous legacy/canonical regions', () => {
     const conflictSource = validatedSource({ Taxon: [
       taxon({ wikidataId: null }), taxon({ id: sourceTaxonB, gbifKey: 2, wikidataId: 'Q99' }),
     ] })
-    expect(() => planCatalogueTarget({ source: conflictSource, target: targetSnapshot(), gallery })).toThrow(/Wikidata identity Q99 conflicts/)
+    expect(() => planCatalogueTarget({ source: conflictSource, target: targetSnapshot(), gallery, activationAt: later })).toThrow(/Wikidata identity Q99 conflicts/)
 
     const uuidConflict = targetSnapshot({ Taxon: [
       taxon({ id: targetTaxonA, gbifKey: 1, wikidataId: 'Q1' }),
       taxon({ id: sourceTaxonB, gbifKey: 99, wikidataId: 'Q99' }),
     ] })
-    expect(() => planCatalogueTarget({ source: validatedSource(), target: uuidConflict, gallery })).toThrow(/UUID collides/)
+    expect(() => planCatalogueTarget({ source: validatedSource(), target: uuidConflict, gallery, activationAt: later })).toThrow(/UUID collides/)
 
     const ambiguous = targetSnapshot({ Region: [
       region({ id: targetRegionId, canonicalKey: null }),
       region({ id: 'canonical-mainz', gadmGid: null, canonicalKey: 'de-krg-07339000' }),
     ] })
-    expect(() => planCatalogueTarget({ source: validatedSource(), target: ambiguous, gallery })).toThrow(/ambiguous canonical\/legacy/)
+    expect(() => planCatalogueTarget({ source: validatedSource(), target: ambiguous, gallery, activationAt: later })).toThrow(/ambiguous canonical\/legacy/)
   })
 
   it('emits complete scalar before/after rows including dormant schema defaults', () => {
-    const plan = planCatalogueTarget({ source: validatedSource(), target: targetSnapshot(), gallery })
+    const plan = planCatalogueTarget({ source: validatedSource(), target: targetSnapshot(), gallery, activationAt: later })
     const catalogueColumns = [
       'id', 'countryCode', 'runKey', 'registryVersionId', 'inputFingerprint', 'sourceFingerprint', 'responseFingerprint',
       'unionFingerprint', 'plausibleRulesVersion', 'tileMappingVersion', 'habitatRulesVersion', 'habitatSource',
@@ -290,6 +316,6 @@ describe('planCatalogueTarget', () => {
       'createdAt', 'updatedAt',
     ].sort()
     expect(Object.keys(mutation(plan, 'CatalogueRegionBuild')[0]!.after!).sort()).toEqual(buildColumns)
-    for (const receipt of mutation(plan, 'ReferenceGalleryReceipt')) expect(receipt.after).toHaveProperty('createdAt', later)
+    for (const receipt of mutation(plan, 'ReferenceGalleryReceipt')) expect(receipt.after).toHaveProperty('createdAt', '2026-09-11T12:00:00')
   })
 })

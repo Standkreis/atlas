@@ -5,6 +5,7 @@ import {
   CATALOGUE_PERSONAL_PROTECTION_TABLES,
   buildReviewedGalleryPlan,
   catalogueMutationKey,
+  cataloguePostgresTimestamp,
   catalogueProtectionScope,
   catalogueTargetPlanFingerprint,
   catalogueTargetSnapshotFingerprint,
@@ -30,6 +31,27 @@ const SOURCE_TABLES = [
 const TARGET_RICH_FIELDS = ['iucn', 'tags', 'intro', 'facts', 'factsAt', 'namePath', 'contentAt'] as const
 const RETIRED_LEGACY_GADM = new Set(Object.entries(LEGACY_REGION_SUCCESSORS)
   .filter(([, successor]) => successor === null).map(([gadm]) => gadm))
+
+// Scalar database images, unlike nested provenance/fingerprint documents, must exactly match
+// PostgreSQL's timestamp-without-time-zone JSON representation used by checked CAS reads.
+const TIMESTAMP_COLUMNS = new Set([
+  'createdAt', 'updatedAt', 'refreshedAt', 'importedAt', 'activatedAt', 'downloadedAt',
+  'reviewedAt', 'startedAt', 'generatedAt', 'auditedAt', 'executionExpiresAt',
+  'leaseExpiresAt', 'completedAt', 'resolvedAt', 'factsAt', 'contentAt',
+])
+function databaseImage(row: CatalogueTargetRow): CatalogueTargetRow {
+  return Object.fromEntries(Object.entries(detached(row)).map(([column, value]) => {
+    if (value === null) return [column, value]
+    if (TIMESTAMP_COLUMNS.has(column)) return [column, cataloguePostgresTimestamp(value, column)]
+    if (column === 'topicDate') {
+      const date = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+        ? cataloguePostgresTimestamp(`${value}T00:00:00Z`, column).slice(0, 10)
+        : cataloguePostgresTimestamp(value, column).slice(0, 10)
+      return [column, date]
+    }
+    return [column, value]
+  }))
+}
 
 function requiredString(value: unknown, label: string): string {
   if (typeof value !== 'string' || !value) throw new Error(`${label} must be a non-empty string`)
@@ -94,6 +116,21 @@ function supportedRegionalProse(value: unknown): { version: 1; regions: Record<s
   if (prose.version !== 1 || !prose.regions || typeof prose.regions !== 'object' || Array.isArray(prose.regions)) return null
   return { version: 1, regions: prose.regions as Record<string, unknown> }
 }
+function remapProseRegions(
+  regions: Readonly<Record<string, unknown>>,
+  mapRegion: (id: string) => string,
+  label: string,
+) {
+  const remapped: Record<string, unknown> = {}
+  for (const [id, prose] of Object.entries(regions)) {
+    const mapped = mapRegion(id)
+    if (Object.hasOwn(remapped, mapped) && canonicalContent(remapped[mapped]) !== canonicalContent(prose)) {
+      throw new Error(`${label} maps conflicting prose onto Region ${mapped}`)
+    }
+    remapped[mapped] = prose
+  }
+  return remapped
+}
 function mappedProse(
   sourceValue: unknown,
   targetValue: unknown,
@@ -103,20 +140,21 @@ function mappedProse(
   const source = supportedRegionalProse(sourceValue)
   if (!nonempty(targetValue)) {
     if (!source) return sourceValue
-    return { version: 1, regions: Object.fromEntries(Object.entries(source.regions)
-      .map(([id, prose]) => [regionIdBySourceId.get(id) ?? id, prose])) }
+    return { version: 1, regions: remapProseRegions(source.regions, (id) => regionIdBySourceId.get(id) ?? id, 'source Taxon.prose') }
   }
   const target = supportedRegionalProse(targetValue)
   // An unsupported rich target shape is owner content. Never reinterpret or partially rewrite it.
   if (!target) return targetValue
-  const merged: Record<string, unknown> = {}
-  if (source) for (const [id, prose] of Object.entries(source.regions)) merged[regionIdBySourceId.get(id) ?? id] = prose
-  for (const [id, prose] of Object.entries(target.regions)) {
+  const mappedSource = source
+    ? remapProseRegions(source.regions, (id) => regionIdBySourceId.get(id) ?? id, 'source Taxon.prose')
+    : {}
+  const mappedTarget = remapProseRegions(target.regions, (id) => {
     const mapped = targetRegionRemap.has(id) ? targetRegionRemap.get(id) : id
     // Retired/no-successor and unrelated keys remain owner content; only an explicit successor moves.
-    merged[mapped ?? id] = prose
-  }
-  return { version: 1, regions: merged }
+    return mapped ?? id
+  }, 'target Taxon.prose')
+  // Existing target prose remains the richer authority when both sources address the same region.
+  return { version: 1, regions: { ...mappedSource, ...mappedTarget } }
 }
 function immutableMap<K, V>(source: Map<K, V>): ReadonlyMap<K, V> {
   const view: ReadonlyMap<K, V> = Object.freeze({
@@ -320,9 +358,14 @@ export function planCatalogueTarget(input: {
   source: ValidatedCatalogueImport
   target: TargetCatalogueSnapshot
   gallery: TargetGalleryReview
+  activationAt: string
 }): CatalogueTargetPlan {
   if (!input?.source || !input.target || !input.gallery) throw new Error('catalogue source, target snapshot and gallery review are required')
   const { source, target } = input
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(input.activationAt) || !Number.isFinite(Date.parse(input.activationAt))) {
+    throw new Error('target catalogue activation requires an explicit UTC timestamp')
+  }
+  const activationAt = cataloguePostgresTimestamp(input.activationAt)
   for (const table of SOURCE_TABLES) sourceRows(source, table)
   const sourceRegistries = sourceRows(source, 'RegionRegistryVersion')
   const sourceCatalogues = sourceRows(source, 'CatalogueVersion')
@@ -600,14 +643,14 @@ export function planCatalogueTarget(input: {
     })
   }
   addMutation(mutations, 'publish', 'RegionRegistryVersion', registryVersionRow(registry, false, null),
-    registryVersionRow(registry, true, registry.activatedAt))
+    registryVersionRow(registry, true, activationAt))
   for (const before of targetCatalogueRows) {
     if (before.countryCode === 'DE' && before.status === 'active') {
       addMutation(mutations, 'publish', 'CatalogueVersion', before, retiredCatalogueVersionRow(before))
     }
   }
   addMutation(mutations, 'publish', 'CatalogueVersion', materializedCatalogue,
-    catalogueVersionRow(catalogue, 'active', catalogue.activatedAt))
+    catalogueVersionRow(catalogue, 'active', activationAt))
 
   const mutatedKeys = new Map<string, Set<string>>()
   for (const mutation of mutations) {
@@ -635,8 +678,8 @@ export function planCatalogueTarget(input: {
 
   const orderedMutations = sortMutations(mutations).map((mutation) => ({
     phase: mutation.phase, table: mutation.table, key: detached(mutation.key),
-    before: mutation.before === null ? null : detached(mutation.before),
-    after: mutation.after === null ? null : detached(mutation.after),
+    before: mutation.before === null ? null : databaseImage(mutation.before),
+    after: mutation.after === null ? null : databaseImage(mutation.after),
   }))
   const mappings = {
     taxonIdBySourceId: immutableMap(new Map(taxonIdBySourceId)),
