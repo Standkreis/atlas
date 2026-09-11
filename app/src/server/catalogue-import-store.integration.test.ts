@@ -24,6 +24,7 @@ import {
   type TargetCatalogueSnapshot,
 } from '../../etl/catalogue-import-plan'
 import type { ValidatedCatalogueReleaseImport, ValidatedImportEvidence } from '../../etl/catalogue-import-validation'
+import { validateReleaseSpotReport, type ReleaseSpotContract } from '../../etl/catalogue-release-spots'
 
 const sourceEvidence: ValidatedImportEvidence = { files: [], tables: [], decodedFingerprint: '1'.repeat(64) }
 const assertStillValid = vi.fn(async () => undefined)
@@ -351,6 +352,27 @@ describe('checked catalogue import store', () => {
     expect(await db.region.findUnique({ where: { id: f.newRegionId } })).toBeNull()
     expect(await readCatalogueCutoverState(db)).toMatchObject({ state: 'maintenance', activeWrites: 1 })
     await releaseCatalogueWrite(db, admission.id)
+  })
+
+  it('rejects representative availability that expires after drain without applying product mutations', async () => {
+    const { snapshot, mutations, newRegionId, beforeFilter } = await fixture()
+    const targetPlan = plan(snapshot, mutations), applyReceipt = receipt(targetPlan)
+    const url = 'https://static.inaturalist.org/photos/1/medium.jpg', at = '2026-09-11T00:00:00.000Z'
+    const contract: ReleaseSpotContract = { catalogueId: 'fixture', unionFingerprint: '1'.repeat(64), contentFingerprint: '2'.repeat(64),
+      sourceFilesFingerprint: '3'.repeat(64), sourcePinsFingerprint: '4'.repeat(64), auditUrlReportSha256: '5'.repeat(64),
+      fullTargetsFingerprint: '6'.repeat(64), reviewedTargetsFingerprint: '7'.repeat(64), targets: [{ assetId: 'fixture', url }] }
+    const report = { schemaVersion: 1, kind: 'catalogue-release-image-spots', contract, generatedAt: at,
+      checks: [{ url, checkedAt: at, ok: true, method: 'HEAD', status: 200, contentType: 'image/jpeg', finalUrl: url, reason: null }],
+      attempted: 1, networkRequests: 1, reused: 0, limitation: 'HTTP only' }
+    assertReleaseEvidenceStillValid
+      .mockImplementationOnce(async () => { validateReleaseSpotReport(report, contract, new Date('2026-09-11T23:59:59.999Z')) })
+      .mockImplementationOnce(async () => { validateReleaseSpotReport(report, contract, new Date('2026-09-12T00:00:00.000Z')) })
+    await expect(applyCatalogueTargetPlan(db, { validated, plan: targetPlan, receipt: applyReceipt })).rejects.toThrow('stale')
+    expect(assertReleaseEvidenceStillValid).toHaveBeenCalledTimes(2)
+    expect(await db.region.findUnique({ where: { id: newRegionId } })).toBeNull()
+    expect((await db.filter.findUniqueOrThrow({ where: { id: String(beforeFilter.id) } })).regionId).toBe(beforeFilter.regionId)
+    expect((await readCatalogueCutoverState(db)).state).toBe('maintenance')
+    expect(catalogueTargetSnapshotFingerprint(await snapshotCatalogueTarget(db))).toBe(catalogueTargetSnapshotFingerprint(snapshot))
   })
 
   it('fails closed when the complete target snapshot or a scoped before-image is stale', async () => {

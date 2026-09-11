@@ -8,6 +8,7 @@ import { parseContentNetworkReview, parseContentUrlReport, type ContentNetworkRe
 import { ASSET_TRANSFER_COLUMNS, CONTENT_WORK_VERSIONS, WORK_TRANSFER_COLUMNS, canonicalContent, contentDigest } from './catalogue-gallery-transfer'
 import { TRANSFER_SPECS, type TransferSpec, type TransferTable } from './catalogue-transfer'
 import { safeReferenceUrl, successfulReferenceStatus } from './gallery-network-audit'
+import { validateReleaseSpotReport, type ReleaseSpotContract } from './catalogue-release-spots'
 
 export type ImportEvidenceFile = { path: string; sha256: string; bytes?: number }
 export type ImportTransferBundle = { audit: ImportEvidenceFile; manifest: ImportEvidenceFile; artifact: ImportEvidenceFile }
@@ -748,6 +749,47 @@ function validateUrlReport(report: ContentUrlCheckReport, source: ValidatedCatal
   equal(seen.size, contract.urls.size, 'URL report checked URL cardinality')
 }
 
+/** Derive the entire already-reviewed sample, never an operator-selected subset. */
+function releaseSpotContract(source: ValidatedCatalogueImport, auditUrlReportSha256: string): ReleaseSpotContract {
+  const bindings = FROZEN_REVIEW_BINDINGS.get(source)
+  if (!bindings) throw new Error('release spots require a validator-produced catalogue source')
+  const targets = array(bindings.galleryNetwork.targets, 'content audit network targets')
+  return {
+    catalogueId: source.pins.catalogueId, unionFingerprint: source.pins.unionFingerprint,
+    contentFingerprint: source.pins.contentFingerprint,
+    sourceFilesFingerprint: contentDigest(source.evidence.files.map(({ role, sha256, bytes }) => ({ role, sha256, bytes }))),
+    sourcePinsFingerprint: contentDigest(source.pins), auditUrlReportSha256,
+    fullTargetsFingerprint: galleryUrlContract(source).targetsFingerprint,
+    reviewedTargetsFingerprint: contentDigest(targets),
+    targets: targets.map((value) => {
+      const target = record(value, 'reviewed network target')
+      return { assetId: string(target.assetId, 'target assetId'), url: string(target.url, 'target url') }
+    }),
+  }
+}
+
+/** Validate immutable complete evidence before either generating or accepting fresh spots. */
+export async function validateFrozenReleaseEvidence(source: ValidatedCatalogueImport,
+  input: Pick<CatalogueReleaseEvidenceInput, 'networkReview' | 'auditUrlReport'>, now = new Date()) {
+  const bindings = FROZEN_REVIEW_BINDINGS.get(source)
+  if (!bindings) throw new Error('release evidence requires a validator-produced catalogue source')
+  if (!Number.isFinite(now.getTime())) throw new Error('release evidence time is invalid')
+  await source.assertStillValid()
+  const [reviewJson, auditReportJson] = await Promise.all([
+    readEvidenceJson(input.networkReview, 'network review'), readEvidenceJson(input.auditUrlReport, 'audit URL report'),
+  ])
+  const review = parseContentNetworkReview(reviewJson.value), auditReport = parseContentUrlReport(auditReportJson.value)
+  validateBoundNetworkReview(review, source, bindings.galleryNetwork, now)
+  validateUrlReport(auditReport, source)
+  const auditChecks = record(bindings.galleryNetwork.urlChecks, 'content audit URL checks')
+  equal(contentDigest(auditReport), auditChecks.reportFingerprint, 'audit URL report fingerprint')
+  equal(auditReport.urls, auditChecks.urls, 'audit URL report audited URL count')
+  equal(auditReport.passed, auditChecks.passed, 'audit URL report audited pass count')
+  equal(auditReport.failed, auditChecks.failed, 'audit URL report audited failure count')
+  equal(auditReport.pending, auditChecks.pending, 'audit URL report audited pending count')
+  return { reviewJson, auditReportJson, spotContract: releaseSpotContract(source, auditReportJson.evidence.sha256) }
+}
+
 /**
  * Bind immutable source audits to their original review inputs and a separately refreshable URL
  * report. This does not regenerate or alter the frozen source audit/content fingerprints.
@@ -757,33 +799,21 @@ export async function validateCatalogueReleaseEvidence(
   input: CatalogueReleaseEvidenceInput,
   options: { now?: Date } = {},
 ): Promise<ValidatedCatalogueReleaseImport> {
-  const bindings = FROZEN_REVIEW_BINDINGS.get(source)
-  if (!bindings) throw new Error('release evidence requires a validator-produced catalogue source')
   const now = options.now ?? new Date()
-  if (!Number.isFinite(now.getTime())) throw new Error('release evidence time is invalid')
-  await source.assertStillValid()
-  const [reviewJson, auditReportJson, currentReportJson] = await Promise.all([
-    readEvidenceJson(input.networkReview, 'network review'),
-    readEvidenceJson(input.auditUrlReport, 'audit URL report'),
-    readEvidenceJson(input.currentUrlReport, 'current URL report'),
-  ])
-  const review = parseContentNetworkReview(reviewJson.value)
-  const auditReport = parseContentUrlReport(auditReportJson.value)
-  const currentReport = parseContentUrlReport(currentReportJson.value)
-  validateBoundNetworkReview(review, source, bindings.galleryNetwork, now)
-  validateUrlReport(auditReport, source)
-  const auditChecks = record(bindings.galleryNetwork.urlChecks, 'content audit URL checks')
-  equal(contentDigest(auditReport), auditChecks.reportFingerprint, 'audit URL report fingerprint')
-  equal(auditReport.urls, auditChecks.urls, 'audit URL report audited URL count')
-  equal(auditReport.passed, auditChecks.passed, 'audit URL report audited pass count')
-  equal(auditReport.failed, auditChecks.failed, 'audit URL report audited failure count')
-  equal(auditReport.pending, auditChecks.pending, 'audit URL report audited pending count')
-  validateUrlReport(currentReport, source, now)
+  const { reviewJson, auditReportJson, spotContract } = await validateFrozenReleaseEvidence(source, input, now)
+  const currentReportJson = await readEvidenceJson(input.currentUrlReport, 'current URL report')
+  const kind = record(currentReportJson.value, 'current URL report').kind
+  if (kind !== undefined && kind !== 'catalogue-release-image-spots') throw new Error('unsupported current URL report kind')
+  const isSpots = kind === 'catalogue-release-image-spots'
+  const validateCurrent = (value: unknown, at: Date) => isSpots
+    ? validateReleaseSpotReport(value, spotContract, at)
+    : validateUrlReport(parseContentUrlReport(value), source, at)
+  validateCurrent(currentReportJson.value, now)
   await source.assertStillValid()
 
   const releaseEvidence = Object.freeze([reviewJson.evidence, auditReportJson.evidence, currentReportJson.evidence]
     .map((file) => Object.freeze({ ...file })))
-  const frozenCurrentReport = deepFreeze(currentReport) as ContentUrlCheckReport
+  const frozenCurrentReport = deepFreeze(currentReportJson.value)
   const assertReleaseEvidenceStillValid = async (at = new Date()) => {
     if (!Number.isFinite(at.getTime())) throw new Error('release evidence time is invalid')
     await source.assertStillValid()
@@ -793,7 +823,7 @@ export async function validateCatalogueReleaseEvidence(
       equal(file.sha256, expected.sha256, `${expected.role} changed after release validation`)
       equal(file.bytes, expected.bytes, `${expected.role} changed after release validation`)
     })
-    validateUrlReport(frozenCurrentReport, source, at)
+    validateCurrent(frozenCurrentReport, at)
   }
   return Object.freeze({
     pins: source.pins,

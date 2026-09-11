@@ -20,7 +20,7 @@ Source proof is not target proof. The target review separately enumerates every 
 
 Retained official iNaturalist API records are accepted evidence where public pages are challenged. Imported-source candidates require original-source licence verification. Unverified rights, unsupported custom grants and unresolved subject conflicts do not become display-eligible by being in an old database. Source taxa remain in the catalogue even when images are withheld.
 
-The original network review and URL report remain bound to the frozen content audit. A distinct current URL report may renew availability without rewriting that scientific/content approval. Before apply, every unique source image URL must have a successful current check within the documented 24-hour window. Hash equality alone does not make an old report fresh. Recheck after any long operator-paced drain.
+The original network review and **complete successful** URL report remain bound to the frozen content audit. Under the [11 September owner-approved refinement](2026-09-11-germany-production-migration-plan.md#-11-september-addendum-representative-release-availability), release availability may use either the original whole-set-current contract or a separately versioned representative spot report. The latter must cover every deterministic network target already selected by the frozen content audit (all available tile/origin/gallery-size/lead-position strata), never an operator-picked subset. Every selected URL check must be successful and younger than 24 hours, including after any operator-paced drain. The original whole-set report is still validated for exact full coverage, successful checks, hashes and source bindings; an incomplete refresh is never a substitute. Hash equality alone does not make current evidence fresh.
 
 ## Identity and transformation contract
 
@@ -106,6 +106,42 @@ The strict `catalogue-import-execution-config` v1 contains `expectedCommit`, `op
 descriptor and independently reviewed document/evidence fingerprints. No credentials belong in
 this configuration. The explicit target activation timestamp is distinct from historical source
 activation and remains fixed between plan and apply.
+
+### Fresh representative release checks
+
+From the checked checkout, use the existing execution config as read-only input; its old
+`currentUrlReport` descriptor is not used to select targets. No database is opened. Choose a
+new output path (existing reports are never overwritten):
+
+```sh
+npx tsx etl/catalogue-release-spots-cli.ts \
+  --config /private/reviewed/config.json \
+  --checkpoint /private/reviewed/release-spots.jsonl \
+  --output /private/reviewed/release-spots.json
+```
+
+This validates all six frozen files and the original full URL/scientific review before deriving
+the exact reviewed sample. For the approved v7 bundle this is **12 assets / 12 unique URLs**.
+It uses one paced worker (at least 200 ms between dispatches), existing allowlisted redirects,
+bounded HEAD/GET fallback and retries/Retry-After handling. No provider API calls, paid models,
+database writes or permanent image bytes are involved. Successful checkpoint reuse is limited
+to 24 hours and the exact source/sample contract; interrupted/failed records are retained.
+`--limit <positive integer>` bounds newly attempted URLs. An incomplete or failed sample exits
+unsuccessfully and produces no release report; resume the checkpoint without removing targets.
+
+Pin the new report SHA-256 and byte size as `releaseEvidence.currentUrlReport`, then rebind the
+execution config and action-specific approval manifests through the normal checked workflow.
+The discriminator is `kind: catalogue-release-image-spots`, `schemaVersion: 1`. Its strict
+contract binds catalogue/union/content, all source pins and six file hashes, the original full
+report hash, the whole gallery target fingerprint and the complete reviewed sample metadata
+fingerprint plus exact asset/URL identities. Coverage, timestamps, status, MIME, redirects,
+duplicates, unexpected targets and all hashes fail closed. Apply rechecks freshness and frozen
+file bytes after drain, immediately before its transaction. The historical full-current-report
+format remains accepted without a discriminator.
+
+Availability is external and may change immediately after a successful check. HTTP status and
+image MIME are not decoding, scientific identification, licence verification or guarantees of
+future availability. Those independent frozen review requirements remain unchanged.
 
 Receipt JSONL records are header, indexed protected scopes, indexed mutations and footer. The
 footer binds the logical receipt and pre-footer stream; the plan record binds the exact whole-file

@@ -61,6 +61,12 @@ for 24 hours; interrupted final JSONL records are ignored without deleting earli
 `--limit` can bound newly attempted URLs. Final release evidence must cover the frozen complete
 asset target set with zero failed or pending checks.
 
+For later release of an already frozen, fully audited bundle, the owner-approved
+[11 September refinement](germany-checked-import.md#fresh-representative-release-checks)
+retains that complete report and permits a distinct fresh representative availability report.
+It does not waive the complete audit required to produce this content artifact or any source,
+licence, scientific or decoding review below.
+
 HTTP success is not image decoding, proof of scientific identity or a guarantee of future
 availability. Inspect actual locally populated pages on phone and desktop, including a
 12-image mixed-origin gallery, single-image gallery and explicit zero-image fallback. Check
