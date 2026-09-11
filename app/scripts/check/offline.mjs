@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { stopOwnedProcess } from './owned-process.mjs'
+import { ownedDebugPort, stopOwnedProcess } from './owned-process.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pg from 'pg'
@@ -14,14 +14,14 @@ if (!identityId || !['localhost', '127.0.0.1'].includes(new URL(base).hostname) 
 const profile = mkdtempSync(join(tmpdir(), 'dex-offline-review-'))
 const evidenceDir = process.env.BROWSER_EVIDENCE_DIR
 if (evidenceDir) mkdirSync(evidenceDir, { recursive: true })
-const port = 9600 + Math.floor(Math.random() * 300)
 const executable = process.env.CHROME ?? (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome')
-const chrome = spawn(executable, ['--headless=new', '--disable-gpu', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
+const chrome = spawn(executable, ['--headless=new', '--disable-gpu', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 let ws
 let catalogueDb
 let rolledBack = []
 try {
+  const port = await ownedDebugPort(chrome, profile)
   let info
   for (let i = 0; i < 50 && !info; i++) { await sleep(200); info = await fetch(`http://127.0.0.1:${port}/json/version`).then(r => r.json()).catch(() => null) }
   if (!info) throw new Error('Chrome did not start')

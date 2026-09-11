@@ -3,19 +3,19 @@ import { spawn } from 'node:child_process'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { stopOwnedProcess } from './owned-process.mjs'
+import { ownedDebugPort, stopOwnedProcess } from './owned-process.mjs'
 
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 export const q = selector => `document.querySelector(${JSON.stringify(selector)})`
 export async function browserJourney(base, run) {
   assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname), 'journeys run on localhost')
   const profile = mkdtempSync(join(tmpdir(), 'dex-journey-'))
-  const port = 10000 + Math.floor(Math.random() * 2000)
   const chrome = process.env.CHROME ?? (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome')
-  const proc = spawn(chrome, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
+  const proc = spawn(chrome, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
   let ws, launchError
   proc.on('error', error => { launchError = error })
   try {
+    const port = await ownedDebugPort(proc, profile)
     let target
     for (let i = 0; i < 200 && !target && !launchError; i++) {
       target = await fetch(`http://127.0.0.1:${port}/json`).then(r => r.json()).then(rows => rows.find(row => row.type === 'page')).catch(() => null)

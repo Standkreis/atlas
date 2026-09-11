@@ -14,6 +14,12 @@ const identityId = randomUUID()
 const ownedIdentities = [identityId]
 process.env.BROWSER_IDENTITY_ID = identityId
 const fullCatalogue = process.env.UX_FULL_CATALOGUE === '1'
+// Explicit scoped reruns retain the same guarded setup/restoration. An unset selector runs
+// every gate; scoped output must never be reported as a successful full browser suite.
+const scenarios = process.env.BROWSER_SCENARIOS?.split(',')
+const supported = ['ux', 'scan-transition', 'gallery', 'analytics', 'offline', 'full-gallery', 'full-offline']
+if (scenarios?.some(name => !supported.includes(name) || (name.startsWith('full-') && !fullCatalogue))) throw new Error('Invalid BROWSER_SCENARIOS selection')
+if (scenarios) console.log(JSON.stringify({ scopedBrowserRun: scenarios }))
 // Give the current month's preview taxon two distinct local images. The older non-lead catches
 // regressions to createdAt ordering, and its URL is a byte-request sentinel in the browser audit.
 const previewAssetIds = ['00000000-0000-4000-8100-000000000000', '00000000-0000-4000-8100-000000000001']
@@ -97,8 +103,13 @@ try {
   await fixtureDb.query('ROLLBACK')
   throw error
 } finally { await fixtureDb.end() }
-const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', port], { stdio: 'inherit', env: { ...process.env, VERCEL: '1', VERCEL_ENV: 'production', VERCEL_TARGET_ENV: 'production', BLOB_READ_WRITE_TOKEN: '', PHOTO_DIR: '/tmp/dex-check-photos', ANTHROPIC_API_KEY: 'check-only', ANTHROPIC_BASE_URL: 'http://127.0.0.1:9', RESEND_API_KEY: 'check-only', RESEND_BASE_URL: 'http://127.0.0.1:9', WEBAUTHN_RP_ID: 'localhost', WEBAUTHN_ORIGIN: base, WEBAUTHN_SECRET: 'check-only-secret-with-at-least-32-characters' } })
+let serverStarted = false, serverOutput = '', serverFailure
+const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', port], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, VERCEL: '1', VERCEL_ENV: 'production', VERCEL_TARGET_ENV: 'production', BLOB_READ_WRITE_TOKEN: '', PHOTO_DIR: '/tmp/dex-check-photos', ANTHROPIC_API_KEY: 'check-only', ANTHROPIC_BASE_URL: 'http://127.0.0.1:9', RESEND_API_KEY: 'check-only', RESEND_BASE_URL: 'http://127.0.0.1:9', WEBAUTHN_RP_ID: 'localhost', WEBAUTHN_ORIGIN: base, WEBAUTHN_SECRET: 'check-only-secret-with-at-least-32-characters' } })
+server.stdout.pipe(process.stdout, { end: false }); server.stderr.pipe(process.stderr, { end: false })
+server.stdout.on('data', chunk => { serverOutput = (serverOutput + chunk).slice(-1024); if (serverOutput.includes('Ready in')) serverStarted = true })
+server.once('error', error => { serverFailure = error })
 const run = async (script, args) => {
+  if (scenarios && !scenarios.includes(script.split('/').pop().replace('.mjs', ''))) return
   const journeyIdentity = randomUUID()
   const ownerDb = new pg.Client({ connectionString: database.href })
   await ownerDb.connect()
@@ -113,8 +124,9 @@ const run = async (script, args) => {
 try {
   let ready = false
   for (let i = 0; i < 100; i++) {
+    if (serverFailure) throw serverFailure
     if (server.exitCode !== null) throw new Error('Production server exited before checks')
-    ready = await fetch(`${base}/api/health`).then((r) => r.ok).catch(() => false)
+    ready = serverStarted && await fetch(`${base}/api/health`).then((r) => r.ok).catch(() => false)
     if (ready) break
     await new Promise((resolve) => setTimeout(resolve, 200))
   }
@@ -144,8 +156,8 @@ try {
 } finally {
   await stopOwnedProcess(server)
   const cleanup = new pg.Client({ connectionString: database.href })
-  await cleanup.connect()
   try {
+    await cleanup.connect()
     await cleanup.query('BEGIN')
     await cleanup.query(`DELETE FROM "Sighting" WHERE id = $1`, [analyticsSightingId])
     await cleanup.query(`DELETE FROM "Asset" WHERE id = ANY($1::text[])`, [previewAssetIds])
@@ -170,8 +182,8 @@ try {
     }
     await cleanup.query('COMMIT')
   } catch (error) {
-    await cleanup.query('ROLLBACK')
+    await cleanup.query('ROLLBACK').catch(rollback => console.error('Browser fixture rollback failed:', rollback))
     console.error('Browser fixture restoration failed:', error)
     process.exitCode = 1
-  } finally { await cleanup.end() }
+  } finally { await cleanup.end().catch(error => { console.error('Browser fixture disconnect failed:', error); process.exitCode = 1 }) }
 }

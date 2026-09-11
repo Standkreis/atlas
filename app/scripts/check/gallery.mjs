@@ -2,7 +2,7 @@
 // dex_check_* database, and synthetic image responses keep the check independent of upstream hosts and API budgets.
 import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { stopOwnedProcess } from './owned-process.mjs'
+import { ownedDebugPort, stopOwnedProcess } from './owned-process.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pg from 'pg'
@@ -44,12 +44,12 @@ finally { await client.end() }
 const profile = mkdtempSync(join(tmpdir(), 'dex-gallery-'))
 const evidence = process.env.GALLERY_EVIDENCE_DIR || ''
 if (evidence) mkdirSync(evidence, { recursive: true })
-const port = 9900 + Math.floor(Math.random() * 80)
 const chrome = process.env.CHROME ?? (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome')
-const proc = (await import('node:child_process')).spawn(chrome, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
+const proc = (await import('node:child_process')).spawn(chrome, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 let ws
 try {
+  const port = await ownedDebugPort(proc, profile)
   let target
   for (let i = 0; i < 200 && !target; i++) {
     target = await fetch(`http://127.0.0.1:${port}/json`).then((response) => response.json()).then((rows) => rows.find((row) => row.type === 'page')).catch(() => null)

@@ -1,6 +1,21 @@
-import { rmSync } from 'node:fs'
+import { readFileSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
 
 const exited = (proc) => proc.exitCode !== null || proc.signalCode !== null || !proc.pid
+export async function ownedDebugPort(proc, profile) {
+  let launchError
+  proc.once('error', error => { launchError = error })
+  for (let i = 0; i < 200; i++) {
+    if (launchError) throw launchError
+    if (exited(proc)) throw new Error('Owned Chrome exited before publishing its debugging endpoint')
+    try {
+      const port = Number(readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0])
+      if (Number.isInteger(port) && port > 0 && port <= 65535) return port
+    } catch (error) { if (error.code !== 'ENOENT') throw error }
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  throw new Error('Owned Chrome did not publish its debugging endpoint')
+}
 const waitForExit = (proc, timeout) => new Promise((resolve) => {
   if (exited(proc)) return resolve(true)
   const done = () => { clearTimeout(timer); resolve(true) }

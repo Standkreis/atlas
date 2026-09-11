@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { stopOwnedProcess } from './owned-process.mjs'
+import { ownedDebugPort, stopOwnedProcess } from './owned-process.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { checkGermanyContrast } from './germany-contrast.mjs'
@@ -15,9 +15,8 @@ const fullCatalogue = process.env.UX_FULL_CATALOGUE === '1'
 const profile = mkdtempSync(join(tmpdir(), 'dex-ux-'))
 const evidenceDir = process.env.BROWSER_EVIDENCE_DIR
 if (evidenceDir) mkdirSync(evidenceDir, { recursive: true })
-const port = 9300 + Math.floor(Math.random() * 500)
 const chrome = process.env.CHROME ?? (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome')
-const proc = spawn(chrome, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
+const proc = spawn(chrome, ['--headless=new', '--disable-gpu', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 let chromeFailure
 proc.on('error', (error) => { chromeFailure = error })
@@ -27,6 +26,7 @@ let offlineSwitchRegionId = null
 let offlineUnavailableRegionId = null
 let territoryFixture = null
 try {
+  const port = await ownedDebugPort(proc, profile)
   let target
   for (let i = 0; i < 200 && !target && !chromeFailure; i++) {
     target = await fetch(`http://127.0.0.1:${port}/json`).then((r) => r.json()).then((rows) => rows.find((r) => r.type === 'page')).catch(() => null)
@@ -486,6 +486,10 @@ try {
       await click(`[data-testid=wildness-${sample.wildness}]`)
       await click('[data-testid=save-submit]')
       await wait(`!${selector('[data-testid=log-save]')}`, 'repeat sighting accepted')
+      const acknowledgedId = await evaluate(`new URL(location.href).searchParams.get('again')`)
+      assert.ok(acknowledgedId, 'repeat sighting has a stable result ID')
+      await wait(`fetch('/api/trpc/journal.get?input='+encodeURIComponent(JSON.stringify({json:{id:${JSON.stringify(acknowledgedId)}}})))
+        .then(r=>r.json()).then(r=>{const s=r.result?.data?.json;return s?.lat===${sample.latitude}&&s?.lng===${sample.longitude}&&s?.wildness===${JSON.stringify(sample.wildness === 'kept' ? 'captive' : 'wild')}})`, 'server acknowledges this exact sighting, point and wildness')
       await send('Page.navigate', { url: `${base}/${locale}/you` })
       await wait(`${selector('[data-testid=germany-sightings] dd')}?.textContent.trim() === ${JSON.stringify(sample.german)}`, 'only German wild land observations count territorially')
       assert.equal(await evaluate(`${selector('[data-testid=germany-discovered] dd')}.textContent.trim()`), '1')
