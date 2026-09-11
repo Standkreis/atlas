@@ -19,7 +19,7 @@ async function evidence(path: string): Promise<ImportEvidenceFile> {
   return { path, sha256: digest(bytes), bytes: bytes.length }
 }
 
-async function fixture(options: { foreignAsset?: boolean; longCaption?: boolean; duplicateAsset?: boolean; personalAsset?: boolean; missingWork?: boolean } = {}) {
+async function fixture(options: { foreignAsset?: boolean; longCaption?: boolean; duplicateAsset?: boolean; personalAsset?: boolean; missingWork?: boolean; invalidSource?: boolean; countryCode?: string; incompleteBuild?: boolean } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'atlas-import-validation-')); paths.push(root)
   const baseDir = join(root, 'base'), galleryDir = join(root, 'gallery')
   const catalogueId = 'catalogue-1', taxonId = 'taxon-1', registryVersionId = 'registry-1'
@@ -27,16 +27,25 @@ async function fixture(options: { foreignAsset?: boolean; longCaption?: boolean;
     id: catalogueId, runKey: 'germany-run', registryVersionId, inputFingerprint: '1'.repeat(64),
     responseFingerprint: '2'.repeat(64), unionFingerprint: '3'.repeat(64),
   }
+  const countryCode = options.countryCode ?? 'DE'
   const values: Record<string, Record<string, unknown>[]> = {
     Region: [row(TRANSFER_SPECS.find((spec) => spec.table === 'Region')!.columns, { id: 'region-1' })],
-    RegionRegistryVersion: [row(TRANSFER_SPECS.find((spec) => spec.table === 'RegionRegistryVersion')!.columns, { id: registryVersionId })],
-    RegionRegistrySource: [],
-    RegionRegistryEntry: [row(TRANSFER_SPECS.find((spec) => spec.table === 'RegionRegistryEntry')!.columns, { id: 'entry-1', registryVersionId, regionId: 'region-1' })],
-    RegionRegistryAlias: [], RegionSourceUnit: [], RegionQueryUnit: [],
+    RegionRegistryVersion: [row(TRANSFER_SPECS.find((spec) => spec.table === 'RegionRegistryVersion')!.columns,
+      { id: registryVersionId, countryCode, expectedRegions: 1, expectedSourceUnits: 1, active: true })],
+    RegionRegistrySource: [row(TRANSFER_SPECS.find((spec) => spec.table === 'RegionRegistrySource')!.columns,
+      { id: 'source-1', registryVersionId })],
+    RegionRegistryEntry: [row(TRANSFER_SPECS.find((spec) => spec.table === 'RegionRegistryEntry')!.columns,
+      { id: 'entry-1', registryVersionId, sourceId: 'source-1', regionId: 'region-1' })],
+    RegionRegistryAlias: [],
+    RegionSourceUnit: [row(TRANSFER_SPECS.find((spec) => spec.table === 'RegionSourceUnit')!.columns,
+      { id: 'unit-1', registryVersionId, registryEntryId: 'entry-1', sourceId: 'source-1' })],
+    RegionQueryUnit: [row(TRANSFER_SPECS.find((spec) => spec.table === 'RegionQueryUnit')!.columns,
+      { id: 'query-1', registryVersionId, sourceUnitId: 'unit-1', sourceId: options.invalidSource ? 'missing-source' : 'source-1' })],
     Taxon: [row(TRANSFER_SPECS.find((spec) => spec.table === 'Taxon')!.columns, { id: taxonId, gbifKey: 1, sciName: 'Species fixture' })],
-    CatalogueVersion: [row(TRANSFER_SPECS.find((spec) => spec.table === 'CatalogueVersion')!.columns, { ...identity, unionTaxa: 1, status: 'active' })],
+    CatalogueVersion: [row(TRANSFER_SPECS.find((spec) => spec.table === 'CatalogueVersion')!.columns,
+      { ...identity, countryCode, unionTaxa: 1, expectedRegions: 1, completedRegions: options.incompleteBuild ? 0 : 1, status: 'active' })],
     CatalogueRegionBuild: [row(TRANSFER_SPECS.find((spec) => spec.table === 'CatalogueRegionBuild')!.columns,
-      { id: 'build-1', catalogueVersionId: catalogueId, registryVersionId, registryEntryId: 'entry-1' })],
+      { id: 'build-1', catalogueVersionId: catalogueId, registryVersionId, registryEntryId: 'entry-1', status: options.incompleteBuild ? 'pending' : 'complete' })],
     CataloguePlausibility: [], CatalogueLookalike: [],
     CatalogueTaxon: [row(TRANSFER_SPECS.find((spec) => spec.table === 'CatalogueTaxon')!.columns, { catalogueVersionId: catalogueId, taxonId })],
     CatalogueTaxonomyResolution: [],
@@ -64,11 +73,11 @@ async function fixture(options: { foreignAsset?: boolean; longCaption?: boolean;
   const galleryTransfer = await writeTransferJsonl({ catalogueId, path: galleryArtifactPath, specs: gallerySpecs,
     fetchPage: async (spec, limit, offset) => (spec.table === 'Asset' ? assets : work).slice(offset, offset + limit) })
 
-  const galleryCatalogue = { ...identity, countryCode: 'DE', status: 'active', unionTaxa: 1, expectedRegions: 1, completedRegions: 1 }
+  const galleryCatalogue = { ...identity, countryCode, status: 'active', unionTaxa: 1, expectedRegions: 1, completedRegions: 1 }
   const taxa = values.Taxon
   const taxonFingerprint = contentDigest(taxa)
   const contentFingerprint = contentDigest({ catalogue: galleryCatalogue, taxa, assets: assets.map((item) => ({ ...item, avatarOf: false })), work })
-  const baseAudit = { schemaVersion: 1, catalogue: identity, defects: [], review: { required: 0, passed: 0, failed: 0, missing: 0 }, reviewTargets: [], verdict: 'ready-for-transfer' }
+  const baseAudit = { schemaVersion: 1, catalogue: { ...identity, countryCode, status: 'active' }, defects: [], review: { required: 0, passed: 0, failed: 0, missing: 0 }, reviewTargets: [], verdict: 'ready-for-transfer' }
   const contentAudit = { schemaVersion: 1, catalogue: galleryCatalogue, contentFingerprint, taxonFingerprint,
     versions: CONTENT_WORK_VERSIONS, defects: [], blockers: [], failures: [],
     network: { status: 'sample-passed', reviewed: 0, targets: [], urlChecks: { supplied: true, passed: assets.length, urls: assets.length, failed: 0, pending: 0 } },
@@ -116,8 +125,12 @@ describe('validateCatalogueImportBundle', () => {
     expect(validated.tables.get('Asset')).toHaveLength(1)
     expect(validated.evidence.files).toHaveLength(6)
     expect(validated.evidence.tables).toHaveLength(16)
+    expect(validated.evidence.decodedFingerprint).toMatch(/^[a-f\d]{64}$/)
     expect(Object.isFrozen(validated.tables.get('Asset'))).toBe(true)
     expect(Object.isFrozen(validated.tables.get('Asset')![0])).toBe(true)
+    expect('set' in validated.tables).toBe(false)
+    expect(() => (validated.tables as Map<string, unknown>).set('Asset', [])).toThrow()
+    expect(() => Object.assign(validated.tables.get('Asset')![0]!, { id: 'changed' })).toThrow()
     await expect(validated.assertStillValid()).resolves.toBeUndefined()
   })
 
@@ -152,6 +165,18 @@ describe('validateCatalogueImportBundle', () => {
     await expect(validateCatalogueImportBundle(personal.input)).rejects.toThrow('unqualified reference Asset')
     const incomplete = await fixture({ missingWork: true })
     await expect(validateCatalogueImportBundle(incomplete.input)).rejects.toThrow('lacks complete work')
+  })
+
+  it('requires source references and composite registry versions to be coherent', async () => {
+    const { input } = await fixture({ invalidSource: true })
+    await expect(validateCatalogueImportBundle(input)).rejects.toThrow('RegionQueryUnit.sourceId does not reference')
+  })
+
+  it('requires the German registry and completed build cardinalities', async () => {
+    const foreign = await fixture({ countryCode: 'NL' })
+    await expect(validateCatalogueImportBundle(foreign.input)).rejects.toThrow('base audit countryCode mismatch')
+    const incomplete = await fixture({ incompleteBuild: true })
+    await expect(validateCatalogueImportBundle(incomplete.input)).rejects.toThrow('CatalogueVersion complete region count mismatch')
   })
 
   it('rejects audit pin and manifest eligibility drift', async () => {

@@ -29,7 +29,7 @@ export type CatalogueImportBundleInput = {
 }
 export type ValidatedImportFile = { role: string; path: string; sha256: string; bytes: number }
 export type ValidatedImportTable = { table: string; columns: readonly string[]; rows: number; digest: string }
-export type ValidatedImportEvidence = { files: readonly ValidatedImportFile[]; tables: readonly ValidatedImportTable[] }
+export type ValidatedImportEvidence = { files: readonly ValidatedImportFile[]; tables: readonly ValidatedImportTable[]; decodedFingerprint: string }
 
 declare const VALIDATED_IMPORT: unique symbol
 export type ValidatedCatalogueImport = {
@@ -334,7 +334,9 @@ function validateBaseAudit(value: JsonRecord, pins: CatalogueImportPins) {
   equal(value.schemaVersion, 1, 'base audit schema version')
   equal(value.verdict, 'ready-for-transfer', 'base audit verdict')
   exactArray(value.defects, [], 'base audit defects')
-  validateCatalogueIdentity(value.catalogue, pins, 'base audit')
+  const catalogue = validateCatalogueIdentity(value.catalogue, pins, 'base audit')
+  equal(catalogue.countryCode, 'DE', 'base audit countryCode')
+  equal(catalogue.status, 'active', 'base audit catalogue status')
   const review = record(value.review, 'base audit review summary')
   const required = integer(review.required, 'base audit required reviews')
   equal(review.failed, 0, 'base audit failed reviews')
@@ -350,7 +352,9 @@ function validateGalleryAudit(value: JsonRecord, pins: CatalogueImportPins) {
   exactArray(value.defects, [], 'content audit defects')
   exactArray(value.blockers, [], 'content audit blockers')
   exactArray(value.failures, [], 'content audit failures')
-  validateCatalogueIdentity(value.catalogue, pins, 'content audit', true)
+  const catalogue = validateCatalogueIdentity(value.catalogue, pins, 'content audit', true)
+  equal(catalogue.countryCode, 'DE', 'content audit countryCode')
+  equal(catalogue.status, 'active', 'content audit catalogue status')
   equal(value.contentFingerprint, pins.contentFingerprint, 'content audit content fingerprint')
   equal(value.taxonFingerprint, pins.taxonFingerprint, 'content audit taxon fingerprint')
   const versions = record(value.versions, 'content audit versions')
@@ -397,19 +401,58 @@ function validateRelationships(tables: ReadonlyMap<string, readonly JsonRecord[]
     inputFingerprint: pins.inputFingerprint, responseFingerprint: pins.responseFingerprint, unionFingerprint: pins.unionFingerprint })) {
     equal(catalogue[field], expected, `CatalogueVersion.${field}`)
   }
+  equal(catalogue.countryCode, 'DE', 'CatalogueVersion.countryCode')
+  equal(catalogue.status, 'active', 'CatalogueVersion.status')
+  equal(catalogue.unionTaxa, pins.unionTaxa, 'CatalogueVersion.unionTaxa')
 
-  const registryVersions = ids(table(tables, 'RegionRegistryVersion'), 'id', 'RegionRegistryVersion')
-  if (!registryVersions.has(pins.registryVersionId)) throw new Error('pinned registry version is absent')
+  const registryRows = table(tables, 'RegionRegistryVersion')
+  equal(registryRows.length, 1, 'RegionRegistryVersion row count')
+  const registry = registryRows[0]!
+  equal(registry.id, pins.registryVersionId, 'RegionRegistryVersion.id')
+  equal(registry.countryCode, 'DE', 'RegionRegistryVersion.countryCode')
+  equal(registry.active, true, 'RegionRegistryVersion.active')
+  const registryVersions = ids(registryRows, 'id', 'RegionRegistryVersion')
   const regions = ids(table(tables, 'Region'), 'id', 'Region')
+  equal(registry.expectedRegions, regions.size, 'RegionRegistryVersion.expectedRegions')
+  const sources = table(tables, 'RegionRegistrySource'), sourceIds = ids(sources, 'id', 'RegionRegistrySource')
+  for (const row of sources) requireForeignKey(row.registryVersionId, registryVersions, 'RegionRegistrySource.registryVersionId')
   const entries = table(tables, 'RegionRegistryEntry'), entryIds = ids(entries, 'id', 'RegionRegistryEntry')
-  for (const row of entries) { requireForeignKey(row.registryVersionId, registryVersions, 'RegionRegistryEntry.registryVersionId'); requireForeignKey(row.regionId, regions, 'RegionRegistryEntry.regionId') }
-  for (const row of table(tables, 'RegionRegistrySource')) requireForeignKey(row.registryVersionId, registryVersions, 'RegionRegistrySource.registryVersionId')
+  equal(entries.length, regions.size, 'RegionRegistryEntry/Region cardinality')
+  for (const row of entries) {
+    requireForeignKey(row.registryVersionId, registryVersions, 'RegionRegistryEntry.registryVersionId')
+    requireForeignKey(row.sourceId, sourceIds, 'RegionRegistryEntry.sourceId')
+    requireForeignKey(row.regionId, regions, 'RegionRegistryEntry.regionId')
+    equal(sources.find((source) => source.id === row.sourceId)?.registryVersionId, row.registryVersionId, 'RegionRegistryEntry source registry')
+  }
   for (const row of table(tables, 'RegionRegistryAlias')) requireForeignKey(row.registryEntryId, entryIds, 'RegionRegistryAlias.registryEntryId')
   const units = table(tables, 'RegionSourceUnit'), unitIds = ids(units, 'id', 'RegionSourceUnit')
-  for (const row of units) { requireForeignKey(row.registryVersionId, registryVersions, 'RegionSourceUnit.registryVersionId'); requireForeignKey(row.registryEntryId, entryIds, 'RegionSourceUnit.registryEntryId') }
-  for (const row of table(tables, 'RegionQueryUnit')) { requireForeignKey(row.registryVersionId, registryVersions, 'RegionQueryUnit.registryVersionId'); requireForeignKey(row.sourceUnitId, unitIds, 'RegionQueryUnit.sourceUnitId') }
+  equal(registry.expectedSourceUnits, units.length, 'RegionRegistryVersion.expectedSourceUnits')
+  for (const row of units) {
+    requireForeignKey(row.registryVersionId, registryVersions, 'RegionSourceUnit.registryVersionId')
+    requireForeignKey(row.registryEntryId, entryIds, 'RegionSourceUnit.registryEntryId')
+    requireForeignKey(row.sourceId, sourceIds, 'RegionSourceUnit.sourceId')
+    equal(entries.find((entry) => entry.id === row.registryEntryId)?.registryVersionId, row.registryVersionId, 'RegionSourceUnit entry registry')
+    equal(sources.find((source) => source.id === row.sourceId)?.registryVersionId, row.registryVersionId, 'RegionSourceUnit source registry')
+  }
+  for (const row of table(tables, 'RegionQueryUnit')) {
+    requireForeignKey(row.registryVersionId, registryVersions, 'RegionQueryUnit.registryVersionId')
+    requireForeignKey(row.sourceUnitId, unitIds, 'RegionQueryUnit.sourceUnitId')
+    requireForeignKey(row.sourceId, sourceIds, 'RegionQueryUnit.sourceId')
+    equal(units.find((unit) => unit.id === row.sourceUnitId)?.registryVersionId, row.registryVersionId, 'RegionQueryUnit unit registry')
+    equal(sources.find((source) => source.id === row.sourceId)?.registryVersionId, row.registryVersionId, 'RegionQueryUnit source registry')
+  }
   const builds = table(tables, 'CatalogueRegionBuild'), buildIds = ids(builds, 'id', 'CatalogueRegionBuild')
-  for (const row of builds) { equal(row.catalogueVersionId, pins.catalogueId, 'CatalogueRegionBuild.catalogueVersionId'); requireForeignKey(row.registryVersionId, registryVersions, 'CatalogueRegionBuild.registryVersionId'); requireForeignKey(row.registryEntryId, entryIds, 'CatalogueRegionBuild.registryEntryId') }
+  equal(catalogue.expectedRegions, regions.size, 'CatalogueVersion.expectedRegions')
+  equal(builds.length, regions.size, 'CatalogueRegionBuild/Region cardinality')
+  equal(catalogue.completedRegions, builds.filter((row) => row.status === 'complete').length, 'CatalogueVersion.completedRegions')
+  equal(catalogue.completedRegions, catalogue.expectedRegions, 'CatalogueVersion complete region count')
+  for (const row of builds) {
+    equal(row.catalogueVersionId, pins.catalogueId, 'CatalogueRegionBuild.catalogueVersionId')
+    equal(row.status, 'complete', 'CatalogueRegionBuild.status')
+    requireForeignKey(row.registryVersionId, registryVersions, 'CatalogueRegionBuild.registryVersionId')
+    requireForeignKey(row.registryEntryId, entryIds, 'CatalogueRegionBuild.registryEntryId')
+    equal(entries.find((entry) => entry.id === row.registryEntryId)?.registryVersionId, row.registryVersionId, 'CatalogueRegionBuild entry registry')
+  }
   for (const row of table(tables, 'CataloguePlausibility')) { requireForeignKey(row.regionBuildId, buildIds, 'CataloguePlausibility.regionBuildId'); requireForeignKey(row.taxonId, taxonIds, 'CataloguePlausibility.taxonId') }
   for (const row of table(tables, 'CatalogueLookalike')) { requireForeignKey(row.regionBuildId, buildIds, 'CatalogueLookalike.regionBuildId'); requireForeignKey(row.taxonId, taxonIds, 'CatalogueLookalike.taxonId'); requireForeignKey(row.siblingId, taxonIds, 'CatalogueLookalike.siblingId') }
   for (const row of table(tables, 'CatalogueTaxonomyResolution')) equal(row.catalogueVersionId, pins.catalogueId, 'CatalogueTaxonomyResolution.catalogueVersionId')
@@ -446,6 +489,21 @@ function deepFreeze(value: unknown, seen = new Set<object>()): unknown {
   seen.add(value as object)
   for (const child of Object.values(value as JsonRecord)) deepFreeze(child, seen)
   return Object.freeze(value)
+}
+
+function readonlyMap<K, V>(source: Map<K, V>): ReadonlyMap<K, V> {
+  const view: ReadonlyMap<K, V> = Object.freeze({
+    get size() { return source.size },
+    has: (key: K) => source.has(key),
+    get: (key: K) => source.get(key),
+    keys: () => source.keys(),
+    values: () => source.values(),
+    entries: () => source.entries(),
+    [Symbol.iterator]: () => source[Symbol.iterator](),
+    forEach: (callback: (value: V, key: K, map: ReadonlyMap<K, V>) => void, thisArg?: unknown) =>
+      source.forEach((value, key) => callback.call(thisArg, value, key, view)),
+  })
+  return view
 }
 
 function sameEvidence(actual: ValidatedImportFile, expected: ValidatedImportFile) {
@@ -509,12 +567,16 @@ export async function validateCatalogueImportBundle(input: CatalogueImportBundle
   }
   validateRelationships(combined, pins, galleryAudit.value)
   for (const rows of combined.values()) deepFreeze(rows)
+  const decodedFingerprint = contentDigest([...combined].map(([table, rows]) => ({ table, rows })))
+  const exposedTables = readonlyMap(combined) as ReadonlyMap<string, readonly JsonRecord[]>
 
   const evidenceFiles = [baseAudit.evidence, baseManifest.evidence, base.evidence, galleryAudit.evidence, galleryManifest.evidence, gallery.evidence]
   const evidence: ValidatedImportEvidence = Object.freeze({ files: Object.freeze(evidenceFiles.map((file) => Object.freeze({ ...file }))),
-    tables: Object.freeze([...base.tableEvidence, ...gallery.tableEvidence].map((entry) => Object.freeze({ ...entry, columns: Object.freeze([...entry.columns]) }))) })
+    tables: Object.freeze([...base.tableEvidence, ...gallery.tableEvidence].map((entry) => Object.freeze({ ...entry, columns: Object.freeze([...entry.columns]) }))),
+    decodedFingerprint })
   const frozenPins = Object.freeze({ ...pins })
   const assertStillValid = async () => {
+    equal(contentDigest([...combined].map(([table, rows]) => ({ table, rows }))), evidence.decodedFingerprint, 'decoded source graph changed after validation')
     const current = await Promise.all(evidence.files.map((file) => digestFile(file.path)))
     current.forEach((file, index) => {
       const expected = evidence.files[index]!
@@ -522,5 +584,5 @@ export async function validateCatalogueImportBundle(input: CatalogueImportBundle
       equal(file.bytes, expected.bytes, `${expected.role} changed after validation`)
     })
   }
-  return Object.freeze({ pins: frozenPins, tables: combined as ReadonlyMap<string, readonly JsonRecord[]>, evidence, assertStillValid }) as ValidatedCatalogueImport
+  return Object.freeze({ pins: frozenPins, tables: exposedTables, evidence, assertStillValid }) as ValidatedCatalogueImport
 }
