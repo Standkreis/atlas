@@ -61,6 +61,11 @@ try {
     await fixtureDb.query(`INSERT INTO "CatalogueRegionBuild" (id, "catalogueVersionId", "registryVersionId", "registryEntryId", status, "completedAt", "totalObservations", "monthTotals", "regionSize", "nowCounts", "perTile", "rejectedTaxa", "requestStats", "responseFingerprint", "setFingerprint", "updatedAt") VALUES ($1, $2, $3, $4, 'complete', $5, 1, $6, $7, $6, '{"bird":100,"mammal":100,"amphibian":50,"reptile":20,"fish":20,"insect":200,"plant":300,"fungus":139}', '[]', '{}', 'browser-fixture', 'browser-fixture', $5) ON CONFLICT ("catalogueVersionId", "registryEntryId") DO NOTHING`, [buildId, catalogueId, registryId, entryId, now, Array(12).fill(count), count])
     await fixtureDb.query(`INSERT INTO "CatalogueTaxon" ("catalogueVersionId", "taxonId", "createdAt") SELECT $1, "taxonId", $2 FROM "Plausibility" WHERE "regionId" = $3 ON CONFLICT DO NOTHING`, [catalogueId, now, mainz.id])
   }
+  // The seed identity deliberately has no filter. Give the focused queued-scan scenario one
+  // active fixture region without depending on the identities created by preceding UX checks.
+  const { rows: [scanRegion] } = await fixtureDb.query(`SELECT id FROM "Region" WHERE name = 'Mainz-Bingen' AND status = 'ready' ORDER BY "canonicalKey" NULLS LAST LIMIT 1`)
+  if (!scanRegion) throw new Error('Queued-scan browser fixture region missing')
+  await fixtureDb.query(`INSERT INTO "Filter" (id, "identityId", "regionId", "regionIds", tiles, "nowOnly", "updatedAt") VALUES ('browser-scan-filter', '00000000-0000-4000-8000-000000000001', $1, ARRAY[$1]::text[], ARRAY['bird']::"Tile"[], false, NOW()) ON CONFLICT ("identityId") DO UPDATE SET "regionId" = EXCLUDED."regionId", "regionIds" = EXCLUDED."regionIds", tiles = EXCLUDED.tiles, "updatedAt" = NOW()`, [scanRegion.id])
   await fixtureDb.query('COMMIT')
 } catch (error) {
   await fixtureDb.query('ROLLBACK')
@@ -82,6 +87,7 @@ try {
   }
   if (!ready) throw new Error('Production server did not become ready')
   for (const locale of ['en', 'de']) await run('scripts/check/ux.mjs', [base, locale])
+  for (const locale of ['en', 'de']) await run('scripts/check/scan-transition.mjs', [base, locale])
   await run('scripts/check/gallery.mjs', [base])
   const identity = await fetch(`${base}/api/trpc/identity.me`).then((r) => r.json()).then((j) => j.result.data.json.id)
   await run('scripts/check/offline.mjs', [base, identity])
