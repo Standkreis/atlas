@@ -8,10 +8,10 @@
 > It also defines the nationwide catalogue, progress and legacy-migration semantics for
 > [Epic #14](https://github.com/Standkreis/atlas/issues/14).
 >
-> **Germany consolidation (2026-09-11).** The [Germany Atlas ADR](../adr/2026-09-11-germany-atlas.md)
+> **Germany consolidation (drafted 2026-09-11, adopted 2026-09-12).** The [Germany Atlas ADR](../adr/2026-09-11-germany-atlas.md)
 > supersedes the Germany-specific region, catalogue, gallery, progress, onboarding and migration
 > descriptions below. Historical counts and request-triggered ETL examples are not current launch
-> instructions. **Production acceptance remains pending in the close-out draft.** This scoped
+> instructions. [Production acceptance is verified](../records/2026-09-11-germany-release.md). This scoped
 > supersession does not close unrelated first-walk criteria or change their historical evidence.
 
 | 🗓️ Date | 👤 Owner | 🎯 Status |

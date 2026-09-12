@@ -4,7 +4,7 @@
 
 | 🗓️ Updated | 👤 Owner | ➡️ Next |
 | --- | --- | --- |
-| 2026-09-11 | Sven Reiser | [#29](https://github.com/Standkreis/atlas/issues/29): complete checked production release and independent verification, then adopt the [Germany Atlas ADR](adr/2026-09-11-germany-atlas.md) and close [Epic #14](https://github.com/Standkreis/atlas/issues/14). Production acceptance is pending |
+| 2026-09-12 | Sven Reiser | Germany Atlas shipped: [release verification](records/2026-09-11-germany-release.md) and [adopted decisions](adr/2026-09-11-germany-atlas.md). Follow-up candidates: external learning sources [#67](https://github.com/Standkreis/atlas/issues/67) and useful species groups [#93](https://github.com/Standkreis/atlas/issues/93) |
 
 ## Current milestone
 
@@ -14,9 +14,10 @@ searchable region discovery and Germany-wide progress. Its native GitHub blocker
 order; the historical handover below remains useful context for the existing data and prose work.
 
 The reviewed launch catalogue has **6,874 taxa (including six accepted hybrids) across 362
-Kreisregionen / 400 Kreis units**. The [close-out ADR draft](adr/2026-09-11-germany-atlas.md)
-consolidates the decisions; its pending production checklist is not a release-success claim.
-After #14 fully ships, [#67](https://github.com/Standkreis/atlas/issues/67) owns an external-source
+Kreisregionen / 400 Kreis units**, with 36,338 eligible images. The [Germany ADR](adr/2026-09-11-germany-atlas.md)
+consolidates the decisions and completed production acceptance. The native replacement committed;
+independent readback and deployed browser journeys passed on 12 September.
+[#67](https://github.com/Standkreis/atlas/issues/67) owns a later external-source
 learning preview with a separate owner approval before catalogue-wide work. Complete new wiki,
 Steckbrief and sound coverage is not implicitly delivered by #14 or guaranteed by #67.
 
