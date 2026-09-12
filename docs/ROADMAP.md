@@ -4,7 +4,7 @@
 
 | 🗓️ Updated | 👤 Owner | ➡️ Next |
 | --- | --- | --- |
-| 2026-09-12 | Sven Reiser | Germany Atlas shipped: [release verification](records/2026-09-11-germany-release.md) and [adopted decisions](adr/2026-09-11-germany-atlas.md). Current pass: [post-release cleanup #111–#117](handoffs/2026-09-12-post-release-cleanup.md); future epics remain Backlog |
+| 2026-09-12 | Sven Reiser | Germany Atlas shipped: [release verification](records/2026-09-11-germany-release.md) and [adopted decisions](adr/2026-09-11-germany-atlas.md). Current pass: [post-release cleanup #111–#117](handoffs/2026-09-12-post-release-cleanup.md); feature work has separate issue ownership |
 
 ## Current work after the Germany release
 
@@ -18,10 +18,10 @@ workspace preservation/cleanup, captured-place sync, plant wildness correction, 
 refresh, legacy ETL protection, workflow change detection and current operations guidance.
 Each live GitHub issue owns status and acceptance criteria.
 
-Future epics remain Backlog: species groups [#93](https://github.com/Standkreis/atlas/issues/93),
+Separate feature work is tracked by species groups [#93](https://github.com/Standkreis/atlas/issues/93),
 external sources [#67](https://github.com/Standkreis/atlas/issues/67), rich sightings
 [#10](https://github.com/Standkreis/atlas/issues/10), and social discovery
-[#11](https://github.com/Standkreis/atlas/issues/11). No cleanup task starts them.
+[#11](https://github.com/Standkreis/atlas/issues/11). The #93 agent is independently working on its audit in [#120](https://github.com/Standkreis/atlas/issues/120); cleanup does not own that work or start the other epics.
 #67 requires a separate approved local preview before catalogue-wide processing. Complete new
 wiki, Steckbrief and sound coverage was not delivered by #14.
 

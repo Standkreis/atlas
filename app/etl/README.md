@@ -290,7 +290,7 @@ Two texts per taxon and language, written by a model from the fact sheet and not
 | 5 | `npm run etl -- prose --load --run r1` (answers → DB, nothing written; a taxon is stored only when every text has a valid draft and a valid audit) | loaded, pending, invalid |
 | 6 | Hand-read ten Ökologie paragraphs and retain the review evidence. The [checked Germany catalogue transfer](#-checked-production-transfer) preserves existing rich content and every `Interaction` row; publishing prose or interaction changes requires a separately reviewed content-update plan. | |
 
-`--run` defaults to the region's slug (`mainz-bingen`). A taxon whose `inputHash` (sha1 of both sheets in both languages) equals the stored one is skipped; a changed fact or edge makes it pending again. `content --region <name>` (not `--force`) runs the step at its end for the taxa it filled (prompts only, with the region's default run). `--purge [--region <name>]` clears the selected stored prose scope; the run folders stay. Use only an explicitly reviewed local content scope; historical batch sizes and prices are not current model configuration.
+`--run` defaults to the region's slug (`mainz-bingen`). A taxon whose `inputHash` (sha1 of both sheets in both languages) equals the stored one is skipped; a changed fact or edge makes it pending again. `content --region <name>` (not `--force`) runs the step at its end for the taxa it filled: it writes pending prompts and may publish existing valid completed answers, using the region's default run. `--purge [--region <name>]` clears the selected stored prose scope; the run folders stay. Use only an explicitly reviewed local content scope; historical batch sizes and prices are not current model configuration.
 
 ## 🚀 Checked production transfer
 
