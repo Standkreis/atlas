@@ -65,7 +65,7 @@ export function SpeciesPage() {
   const page = useQuery(trpc.taxon.page.queryOptions({ gbifKey, regionId: region?.id }, { enabled: Number.isInteger(gbifKey) && me.isSuccess }))
   const progress = useQuery(trpc.identity.progress.queryOptions())
   const centre = useQuery(trpc.taxon.mapCentre.queryOptions({ regionId: region?.id ?? '' }, { enabled: !!region, staleTime: Infinity }))
-  const invalidate = () => qc.invalidateQueries({ queryKey: trpc.identity.progress.queryKey() })
+  const invalidate = () => Promise.all([qc.invalidateQueries({ queryKey: trpc.identity.progress.queryKey() }), qc.invalidateQueries({ queryKey: trpc.identity.germanyProgress.queryKey() })])
   const [marking, setMarking] = useState(false)
   // Study marks go through the outbox (handoff 0009 B): offline the button flips at once, the flush lands the row.
   const mark = async (taxon: { id: string; gbifKey: number; sciName: string; names: Record<string, string>; tile: string; lead: Lead }) => {
