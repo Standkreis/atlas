@@ -3,18 +3,23 @@
 Owner: Sven Reiser. Execution record for [#29](https://github.com/Standkreis/atlas/issues/29)
 and [Epic #14](https://github.com/Standkreis/atlas/issues/14), 11–12 September 2026.
 
-**Native catalogue replacement committed and independently verified on 12 September; final live
-acceptance remains pending.** Production is reopened with the complete Germany catalogue. This
-record stays in a draft PR until the deployed journeys and deliberate release review finish.
+**Native catalogue replacement and final live acceptance passed on 12 September.** Production is
+reopened with the complete Germany catalogue. This record is delivered through release PR101;
+Epic adoption and its separate outcome review belong to close-out PR100.
 
 ## 📌 Reviewed release
 
-Current checked application code: `8d6e464c47d68ed45689600b4968e75f5bfe0d74`, with
+Current checked application code: `49bbcf9e6f397af5835a7057107bbf59a6956a0b`, the focused
+[#108 / PR #109](https://github.com/Standkreis/atlas/pull/109) hydration correction. Production
+deployment `dpl_BakxYUyMQDkZdvzby4V3B9fGMkAC` is Ready at that exact commit; the public alias health
+returned 200/`ok:true`, build `mtyfxhci`. Live-release proof SHA-256:
+`8f287a2d57a622785192325fa82a54313b32a1611990862e2b63ba154e6c38c5`.
+The catalogue implementation baseline `8d6e464c47d68ed45689600b4968e75f5bfe0d74` retains its
 [successful main CI](https://github.com/Standkreis/atlas/actions/runs/34688143839), 599 unit and
 103 integration tests, full static export and production-server build. The documentation-only
 native-plan merge `45239c589699e57570f6bcdb7517d83ac8eddd47` deployed as
-`dpl_3p48PTWHN3Va4atABhT1xCo2PKr3`, build `mtycvusa`; its application tree is byte-identical.
-Actual native execution and readback are recorded below.
+`dpl_3p48PTWHN3Va4atABhT1xCo2PKr3`, build `mtycvusa`; its application tree was byte-identical.
+Actual native execution, readback and final live checks are recorded below.
 
 Historical first-attempt code: `85c4a473ee65e9418eb5fb12d132ab0a9551ba77`, clean isolated checkout.
 Its [main CI](https://github.com/Standkreis/atlas/actions/runs/34630602949) passed.
@@ -467,7 +472,7 @@ files/directories are 0600/0700 and fsynced. Manifest SHA-256:
 `99287256b1a258d65154c5de76c986708094522ac65dd8cd6d5b461aad0cd56d`.
 It explicitly records committed/readback/reopened state, not completed browser acceptance.
 
-### 🧪 Live acceptance — pending
+### ✅ Live acceptance — passed
 
 The first reopened-production media run completed all sixteen 0/1/2/12-image gallery cells
 and actual retained bird-audio playback, but correctly **failed** its final assertion on two
@@ -476,23 +481,103 @@ uncaught React hydration errors. Report SHA-256:
 An independent diagnostic reproduced React #418 with zero blocked or failed network requests;
 the captured fiber points to the species page's initial loading `Empty` component. Delayed
 exception delivery means the initial desktop/twelve-image attribution is not reliable.
-The exact hydration trigger remains under local investigation; no acceptance waiver, speculative
-analytics explanation, production rollback or repeat data transfer follows from this result.
-[Bug #108](https://github.com/Standkreis/atlas/issues/108) owns the focused correction and regression.
+No acceptance waiver, speculative analytics explanation, production rollback or repeat data
+transfer followed from this result.
 
-Production media, onboarding/Profile/search/progress, explicit regional pack/offline and analytics
-journeys are the remaining release gate. Personal before-images, credentials, raw receipts and
-browser profiles remain owner-only outside Git. Epic #14 additionally needs its dedicated ADR
-close-out review. Transfer success alone does not close #29.
+[Bug #108](https://github.com/Standkreis/atlas/issues/108) subsequently isolated the trigger with
+an exact captured-Production-HTML local replay. Delaying the Appearance/Next Script chunk by 2.5
+seconds reproduced #418 with all APIs, external traffic and images blocked: React's hydration cursor
+remained on a `<meta>` in `<head>` while the current fiber expected the `<main>` in `<body>`. The
+minimal fix keeps the fixed theme constants and bootstrap in a server-safe module and emits the
+pre-paint bootstrap as a native inline head script instead of a suspending client reference. It adds
+no warning suppression, personal-data clearing or catalogue/media change. Captured-Production
+report SHA-256: `b659697ff64c09b039a0f76019db3ee0924594c3348a764aa4f65654a9fb7952`;
+delayed red replay: `285c1f6fcf51223bddf10da4bb42f306dc6c7d8a31c1708eddb2d469cf252393`.
+
+The complete local `npm run check` passed with 607 unit tests, including eight focused bootstrap
+regressions, typecheck, lint without new warnings, full static export and production-server build.
+On that fresh build, **24 delayed-boundary cases** passed across EN/DE, 390/1280px, zero/twelve-image
+species and system/dark/light themes. Every case observed the native bootstrap before client code,
+no client script queue and no uncaught hydration error; APIs, external traffic and images remained
+blocked. Fixed-build report SHA-256:
+`34fafa9c23487ed5abf9ed00e898b62810d67efdb64163530571721aa0c04ab1`.
+[PR #109](https://github.com/Standkreis/atlas/pull/109) merged as
+`49bbcf9e6f397af5835a7057107bbf59a6956a0b`.
+
+The independent flow check reused only that stopped owned browser identity, explicitly retaining
+the failed media status rather than turning it into a pass. Initial location probes passed all
+five reviewed cases; search passed Pirmasens, Zweibrücken, Mainz-Bingen and Sonneberg, with zero
+selectable results for Kyoto/Schagen. The original fresh-identity welcome showed no region list.
+The private harness then needed corrections for a missing read-only `sighting.photos` allowlist
+entry, asynchronous switch acknowledgement, and continuing an identity with already-saved regions.
+Those failed reports remain unchanged; no application defect or data rollback is claimed by them.
+
+Flow06 proved actual persisted **Sonneberg 149 → Südwestpfalz 625 → Sonneberg 149** selection,
+with all four Germany counters zero before/after and denominator 6,874. Its explicit real-CDN
+Sonneberg download stored exactly **147 unique eligible leads / 4,507,756 bytes for 149 taxa**
+(two without images); no non-lead gallery images entered the pack. The recorded page/worker
+traffic contains 274 observations, 127 completed uncached observations and 4,004,052 encoded
+upstream bytes; these CDP observations are not asserted to be deduplicated HTTP requests.
+Flow06 then stopped on a private browser-evaluation error during the offline continuation:
+its partial results do **not** yet establish offline reload/reconnect acceptance. Report SHA-256:
+`311f7480738b25eb047166548220d8c55209c2b273a23cf1aa0d358f221234e6`.
+
+The bounded offline08 continuation then passed on the same owned identity and existing pack, without
+application writes. A new document time origin advanced by 1,271.800ms and reached `complete` before
+the grid assertion; the fully offline page rendered all 149 cards and decoded 36 images, then
+reconnected. The pack remained exactly 147 cached URLs / 4,507,756 bytes before and after; the
+local-storage and private-cache sentinels survived and the outbox stayed at zero rows. There were
+zero blocked requests or uncaught browser exceptions. Report SHA-256:
+`fb3aa641e9b58360c3f7451932c0bcdb2708781848dfc07186e6b990355a5d0b`
+(4,910 bytes). This continuation does not rewrite flow06's failed status or waive media02.
+
+Independent analytics04 also passed for fresh EN/DE `/sources` visits in the reused owned browser.
+The self-hosted SDK and both bounded `/view` POSTs returned 200; emitted paths were exactly
+`/en/sources` and `/de/sources`, referrers were empty, and the report recorded zero blocked requests
+or errors. It explicitly retains media02 as failed. Report SHA-256:
+`d0bf1ebba835ba370679910f3871eafaff6e178e6571019900c90bd8cd615435`
+(2,605 bytes).
+
+At **13:49:13.224 UTC**, exact-commit deployment verification matched PR109 to the Ready Production
+deployment and public aliases; `atlas.standkreis.de` health returned 200/`ok:true`, build `mtyfxhci`.
+Media03 then passed all **sixteen 0/1/2/12-image gallery cells** across EN/DE and 390/1280px, including
+the gallery and active-image attribution assertions. Actual retained bird audio played to 0.251s
+with an additional successful 206 `audio/mpeg` range check. Cold twelve-image pages initially made
+3–5 gallery requests, transferring 302,635–515,685 encoded gallery bytes, not all twelve images.
+Counts vary with browser lazy-load distance and request completion; early zero-byte measurements
+on smaller galleries are not claims of zero transfer. The owned browser recorded 37 screenshots, zero blocked
+requests and zero errors, then stopped. Report SHA-256:
+`b8c55b3818f86cd6acbe39025c667e846bb044f2313b77b889279081a2bf7242`
+(17,308 bytes). This is the passing successor to media02; the failed report remains preserved.
+
+Root inspected the actual 390px production captures; these three compressed images total 71,140
+bytes and document the corresponding completed assertions, not an overall successful flow:
+
+- [Pirmasens search, transparent wrapper and no leading icon](assets/2026-09-12-germany-release/production-pirmasens-search.webp).
+- [Germany totals and local Südwestpfalz denominator](assets/2026-09-12-germany-release/production-germany-progress.webp).
+- [Explicit Sonneberg pack ready](assets/2026-09-12-germany-release/production-explicit-offline-pack.webp).
+
+Root also inspected the final live phone gallery and desktop honest fallback, plus offline08's
+phone atlas and desktop region search. Curated final evidence:
+
+- [Actual offline reload with cached images](assets/2026-09-12-germany-release/production-offline-atlas.webp).
+- [Final live twelve-image gallery](assets/2026-09-12-germany-release/production-species-gallery.webp).
+
+Together, the completed flow, offline08, analytics04 and media03 evidence satisfies the specified
+production journey gate. Personal before-images, credentials, raw receipts and browser profiles
+remain owner-only outside Git. The final complete diff receives deliberate review before PR101
+merges; Epic #14 additionally needs its dedicated ADR close-out review. Transfer success alone
+does not close #29.
 
 ## 🔗 Completed issue/PR delivery trace
 
-The following 42 scoped issues are completed with their associated PRs merged. This is not a
-substitute for #29's production acceptance or Epic #14's outcome review, which remain pending.
-Issue #53 was cancelled, not delivered. Separate follow-up epics are outside this release.
+The following 43 scoped issues are completed with their associated PRs merged. This trace is not a
+substitute for #29's own release-record delivery in PR101 or Epic #14's outcome review in PR100.
+Issue #53 was cancelled, not delivered. Separate follow-up epics #67/#93 are outside this release.
 
 | Issue | Merged PR |
 | --- | --- |
+| [#108](https://github.com/Standkreis/atlas/issues/108) | [#109](https://github.com/Standkreis/atlas/pull/109) |
 | [#106](https://github.com/Standkreis/atlas/issues/106) | [#107](https://github.com/Standkreis/atlas/pull/107) |
 | [#15](https://github.com/Standkreis/atlas/issues/15) | [#30](https://github.com/Standkreis/atlas/pull/30) |
 | [#16](https://github.com/Standkreis/atlas/issues/16) | [#31](https://github.com/Standkreis/atlas/pull/31) |
