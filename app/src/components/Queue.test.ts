@@ -59,6 +59,13 @@ describe('durable, identity-owned outbox', () => {
   })
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
+  it('sends the durable capture label unchanged after a deferred save', async () => {
+    const q = await import('./Queue')
+    await q.enqueue({ id: 'capture', kind: 'sighting', payload: { taxonId: taxon.id, taxon, at: new Date().toISOString(), wildness: 'wild', place: 'Region A', first: true } })
+    await q.flush()
+    expect(harness.create).toHaveBeenCalledWith(expect.objectContaining({ id: 'capture', place: 'Region A' }), expect.anything())
+    expect(q.rowsNow()).toEqual([])
+  })
   it('refuses a hung store instead of claiming the photo is saved', async () => {
     harness.hangRead = true
     const q = await import('./Queue')

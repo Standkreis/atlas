@@ -18,7 +18,7 @@ const fullCatalogue = process.env.UX_FULL_CATALOGUE === '1'
 // every gate; scoped output must never be reported as a successful full browser suite.
 const scenarios = process.env.BROWSER_SCENARIOS?.split(',')
 const locales = process.env.BROWSER_LOCALES?.split(',') ?? ['en', 'de']
-const supported = ['ux', 'wildness', 'scan-transition', 'gallery', 'analytics', 'offline', 'full-gallery', 'full-offline']
+const supported = ['ux', 'wildness', 'capture-sync', 'scan-transition', 'gallery', 'analytics', 'offline', 'full-gallery', 'full-offline']
 if (scenarios?.some(name => !supported.includes(name) || (name.startsWith('full-') && !fullCatalogue))) throw new Error('Invalid BROWSER_SCENARIOS selection')
 if (locales.some(locale => !['en', 'de'].includes(locale))) throw new Error('Invalid BROWSER_LOCALES selection')
 if (scenarios || process.env.BROWSER_LOCALES) console.log(JSON.stringify({ scopedBrowserRun: scenarios ?? supported.filter(name => fullCatalogue || !name.startsWith('full-')), locales, fullGalleryLocales: ['en', 'de'] }))
@@ -135,6 +135,7 @@ try {
   if (!ready) throw new Error('Production server did not become ready')
   for (const locale of locales) await run('scripts/check/ux.mjs', [base, locale])
   for (const locale of locales) await run('scripts/check/wildness.mjs', [base, locale])
+  for (const locale of locales) await run('scripts/check/capture-sync.mjs', [base, locale])
   for (const locale of locales) await run('scripts/check/scan-transition.mjs', [base, locale])
   await run('scripts/check/gallery.mjs', [base])
   await run('scripts/check/analytics.mjs', [base])
