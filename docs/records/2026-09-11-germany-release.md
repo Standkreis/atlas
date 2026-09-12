@@ -251,6 +251,58 @@ artifacts are hash-verified and fsynced in private persistent recovery storage. 
 is available; the nationwide catalogue is still not activated. Further transfer remediation and
 a fresh checked attempt are required before this release record can be adopted.
 
+### 🔬 12 September: bounded-transfer remediation
+
+[#104 / PR #105](https://github.com/Standkreis/atlas/pull/105) merged at
+`8d6e464c47d68ed45689600b4968e75f5bfe0d74`, with an exact tree match to the checked candidate;
+#104 is reconciled Done. It addresses avoidable round trips, not another timeout increase.
+The reviewed candidate is
+`b2d754c53bc257a24fb88322367e584c0a8ee5d2`. Writes and inverse mutations use deterministic
+10,000-row / 4 MiB UTF-8 JSON bounds; keyed reads use 100,000 keys / 4 MiB. The retained
+receipt's DML requests fall from 888 to 168 without reducing its 873,556 mutation rows.
+All snapshots, preservation checks, atomic publication and recovery predicates remain intact.
+Aggregate/statement/lock limits remain 600/120/30 seconds. An independently found Unicode
+collation-tie ordering defect was fixed with a real 4 MiB-boundary regression proved red/green.
+
+Root reran the complete check on full local Germany data: 599 unit tests, typecheck, lint
+(zero errors, six existing warnings), 13,769-page static export and production-server build.
+Full integration passed 103 tests in 16 files on a fresh owned local PG18 database.
+No Neon development or tests were used.
+
+The corrected-head normal full-size plan/apply/inverse rehearsal passed. Atomic apply including
+commit took 59.387 seconds; separately timed post-commit verification took 29.686 seconds;
+whole apply CLI took 303.796 seconds. Atomic inverse took 47.636 seconds, separate verification
+9.335 seconds and whole inverse CLI 113.090 seconds. Independent applied and recovered audits
+passed, with recovered 31-table fingerprint
+`226059543c727306684c9871af7c1af9fdeb2d0ca4d708c89d80fcdc1939eebf`.
+Applied audit SHA-256: `26dbdc52fbcbfafa7e3fe0d551268eb539a0b99a0554166979765867f11fbb90`;
+recovered audit: `3622674abbf0ef21ad4f5c87326a8af75f84f5c22645704fe15bbf90c034b425`.
+
+The fresh network-shaped clone uses a reviewed synthetic profile: 250 ms nominal RTT,
+125 ms per-direction latency with ±35 ms jitter, and 8 MiB/s per direction. It is not a
+measurement of production throughput. Checked apply passed: atomic commit in **384.506 seconds**,
+leaving **215.494 seconds / 35.92%** of its deadline; separate post-commit verification took
+192.674 seconds, and whole CLI took 857.550 seconds. Writes carried 464,997,743 encoded JSON
+input bytes in 168 requests. Input counts exclude responses and protocol overhead; the proxy
+measured these separately and reported no connection/queue errors. The importer reopened the
+local gate after verification. The guarded inverse also passed: atomic commit in **429.171 seconds**,
+leaving **170.829 seconds / 28.47%** of its deadline; separate post-commit verification took
+52.270 seconds, whole CLI 563.345 seconds. Its 653 inbound-reference guard requests retained the
+smaller 1,000-key cap and took 207.672 seconds. Inverse DML used 109 requests, 873,556 rows and
+60,188,704 encoded JSON input bytes.
+
+Independent shaped applied and recovered audits passed. Applied audit SHA-256:
+`784269d475dfa1c32546ebde9419cf3cbf4e9609641acd49176edd9c47adfa9f`; recovered audit:
+`d3a49133d81b060aeef5aef681d996a26c9252bda3d57676f4757ccfd13a2dc7`.
+Recovery restored the exact original 31-table fingerprint above. Both gates ended open/drained;
+all 1,784 old Assets, 24,954 taxon IDs, protected personal tables, reusable fields/names and
+6,874 gallery receipts passed independent preservation checks. Maximum sampled footprint across
+both rehearsals was 650,507,967 database bytes and 242,679,808 index bytes; sampling is a lower
+bound, not a worst-case guarantee. All 924 mutation-period storage samples succeeded. Both
+rehearsals are hash-verified and fsynced in private persistent recovery storage. See the
+[final acceptance review](https://github.com/Standkreis/atlas/issues/104#issuecomment-5645284769).
+No production03 execution is claimed by these local results.
+
 The actual fence/drain, fresh backup/restore, exact-bound production plan/apply, independent audit,
 reopening and deployed browser/media/audio/offline/analytics smoke evidence must replace this pending
 section before #29 closes. Personal before-images, credentials, raw receipts and browser profiles
@@ -258,7 +310,7 @@ remain owner-only outside Git. Epic #14 additionally needs its dedicated ADR clo
 
 ## 🔗 Completed issue/PR delivery trace
 
-The following 40 scoped issues are completed with their associated PRs merged. This is not a
+The following 41 scoped issues are completed with their associated PRs merged. This is not a
 substitute for #29's production acceptance or Epic #14's outcome review, which remain pending.
 Issue #53 was cancelled, not delivered. Separate follow-up epics are outside this release.
 
@@ -304,3 +356,4 @@ Issue #53 was cancelled, not delivered. Separate follow-up epics are outside thi
 | [#95](https://github.com/Standkreis/atlas/issues/95) | [#97](https://github.com/Standkreis/atlas/pull/97) |
 | [#98](https://github.com/Standkreis/atlas/issues/98) | [#99](https://github.com/Standkreis/atlas/pull/99) |
 | [#102](https://github.com/Standkreis/atlas/issues/102) | [#103](https://github.com/Standkreis/atlas/pull/103) |
+| [#104](https://github.com/Standkreis/atlas/issues/104) | [#105](https://github.com/Standkreis/atlas/pull/105) |
