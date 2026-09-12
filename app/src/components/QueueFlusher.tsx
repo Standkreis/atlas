@@ -33,6 +33,8 @@ export function QueueFlusher() {
     const progressKey = trpc.identity.progress.queryKey()
     return onFlushed(async ({ row }) => {
       const keys = [progressKey, trpc.journal.pathKey()]
+      // National totals remain server-confirmed: only acknowledged collection writes refetch them.
+      if (row.kind === 'sighting' || row.kind === 'study') keys.push(trpc.identity.germanyProgress.queryKey())
       if (row.kind === 'sighting') keys.push(trpc.sighting.photos.queryKey(), trpc.sighting.outsideVersioned.pathKey(), trpc.sighting.fill.queryKey({ id: row.id }))
       await Promise.all(keys.map((queryKey) => qc.invalidateQueries({ queryKey, refetchType: 'all' })))
       // The sighting's own page is persisted (`journal.get`, handoff 0012 F2); fetch it now, while the signal is there, so
