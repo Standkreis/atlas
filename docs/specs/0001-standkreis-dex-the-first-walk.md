@@ -1,12 +1,18 @@
 # 🧪 [0001] standkreis-dex — a Pokédex for nature, and the first walk
 
-> **Spec.** Lives while the epic is open; distilled into an ADR and deleted when it closes. Decisions and their rejected alternatives are in the immutable records [0001](../records/0001-standkreis-dex-the-first-walk.md) (the product) and [0002](../records/0002-etl-the-plausible-set.md) (the plausible set and the ETL). Research behind it: [`docs/research/`](../research/).
+> **Spec.** Distilled into scoped ADRs as work closes; this stable path and its historical references are preserved under the [document policy](../agents/documents.md). Decisions and their rejected alternatives are in the immutable records [0001](../records/0001-standkreis-dex-the-first-walk.md) (the product) and [0002](../records/0002-etl-the-plausible-set.md) (the plausible set and the ETL). Research behind it: [`docs/research/`](../research/).
 >
 > **Germany Atlas addendum (2026-09-08).** [The Germany Atlas contract](../records/2026-09-08-germany-atlas-contract.md)
 > supersedes the German region identity in record 0002 E1: selectable German regions are versioned
 > BBSR Kreisregionen composed from official Kreis units, while GADM ids are occurrence-query mappings.
 > It also defines the nationwide catalogue, progress and legacy-migration semantics for
 > [Epic #14](https://github.com/Standkreis/atlas/issues/14).
+>
+> **Germany consolidation (drafted 2026-09-11, adopted 2026-09-12).** The [Germany Atlas ADR](../adr/2026-09-11-germany-atlas.md)
+> supersedes the Germany-specific region, catalogue, gallery, progress, onboarding and migration
+> descriptions below. Historical counts and request-triggered ETL examples are not current launch
+> instructions. [Production acceptance is verified](../records/2026-09-11-germany-release.md). This scoped
+> supersession does not close unrelated first-walk criteria or change their historical evidence.
 
 | 🗓️ Date | 👤 Owner | 🎯 Status |
 | --- | --- | --- |
@@ -145,7 +151,7 @@ Every asset carries its licence and attribution in the database. If free-forever
 
 ## 🗃️ ETL
 
-> Decided in [record 0002](../records/0002-etl-the-plausible-set.md) E11. The probe in [`scripts/etl-probe/`](../../scripts/etl-probe/README.md) ran the whole pipeline in miniature (`matrix.mjs`) and produced the first fixture.
+> Decided in [record 0002](../records/0002-etl-the-plausible-set.md) E11. The [historical `scripts/etl-probe/`](https://github.com/Standkreis/atlas/blob/7804982e487b25d826eefb762f8b62e1905b6847/scripts/etl-probe/README.md) ran the whole pipeline in miniature (`matrix.mjs`) and produced the first fixture. The link is commit-pinned because the probe was subsequently removed.
 
 **Tables written:** `region` · `taxon` · `plausibility` · `asset` · `text` (intro, language, source) · `interaction` · `lookalike`.
 

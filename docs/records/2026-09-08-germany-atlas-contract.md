@@ -331,3 +331,19 @@ the Germany data and release work in issues #21 and #29.
 - [Record 0002 — plausible set](0002-etl-the-plausible-set.md)
 - [Closed draft PR #7](https://github.com/Standkreis/atlas/pull/7), preserving the gallery design
 - [Epic #14](https://github.com/Standkreis/atlas/issues/14) and its dependency graph
+
+## 🧾 Consolidation addendum — 2026-09-11
+
+The [Germany Atlas ADR](../adr/2026-09-11-germany-atlas.md) consolidates this contract and later
+reviewed taxonomy, media, progress, privacy and migration decisions. This original record and
+its evidence remain intact. The ADR's dedicated close-out draft explicitly keeps production
+acceptance pending until #29 verifies the actual transfer and deployed system; publication of
+a draft does not complete the Epic.
+
+## ✅ Adoption addendum — 2026-09-12
+
+The native replacement and production journeys now pass in the [release record](2026-09-11-germany-release.md).
+The [Germany ADR](../adr/2026-09-11-germany-atlas.md) is adopted through dedicated PR100 after
+release PR101; it supersedes this contract's Germany-specific descriptions while retaining this
+record and the earlier draft-stage addendum as history. The one-time owner-authorized pre-alpha
+replacement does not change normal personal-progress semantics or source/licensing requirements.
