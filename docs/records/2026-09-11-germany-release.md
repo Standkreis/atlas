@@ -366,7 +366,37 @@ at **11:13:55.775 UTC**. Final maintenance/runtime checks at **11:15 UTC** found
 invocations, active database work or unexplained clients, and an open gate with zero admissions.
 The approved checked apply started at **11:19:50 UTC** under a read-only size/gate monitor.
 [Execution update](https://github.com/Standkreis/atlas/issues/29#issuecomment-5645563763).
-Apply completion, independent committed-state audit, reopening and production journeys remain pending.
+### Third attempt: deadline failure and proven rollback
+
+The importer exited 1: its 600-second aggregate transaction expired at 606.624 seconds, before
+commit. The final rejected operation was a Plausibility batch. Writes took 493.192 seconds across
+130 attempted batches / 539,571 attempted mutations / 398,609,559 encoded JSON bytes; these attempted
+totals include the failed last batch and are not counts of committed rows. Full CLI time was
+926.347 seconds. Apply log SHA-256:
+`dba568765850f1fa5ed92eea01e26f89c22accfe6c1fb5d7ede8f18511a25771`.
+
+At **11:36:55.644 UTC**, an independent complete 31-table comparison proved production and the fresh
+local backup still matched baseline `90030d96eda4e792b76e06abb9c7f540c07c5702f2d277f9535ac5f7e034ce56`.
+Proof SHA-256: `226b84334d4bb6817b0714df33a39d6e56caade09edfeb82fa7b9ebbe0065cc3`.
+With the failed process absent and no other clients/admissions, the reviewed abort wrapper reopened
+only its owned gate at **11:37:17.141 UTC**. No inverse or blanket restore was used.
+
+Root removed only the temporary WAF rule and explicitly restored disabled state; exact draft/live
+checks passed. **Version4** was verified disabled with zero rules/IPs/bypasses and no draft at
+**11:38:41.008 UTC**. Public production and current/old Preview health all returned 200/`ok:true` by
+**11:38:47.281 UTC**; production build remained `mty8hcio`. The maintenance interval from activation
+to verified disabled restoration was approximately **65 minutes9 seconds**.
+[Third attempt evidence](https://github.com/Standkreis/atlas/issues/29#issuecomment-5645639224).
+
+### Owner-directed strategy replacement
+
+After three importer deadline failures, Sven explicitly reiterated that pre-alpha production data
+may be removed/replaced even if not restorable and asked to stop preservation-oriented retries.
+[#106](https://github.com/Standkreis/atlas/issues/106) now owns the separately reviewed native PG18
+snapshot replacement plan and clean local rehearsal. The source remains the fresh backup plus a
+checked **local** import, retaining its existing rich content/audio references; later personal
+changes may be discarded. This is not a licence, scientific-quality or catalogue-membership waiver.
+Native production replacement and the final production journeys remain pending.
 
 The actual fence/drain, fresh backup/restore, exact-bound production plan/apply, independent audit,
 reopening and deployed browser/media/audio/offline/analytics smoke evidence must replace this pending
