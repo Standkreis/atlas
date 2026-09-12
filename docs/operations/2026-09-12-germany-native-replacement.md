@@ -3,8 +3,9 @@
 Owner: Sven Reiser. [#106](https://github.com/Standkreis/atlas/issues/106), execution in
 [#29](https://github.com/Standkreis/atlas/issues/29), within [Epic #14](https://github.com/Standkreis/atlas/issues/14).
 
-**Prepared under the owner's 12 September replacement authorization; native rehearsal and independent
-review are pending. This draft is not evidence of execution.**
+**Prepared under the owner's 12 September replacement authorization. Both native rehearsals and
+independent operator review passed; execution requires this plan's checked merge and fresh production
+preflight after the full drain. This record is not evidence of production execution.**
 
 ## 🧭 Decision and authority
 
@@ -169,8 +170,77 @@ reviewed restore of the same frozen candidate. Do not restore newer personal dat
 target by guesswork. Existing backup evidence is retained, but producing an exact reconstruction of
 all later production user changes is not a release requirement.
 
-## 📎 Rehearsal and review evidence — pending
+## 📎 Rehearsal and review evidence — 12 September
 
-Populate this section with the exact final candidate, native archive, object counts, fingerprints,
-copy verification, timeout settings, measured native restore results and independent review before
-marking this plan executable. Raw personal data and credentials stay outside Git.
+Checked application commit: `8d6e464c47d68ed45689600b4968e75f5bfe0d74`. The source was built in a
+new local `dex_check_issue29_native_candidate_20260912_01` from the backup pinned above. Local plan
+and apply exited zero in 176.104 and 417.256 seconds. Independent applied audit passed all catalogue,
+gallery and preservation checks; fixed development identities, negative test taxon keys, fixture
+catalogues/sources and example.test assets were absent. Candidate state is frozen, not a preview DB.
+
+| Artifact | Bytes / result | SHA-256 |
+| --- | --- | --- |
+| Independent local applied audit | Passed | `b337ea2fde6ac7d805a2f0fe79db3068db1c5675a12a41c8b98c1e6b47590ee1` |
+| Final application archive | 87,757,467 | `02f81429a0aa8a77c97fe7d1309793a65157f7a021b44df6692ebe94658fdeb0` |
+| Archive TOC | Exact inventory below | `21d3e9f499690e60af0ba36ba739effefd8e396d852dc48ce403a69c05523e92` |
+| Raw native SQL | 435,123,835 | `bbea19162c2a01fffc04221ddb0d37ff270bf6e29a01df57380ed5d48b175548` |
+| Bounded native SQL | 435,123,856 | `b8e9d2873ca630f56646ef3b11dae49d868ad45246385e6d0efa85c158725f29` |
+| Unchanged post-header SQL body | 435,123,497 | `e9f1a3fa07589508744d471971b39b09bfec34080adbd3e2b7f263723e9b89f0` |
+| Frozen candidate snapshot v2 | 242,814 | `62d20ce73629c1870dac338d1a7e10dd0125559bd4bf8309156903d7f5f6282e` |
+| Empty native restore snapshot v2 | All 34 tables and raw schema equal | `94fad34fd56a44d367a56a0047af483b978cc7bc23e17c75feb8ea1c1a213019` |
+| Restricted replacement before | Old-state local clone | `4ac23b65b3e5172d6273e6e1f4216838fd440dd292155c891e6db58a8608640c` |
+| Restricted replacement after | All 34 tables equal candidate | `62e189562dc6e158037f574158e7f90bb1b397450df15051b9149d983955a754` |
+| Persistent checkpoint manifest | 6,074; 18 payload files | `1b80776cc8fc6764299f027173300b63e1e3ffae53150e1f48a48b54cd47d32c` |
+| Detailed rehearsal report | Commands and timings | `ab30194f00aaa10c2a460a97095d34619a767b83f67b154f4e95e20fcf859b67` |
+
+The private persistent checkpoint is `atlas-worktrees/recovery-germany-release-20260911-9iQvet/native-20260912-01`
+outside Git: 1,593,117,253 payload bytes, directory 0700 and files 0600. Every destination was
+hash-reread and fsynced; the directory was fsynced. The rejected earlier schema-scoped archive is
+not included. No credentials or personal rows are published here.
+
+Final TOC inventory: **13 types, one function, 34 tables, 34 table-data entries, 34 constraints,
+68 indexes and 51 foreign keys**. There are no schema, ACL, ownership-changing, extension, comment
+or sequence entries. The 34 application tables contain 1,085,601 stored rows; this is not a species
+denominator. The audited candidate contains 362 canonical German regions (363 total stored regions),
+6,874 German taxa, 214,321 regional memberships, 151,680 lookalikes, 36,338 eligible images and
+6,874 gallery receipts. Existing content retained from the source includes 34,104 rich values,
+3,586 nonempty names, 1,784 Assets and all 24,954 prior global taxa; final storage is 36,881 Assets
+and 27,467 global taxa. Gate open, zero admissions.
+
+Native empty restore passed in **8 seconds**. Clean replacement of an old-baseline clone using the
+exact bounded SQL passed in **7.69 seconds** under an object-owning role with NOSUPERUSER,
+NOCREATEDB, NOCREATEROLE, NOREPLICATION and NOBYPASSRLS. These are local timings, not a production
+runtime promise. All 34 table digests matched the candidate, all 51 foreign keys were valid and
+nondeferrable, and before/after schema/security metadata were identical. The Identity/Asset
+SET NULL/CASCADE cycle was exercised inside a rolled-back transaction; final counts were unchanged.
+
+The four-header-line transformer passed 18 tests and root review. Its SHA-256 is
+`fc0638506f68a6644abec63ec826f668c1cc1d62124503a9b5b3149b7c88f4a9`.
+The native operator wrapper, SHA-256
+`ea9a82ee5c5a0cdd658a0d35f2c3bdec00555bbb3029d13fdaf93f9267edbc1e`, passed independent
+review and four stubbed failure/success simulations. No simulation connected to production.
+Review findings concerning native timeout resets, cyclic foreign keys, credential-safe errors,
+freshness after the live firewall read and child-process supervision were resolved before this record.
+
+### 🔎 Production preflight: physical slots are not logical schema
+
+Read-only Production inspection confirms the expected PG18 object-owning principal, schema CREATE
+and USAGE, 136 public tables/indexes, no applicable default grants, and all sixteen finished migration
+SQL checksums. Source-to-Production logical application schema matches after normalizing the expected
+owner (`dex` to `neondb_owner`). The only additional difference is ten historical dropped-column
+slots: Filter four, Identity one, Plausibility four, Taxon one. All 311 visible columns retain their
+names, types, defaults, nullability, collation and relative order.
+
+Native recreation intentionally compacts those invisible physical ordinals. Pre-validation compares
+visible columns using dense per-table ordinal rank; it does not ignore column order. Post-validation
+requires exact candidate ordinals/schema and all 34 data fingerprints. Production BEFORE→AFTER
+namespace owner/ACL, grants, extensions/members and complete security metadata must remain exact.
+The pure validator SHA-256 is `fce74e3e333a225e480acd2b96f07df6bebf947697acd58478e7c18744cbd2cf`;
+its passing pre-validation proof SHA-256 is
+`b17c82f4115c51d841d14983cf16c256fd392e90217df3bec96d3727129ec4a6`.
+This is physical slot compaction, not a new logical schema migration or relaxed data check.
+
+Fresh activity, fence and deployment invariants remain mandatory immediately before execution.
+Initial native fence verification was at 11:59:50.025 UTC; its full drain ends at 12:30:20.025 UTC.
+Final execution/readback, firewall reopening and live journeys are recorded under #29, not inferred
+from this preparation record.
