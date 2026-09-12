@@ -497,8 +497,8 @@ delayed red replay: `285c1f6fcf51223bddf10da4bb42f306dc6c7d8a31c1708eddb2d469cf2
 The complete local `npm run check` passed with 607 unit tests, including eight focused bootstrap
 regressions, typecheck, lint without new warnings, full static export and production-server build.
 On that fresh build, **24 delayed-boundary cases** passed across EN/DE, 390/1280px, zero/twelve-image
-species and system/dark/light themes. Every case observed the native bootstrap before client code,
-no client script queue and no uncaught hydration error; APIs, external traffic and images remained
+species and system/dark/light themes. Every case observed the native bootstrap before the delayed
+Appearance client module was released, no client script queue and no uncaught hydration error; APIs, external traffic and images remained
 blocked. Fixed-build report SHA-256:
 `34fafa9c23487ed5abf9ed00e898b62810d67efdb64163530571721aa0c04ab1`.
 [PR #109](https://github.com/Standkreis/atlas/pull/109) merged as
