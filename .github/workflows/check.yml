@@ -22,7 +22,7 @@ jobs:
           if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
             base="$(git rev-parse "$HEAD_SHA^")"
           fi
-          if git diff --quiet "$base" "$HEAD_SHA" -- app .nvmrc ':(exclude)app/AGENTS.md' ':(exclude)app/CLAUDE.md'; then
+          if git diff --quiet "$base" "$HEAD_SHA" -- app .nvmrc .github/workflows/check.yml ':(exclude)app/AGENTS.md' ':(exclude)app/CLAUDE.md'; then
             echo 'app=false' >> "$GITHUB_OUTPUT"
           else
             echo 'app=true' >> "$GITHUB_OUTPUT"
