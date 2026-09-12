@@ -4,28 +4,34 @@
 
 | 🗓️ Updated | 👤 Owner | ➡️ Next |
 | --- | --- | --- |
-| 2026-09-12 | Sven Reiser | Germany Atlas shipped: [release verification](records/2026-09-11-germany-release.md) and [adopted decisions](adr/2026-09-11-germany-atlas.md). Follow-up candidates: external learning sources [#67](https://github.com/Standkreis/atlas/issues/67) and useful species groups [#93](https://github.com/Standkreis/atlas/issues/93) |
+| 2026-09-12 | Sven Reiser | Germany Atlas shipped: [release verification](records/2026-09-11-germany-release.md) and [adopted decisions](adr/2026-09-11-germany-atlas.md). Current pass: [post-release cleanup #111–#117](handoffs/2026-09-12-post-release-cleanup.md); feature work has separate issue ownership |
 
-## Current milestone
+## Current work after the Germany release
 
-Epic #14 replaces the earlier prose-first handover as the active delivery order. It launches a
-Germany-only atlas over the complete BBSR Kreisregion registry, with a national catalogue union,
-searchable region discovery and Germany-wide progress. Its native GitHub blockers own execution
-order; the historical handover below remains useful context for the existing data and prose work.
+[#14](https://github.com/Standkreis/atlas/issues/14) is shipped and closed. The catalogue has
+**6,874 taxa (including six accepted hybrids), 362 Kreisregionen / 400 Kreis units and 36,338
+eligible images**. The [release record](records/2026-09-11-germany-release.md) and
+[Germany ADR](adr/2026-09-11-germany-atlas.md) own production acceptance and lasting decisions.
 
-The reviewed launch catalogue has **6,874 taxa (including six accepted hybrids) across 362
-Kreisregionen / 400 Kreis units**, with 36,338 eligible images. The [Germany ADR](adr/2026-09-11-germany-atlas.md)
-consolidates the decisions and completed production acceptance. The native replacement committed;
-independent readback and deployed browser journeys passed on 12 September.
-[#67](https://github.com/Standkreis/atlas/issues/67) owns a later external-source
-learning preview with a separate owner approval before catalogue-wide work. Complete new wiki,
-Steckbrief and sound coverage is not implicitly delivered by #14 or guaranteed by #67.
+The bounded post-release pass is tracked in [#111–#117](handoffs/2026-09-12-post-release-cleanup.md):
+workspace preservation/cleanup, captured-place sync, plant wildness correction, Germany progress
+refresh, legacy ETL protection, workflow change detection and current operations guidance.
+Each live GitHub issue owns status and acceptance criteria.
 
-## Current reliability handoff
+Separate feature work is tracked by species groups [#93](https://github.com/Standkreis/atlas/issues/93),
+external sources [#67](https://github.com/Standkreis/atlas/issues/67), rich sightings
+[#10](https://github.com/Standkreis/atlas/issues/10), and social discovery
+[#11](https://github.com/Standkreis/atlas/issues/11). The #93 agent is independently working on its audit in [#120](https://github.com/Standkreis/atlas/issues/120); cleanup does not own that work or start the other epics.
+#67 requires a separate approved local preview before catalogue-wide processing. Complete new
+wiki, Steckbrief and sound coverage was not delivered by #14.
 
-[0029 · Audit reliability and usability](handoffs/0029-audit-reliability.md) supersedes the next-action order below. The owner authorized the audit fixes and clarified that discovery content, including exact locations, should be collected server-side without requiring a named discoverer. Branding is running in a separate session. Review the additive reliability migration and [0029 findings](handoffs/0029-audit-reliability-findings.md) before deployment. Regional prose must pass the new publication gate and be stored with its region ID before a larger generation run.
+## Historical reliability and prose handoffs
 
-The following 0028 handover is historical context; its clean-tree state, checks and deployment status are not current verification.
+[0029](handoffs/0029-audit-reliability.md) and its
+[findings](handoffs/0029-audit-reliability-findings.md) record the pre-release reliability work.
+Use [DEPLOY.md](DEPLOY.md) and [DEVELOPMENT.md](DEVELOPMENT.md) for current operations.
+The following 8 September handover and milestone narrative remain dated evidence; their branch,
+deployment and next-action statements are not current instructions or permission for production ETL.
 
 ## 🧭 Handover 2026-09-08
 
