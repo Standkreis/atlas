@@ -303,6 +303,42 @@ rehearsals are hash-verified and fsynced in private persistent recovery storage.
 [final acceptance review](https://github.com/Standkreis/atlas/issues/104#issuecomment-5645284769).
 No production03 execution is claimed by these local results.
 
+### 🛡️ Third production maintenance window — 12 September
+
+The clean release checkout is `8d6e464c47d68ed45689600b4968e75f5bfe0d74`.
+[Main CI](https://github.com/Standkreis/atlas/actions/runs/34688143839) passed integration,
+application checks, builds and browser jobs. Matching Production deployment
+`dpl_4UkcRRQhkNKj4FSQ8JW7L37WJBCQ` is Ready; public health returned build `mty8hcio`.
+Fresh read-only preflight passed all sixteen exact migration names/checksums and three required
+indexes, with an open database gate and no active German catalogue. Neon remained Launch/active,
+with no exceeded usage quota. The existing database footprint was 201,801,728 bytes; this is not
+the final applied footprint.
+
+The owner freshly confirmed current and older immutable Production health pages returned
+`ok:true`; root verified public Production and authenticated current/older Preview HTTP200.
+After checking the exact empty disabled configuration3, current writer/bypass inventory and
+unchanged green release head, root reactivated the approved deny configuration1 at
+**10:33:31.839 UTC**. The owner then confirmed both authenticated Production pages showed
+Forbidden403. Root's three probes had HTTP403, explicit deny headers and no protection errors.
+
+The read-only collector checked the exact sole active rule before/after request-ID and
+post-activation serverless-log queries. Those queries returned no entries. Cumulative firewall
+counts were corroboration only, not fabricated per-request events or an activation delta;
+the log evidence is limited to available platform coverage. No owner request IDs or exact
+observation timestamps were invented from the user's short confirmations.
+
+Complete fence verification was recorded at **10:35:50.916 UTC**. The full fresh 1,830-second
+drain ends **11:06:20.916 UTC**; no backup or import runs before then. Activation SHA-256:
+`b19054c20401a187fc307d137f5a44bbceff80bdd493c0bf3249fef60ada5e16`.
+Initial request-proof SHA-256:
+`36113a32464132c0f35d5f9f64b54c096cc4b52492127bd0887436d462003088`.
+The bound 28-file operator kit and fourteen-file fence proof are hash-verified and fsynced in
+private persistent recovery storage. Fence archive manifest SHA-256:
+`dc75cde02248e04e63b2e4729d8e7167087b57303dc873c33389509731a6e558`.
+[Third-window proof](https://github.com/Standkreis/atlas/issues/29#issuecomment-5645363304)
+records the execution boundary. Fresh backup/restore, plan/apply and independent production
+acceptance remain pending; this maintenance activation does not claim catalogue delivery.
+
 The actual fence/drain, fresh backup/restore, exact-bound production plan/apply, independent audit,
 reopening and deployed browser/media/audio/offline/analytics smoke evidence must replace this pending
 section before #29 closes. Personal before-images, credentials, raw receipts and browser profiles
