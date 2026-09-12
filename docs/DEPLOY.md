@@ -1,10 +1,10 @@
 # ▲ Deploy — the live stack
 
-> How the app runs in production as of 2026-09-07. Decisions: [handoff 0011](handoffs/0011-vercel.md) and its findings. The one-VM deploy of [handoff 0010](handoffs/0010-deploy.md) was removed, see §🗑️.
+> Current operations after the Germany release, checked against source on 2026-09-12. Decisions: [handoff 0011](handoffs/0011-vercel.md) and its findings. The one-VM deploy of [handoff 0010](handoffs/0010-deploy.md) was removed, see §🗑️.
 
 | 🗓️ Updated | 👤 Owner | 🌐 Live | 🔁 Fallback |
 | --- | --- | --- | --- |
-| 2026-09-07 | Sven Reiser | https://atlas.standkreis.de | https://standkreis-dex.vercel.app |
+| 2026-09-12 | Sven Reiser | https://atlas.standkreis.de | https://standkreis-dex.vercel.app |
 
 ## 🧱 Stack
 
@@ -25,7 +25,7 @@ No values here. Set in Vercel → Settings → Environment Variables unless the 
 | Variable | Set where | Purpose | Sensitive |
 | --- | --- | --- | --- |
 | `DATABASE_URL` | Neon integration (prefix `DATABASE_`), Prod + Preview | The app's pooled connection | yes |
-| `DATABASE_URL_UNPOOLED` | Neon integration, Prod + Preview | `prisma migrate deploy` in the build (advisory locks through PgBouncer left a stale lock, `P1002`, 2026-09-06) and the ETL from the Mac (§🗄️); unused by the app at runtime | yes |
+| `DATABASE_URL_UNPOOLED` | Neon integration, Prod + Preview | `prisma migrate deploy` in the build (advisory locks through PgBouncer left a stale lock, `P1002`, 2026-09-06) and separately authorized transfer operations (§🗄️); never local development or source ETL | yes |
 | `DATABASE_*` (the rest) | Neon integration | Host, user, password pieces the integration adds; unused | yes |
 | `BLOB_READ_WRITE_TOKEN` | Blob integration, all environments; also `app/.env.local` on the Mac (git-ignored) | Photo store: set → Blob, unset → disk under `PHOTO_DIR` | yes |
 | `WEBAUTHN_RP_ID` | project, value `standkreis.de` | Passkey relying-party id: the **apex**, so passkeys survive a subdomain move | no |
@@ -113,21 +113,55 @@ not replace the code rollback or prove that previously deployed clients stopped 
 | Route | Who calls it | Answer |
 | --- | --- | --- |
 | `GET /api/health` | an uptime monitor, you | `200 {ok, buildId, sweepAt}`; `503 {ok: false, error}` when Neon does not answer. `sweepAt` is when the last sweep finished **in this instance** (null on a fresh one; there is no table for the stamp) |
-| `GET /api/cron/sweep` | Vercel's cron, hourly (`app/vercel.json`, `0 * * * *`), with `Authorization: Bearer $CRON_SECRET`; by hand with `curl -H "Authorization: Bearer $CRON_SECRET" https://atlas.standkreis.de/api/cron/sweep` | the `SweepResult` JSON (`regions`, `content`, `contentDone`, `contentFailed`, `photos`, `seconds`, `cut`); `null` when another run holds the advisory lock; `401` without the secret. Vercel → project → Cron Jobs shows the runs |
+| `GET /api/cron/sweep` | Vercel's cron, hourly (`app/vercel.json`, `0 * * * *`), with `Authorization: Bearer $CRON_SECRET`; by hand with `curl -H "Authorization: Bearer $CRON_SECRET" https://atlas.standkreis.de/api/cron/sweep` | the cleanup `SweepResult` JSON (`photos`, `codes`, `seconds`, `cut`, plus legacy `regions: []` and zero content counters); `401` without the secret, `503` while catalogue cutover denies writes, `500` on failure. Vercel → project → Cron Jobs shows the runs |
 
-Jobs that must outlive the response (the region job on `dex.requestRegion`, the content kick on `taxon.ensure`) go through `waitUntil` (`app/src/server/jobs.ts`), so the invocation lives until they settle; the tRPC route and the cron route declare `maxDuration = 300` (fluid compute). The sweep stops starting new batches at 240 s and reports `cut: true`; the next hour continues, every step is idempotent. `register()` (instrumentation) only checks the environment on Vercel; the sweep at start is for `next start` on a laptop.
+Runtime maintenance deletes abandoned photos, retries pending media deletion, removes expired
+email codes and cleans quota records. The cron passes a 240-second deadline under a 300-second
+function ceiling; `cut` reports elapsed budget, not pending ETL batches. Catalogue write admission
+protects maintenance during cutover. `register()` checks the environment on Vercel and leaves
+cleanup to cron; local `next start` also starts cleanup once per process.
+
+Public `dex.requestRegion` returns an already-ready legacy region or rejects preparation.
+`taxon.ensure` saves/returns minimal GBIF taxonomy and names for a logged species; it does not
+launch rich-content enrichment. Regional preparation and content work belong to the local CLI
+under the [ETL guidance](../app/etl/README.md). Adding regions through the UI remains out of scope.
+
+Private user photos are ownership-checked on every request and use `private, no-store`.
+Public reference images may enter offline packs; public sound responses use immutable caching.
+Queued private uploads remain in IndexedDB until acknowledged. See
+[`/api/photo/[id]`](../app/src/app/api/photo/[id]/route.ts) and
+[`sweep`](../app/src/server/sweep.ts) for the current behavior.
 
 ## 🗄️ Filling or refreshing the database from the Mac
 
-Generate and review data in **local Postgres**, never Neon. Transfer a frozen, reviewed catalogue
-through the [checked import and recovery process](operations/germany-checked-import.md), using the
-unpooled target connection only after the [concrete Germany production migration plan](operations/2026-09-11-germany-production-migration-plan.md) is approved, including its temporary Production/Preview HTTP fence. Plan publication and the verified Neon upgrade do not themselves authorize data transformation.
-The former direct-Neon ETL and whole-table restore recipes are superseded for populated targets;
-they do not preserve target identities, reviewed galleries and personal references safely.
+Generate and review data in **local Postgres**, never Neon. Germany #14 shipped on 12 September:
+[release record](records/2026-09-11-germany-release.md),
+[adopted Germany ADR](adr/2026-09-11-germany-atlas.md), and the actual
+[native replacement plan](operations/2026-09-12-germany-native-replacement.md).
+The direct production importer attempts under the
+[11 September plan](operations/2026-09-11-germany-production-migration-plan.md) did not commit;
+the native plan superseded that execution route. It used the checked importer **locally** to build
+a frozen candidate, then a separately rehearsed native replacement to publish it.
 
-The historical first fill on 2026-09-06 took 111 seconds and produced a 929-species set. That old
-timing is not a Germany migration estimate. Use the production-copy rehearsal's current footprint,
-write-pause and recovery measurements instead.
+That pre-alpha replacement had a **one-time data-loss waiver**. It is consumed, not standing
+permission for another replacement. Future production transformations require a new concrete
+source/target, preservation, backup, rehearsal and recovery agreement. The
+[checked import/planner/audit runbook](operations/germany-checked-import.md) remains supported
+for local candidate preparation and reviewed transfer design; neither its existence nor a normal
+code deployment authorizes production data changes. Retain migration checksums, private source
+archives, receipts and recovery helpers. Do not run enrichment or whole-table restore recipes on
+production as a shortcut.
+
+For a future Germany refresh, build a new version-explicit staged catalogue in local Postgres,
+audit it and rehearse activation/transfer. Legacy direct regional publication must not bypass the
+active national union/version; [#115](https://github.com/Standkreis/atlas/issues/115) owns its guard.
+See the [ETL command contract](../app/etl/README.md) before running any region/refresh/sweep job.
+
+After a code release, verify the exact merged Git SHA has a Ready Production deployment and the
+production aliases point to it. Read `/api/health` for the serving build, check representative public
+English/German routes and affected flows, and record deployment identity, UTC time and results.
+CI or a main-branch commit alone does not establish production delivery. Local verification uses
+[DEVELOPMENT.md](DEVELOPMENT.md), including production builds and browser/SW checks on local Postgres.
 
 ## 🧰 Vercel CLI
 
@@ -141,16 +175,12 @@ write-pause and recovery measurements instead.
 | Pull variables | `npx vercel env pull --environment production <file>` |
 | Deploy by hand | not needed; push |
 
-## 🚧 Not done yet
+## 📚 Historical deployment evidence
 
-[Handoff 0011](handoffs/0011-vercel.md) is closed ([findings](handoffs/0011-vercel-findings.md)); the table keeps what it settled.
-
-| Gap | Today | Track |
-| --- | --- | --- |
-| Photos persist | ✅ private Blob behind the `photos.ts` seam, streamed with an immutable cache header (0011 A, C1–C3); owner's C6 on the phone | A, done |
-| Region job, content kick outlive the response | ✅ `waitUntil` via `server/jobs.ts`, `maxDuration = 300` on the tRPC route (0011 B, C4); proven on Vercel itself by the owner's C6 | B, done |
-| Restart sweep | ✅ hourly `GET /api/cron/sweep` with `CRON_SECRET`, `register()` skips the sweep on Vercel (0011 B, C5) | B, done |
-| Resend domain, email attach | code built and checked against a stub ([0020](handoffs/0020-email-attach-findings.md)); the domain at Resend and the first real mail (C8) are the owner's | M7b |
+[Handoff 0011](handoffs/0011-vercel.md) and its [findings](handoffs/0011-vercel-findings.md)
+record the original Vercel move. Its immutable private-photo caching and runtime ETL job design
+were superseded by the reliability work; the current behavior is described above.
+The owner verified Resend email attachment on 7 September (roadmap M7b).
 
 ## 🗑️ Removed: the VM deploy
 
@@ -160,8 +190,12 @@ write-pause and recovery measurements instead.
 git checkout 113a630 -- deploy app/Dockerfile app/.dockerignore .github/workflows/deploy.yml
 ```
 
-## Reliability deployment (0029)
+## Reliability migration history (0029)
 
-Review [handoff 0029](handoffs/0029-audit-reliability.md) and its findings with the application changes. Deploy the additive `20260908120000_durable_admission_and_deletion` migration before serving this code: runtime quota/cache/deletion tables and `Asset.byteSize` are required. Vercel’s existing build migration step applies it; never run the new application against an old production schema. No production migration or deployment was performed in the implementation session.
-
-Cron now handles bounded storage/code/quota cleanup only. Region preparation and missing rich content require the development CLI sweep; runtime functions no longer import the ETL filesystem cache. Generated prose is region-scoped and publication-gated; the old five global texts need reimporting and passing audits. Review the configurable default application budgets in [DEVELOPMENT.md](DEVELOPMENT.md). Private photos use `no-store`; offline packs retain public reference images, while queued photo uploads remain in IndexedDB until acknowledged.
+[Handoff 0029](handoffs/0029-audit-reliability.md) and its
+[findings](handoffs/0029-audit-reliability-findings.md) preserve pre-release evidence.
+The additive `20260908120000_durable_admission_and_deletion` migration supplies runtime
+quota/cache/deletion tables and `Asset.byteSize`; keep it and all later applied checksums exact.
+The Germany release record owns subsequent production verification. Future additive migrations
+continue through the guarded Vercel Production build. Default application budgets and the
+region-scoped prose publication contract are documented in [DEVELOPMENT.md](DEVELOPMENT.md).

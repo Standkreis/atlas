@@ -7,8 +7,8 @@ TypeScript on `tsx`, the app's Prisma client, and `ffmpeg-static` (dev dependenc
 | `npm run etl -- registry --mapping /absolute/path/to/reviewed-mapping.json` | Validates and imports the source-controlled BKG/BBSR snapshot as an inactive registry: 362 Kreisregionen, 400 land Kreis units, aliases and source/licence records. The separately reviewed local mapping supplies 402 GBIF/GADM query ids and is persisted with its source digests and review evidence. New application `Region` rows stay `unprepared`; legacy Mainz-Bingen and Südwestpfalz UUIDs are reused through explicit successor ids. The whole import is transactional and an identical rerun verifies rather than rewrites it | 0 |
 | `npm run etl -- germany --registry <version-id> --run <key> [--concurrency 1] [--json]` | Creates or resumes one pinned, staged Germany catalogue in local Postgres. Completed Kreisregionen are checkpoints; failed regions remain isolated and retry on the same run key. Only after every region completes does the command atomically expose the deduplicated `CatalogueTaxon` union for global enrichment. `--json` writes progress to stderr and the machine report to stdout | 13 facets per query unit + uncached taxonomy; bounded by `ETL_BUDGET` |
 | `npm run etl -- gallery --catalogue <completed-id> [--region <canonical-key\|name\|uuid>] [--keys k1,k2] [--limit 100] [--concurrency 2] [--json]` | Bounded, resumable reference-gallery enrichment over unique German catalogue taxa, in local Postgres only. Validates the complete scope before seeding or claiming. Fetches the curated iNaturalist list and Wikidata P18/Commons metadata before atomically replacing reference images and completing global work. Sounds and user media are preserved | Up to 2 iNat + 2 Wikidata + 1 Commons calls/taxon before retries; shared cache, host pacing and `ETL_BUDGET` apply |
-| `npm run etl -- region "Mainz-Bingen"` (or another prepared name / canonical key / legacy gid) `[--month 9]` | Resolve the region and every verified query unit · fetch complete paged GBIF facets (year + 12 months, 2016–2026, observation records) · resolve every annual/monthly facet key to its terminal accepted species · sum constituent/synonym counts · cut once per tile (90 %, floor 10) → `Taxon`, `Plausibility`, `Lookalike`. Publication and invalidation of this region's prose are one transaction; a failed fetch preserves the prior set. Invalid taxonomy is reported as quarantine while valid taxa continue. Newly imported `unprepared` regions require the version-explicit nationwide runner introduced in #18 | 13 facets per query unit + uncached taxonomy |
-| `npm run etl -- refresh [--days 30]` | The legacy single-query job again for prepared GADM-backed regions older than `days`; #18 owns nationwide orchestration | as above per region |
+| `npm run etl -- region "Mainz-Bingen"` (or another prepared name / canonical key / legacy gid) `[--month 9]` | Resolve the region and every verified query unit · fetch complete paged GBIF facets (year + 12 months, 2016–2026, observation records) · resolve every annual/monthly facet key to its terminal accepted species · sum constituent/synonym counts · cut once per tile (90 %, floor 10) → `Taxon`, `Plausibility`, `Lookalike`. Publication and invalidation of this region's prose are one transaction; a failed fetch preserves the prior set. Invalid taxonomy is reported as quarantine while valid taxa continue. Requires no active German catalogue in the database, because even foreign regional jobs upsert shared taxa. Active-catalogue publication is rejected before provider calls and checked again transactionally (#115). Newly imported `unprepared` regions require the version-explicit nationwide runner | 13 facets per query unit + uncached taxonomy |
+| `npm run etl -- refresh [--days 30]` | Legacy regional jobs for prepared GADM-backed regions older than `days`, only in a database without an active German catalogue. For Germany refresh use a new pinned `germany` run | as above per region |
 | `npm run etl -- content [--region <name>] [--purge <gbifKey>] [--limit n]` | For every set/logged taxon with `contentAt` null: GBIF → Wikidata names → complete reference gallery → Wikipedia intro → AnAge facts → GloBI edges. Completed global gallery work is preserved. Fetches precede one transaction per taxon; failures preserve prior content. `--purge` refreshes one taxon without deleting its old content first. Facts/prose follow only successful taxa | Provider calls plus GBIF matches for new interaction targets; cached and rate-limited |
 
 | `npm run etl -- facts [--region <name>] [--purge] [--force] [--limit n]` | The Steckbrief keys (handoff 0021 D3, D4) for every set taxon with `factsAt` null: birds, mammals, amphibians from the bulk files in `data/` (AVONET, EltonTraits, PanTHERIA, AmphiBIO; GBIF synonyms for a binomial miss; a bird's habitat is AVONET's class plus EltonTraits' foraging stratum when it adds a word, 0025 C2) · plants from GIFT (species list and five trait tables, cached once) · fungi edibility and spore print, bird wingspan with unit from Wikidata · GBIF's most-agreed English vernacular into `names.en` where empty. Keeps AnAge and the intro; `--purge` drops only the 13 new keys; `--force` recomputes taxa with `factsAt` set. Also runs at the end of `content` for the taxa it filled | ≈ 0.7 GBIF per taxon + 1 Wikidata per 100 + 6 GIFT per process; Mainz-Bingen 889 taxa in 25 s |
@@ -18,11 +18,22 @@ TypeScript on `tsx`, the app's Prisma client, and `ffmpeg-static` (dev dependenc
 | `npm run etl -- recode` | The AnAge cells written as English before handoff 0024 (`21.8 years (wild)`, `clutch size 4.5 · …`) → the codes the page translates (`21.8 wild`, `clutch 4.5 · perYear 2 · maturity 365`), in place, idempotent | 0; dev 851 taxa in 2 s |
 | `npm run db:seed` | The dev identity and the two fixtures (`fixtures/`, plausibility only, no content), idempotent | 0 |
 
+For a future Germany membership refresh, use a new `germany --registry <version-id> --run <new-key>`
+candidate in a separate disposable local Postgres database, then the existing audit and reviewed
+activation/transfer contract. Staging can upsert shared taxon identity data; it is not a read-only
+operation on a live catalogue database.
+Direct `region`, `refresh`, or queued-region repair through CLI `sweep` cannot safely update an
+active catalogue's union/version; [#115](https://github.com/Standkreis/atlas/issues/115) guards these
+publication paths. Read-only regional calculation and explicit nationwide staging remain available.
+Shared content enrichment is separate from regional membership refresh and still requires its own
+reviewed scope; none of these commands authorize a production provider run.
+
 The gallery command above remains the source-enrichment path. It is not permission to replace a
 deployed target gallery. Target reconciliation uses the preservation planner and reviewed receipt
 contract in [reference gallery preservation](../../docs/operations/reference-gallery-preservation.md);
-the future importer must retain every old Asset row and publish visibility rows plus the exact
-target receipt atomically.
+the implemented checked importer retains every old Asset row and publishes visibility rows plus
+the exact target receipt atomically. It remains in use for local frozen-candidate preparation;
+see the actual [native release plan](../../docs/operations/2026-09-12-germany-native-replacement.md).
 
 | File | Holds |
 | --- | --- |
@@ -60,10 +71,9 @@ exclusions. The importer requires exact coverage of every committed Kreis and re
 query ids. Do not commit or expose that national mapping: GADM permits the current non-commercial
 server-side use but not redistribution.
 
-The registry is imported inactive. New region rows are `unprepared`, so neither `refresh`, the
-hourly sweep nor the existing region list can start 362 cold jobs. Issue #17 adds composite
-calculation; later catalogue activation/cutover issues decide when ready German regions become
-selectable. Re-running the same artifact and mapping verifies immutable metadata, membership,
+The registry is imported inactive. New region rows are `unprepared`; only the version-explicit
+Germany runner prepares candidate sets. The shipped activation/cutover contract selects ready
+German regions after reviewed activation. Runtime hourly cleanup never runs regional ETL. Re-running the same artifact and mapping verifies immutable metadata, membership,
 aliases and counts without changing import timestamps.
 
 Composite regional facets expose indexed counts, not occurrence identifiers. Standkreis therefore
@@ -92,7 +102,7 @@ When all regional checkpoints are complete, one transaction materializes the acc
 `CatalogueTaxon` and records its fingerprint. Downstream jobs use `runTaxonWork` from
 `taxon-work.ts`: work is keyed globally by `(taxonId, kind, version)`, but claimed through the
 finished catalogue union. Completed work is reusable by a future catalogue; failures are isolated
-and only failed or expired work is retried. Gallery selection itself belongs to issue #20.
+and only failed or expired work is retried. Gallery selection is implemented by the `gallery` command above.
 
 The command reports the pinned catalogue/window, every regional state and size, national and
 per-tile union totals, global enrichment states, request attempts/retries/rate limits, elapsed time,
@@ -268,23 +278,28 @@ Why the region job precedes the content job: a species enters a set first, conte
 
 ## ✍️ The prose — handoff [0028](../../docs/handoffs/0028-prose.md)
 
-Two texts per taxon and language, written by a model from the fact sheet and nothing else (the closed world of 0019, the F1–F5 fixes of 0027): the Steckbrief text (V1, ≤ 2 paragraphs) from the `full` sheet, the Ökologie paragraph (ECO2) from the `eco` sheet when it has ≥ 3 lines; every draft judged sentence by sentence (AUDIT2). Stored in `Taxon.prose` (the shape of `src/server/prose.ts`: `de`, `en`, `eco.de`, `eco.en`, `facts[lang]`, `ecoFacts[lang]` for the eco sheet's own numbering, `inputHash`, `model`, `judged`, `at`). **The ETL never calls a model** (CLAUDE.md): with the `files` driver a Claude Code session answers prompt files; the `api` driver is a seam that throws without `PROSE_API_KEY` and does nothing with it yet.
+Two texts per taxon and language, written by a model from the fact sheet and nothing else (the closed world of 0019, the F1–F5 fixes of 0027): the Steckbrief text (V1, ≤ 2 paragraphs) from the `full` sheet, the Ökologie paragraph (ECO2) from the `eco` sheet when it has ≥ 3 lines; every draft judged sentence by sentence (AUDIT2). Stored in `Taxon.prose = {version: 1, regions: {"<regionId>": ...}}`; each region entry carries its supported drafts, citation facts, hashes and audits. Publication validates the full entry and atomically updates only that region. Old global prose is hidden. With the `files` driver, the agent host’s available models answer prompt files; the application’s production model key is never used. The `api` driver remains an unimplemented seam, and a separately budgeted API run needs task-specific authorization.
 
 | Step | Command or act | Prints |
 | --- | --- | --- |
 | 0 | `npm run etl -- content --region Mainz-Bingen --force` once per region after 0028 (edges before it have no studies; the sheet counts them as `unfetched` and F2 never fired on them) | F1/F2 counts |
 | 1 | `npm run etl -- prose --region Mainz-Bingen --run r1` | prompts written, taxa pending, the pending **draft** prompts in batches of 5 |
-| 2 | Subagents (`model: "sonnet"`), **five prompts per agent, drafts and audits never in the same agent**: each answers `runs/r1/prompts/<gbifKey>-<lang>[-eco].md` into `runs/r1/answers/<same>.json`, the JSON object only | |
+| 2 | Agent-host subagents, **bounded prompt batches, drafts and audits in separate agents**: each answers `runs/r1/prompts/<gbifKey>-<lang>[-eco].md` into `runs/r1/answers/<same>.json`, the JSON object only | |
 | 3 | `npm run etl -- prose --region Mainz-Bingen --run r1` again: validates the drafts (F4; an invalid one is pending again), writes the **audit** prompts `<same>-audit.md` | pending audits in batches of 5 |
 | 4 | Subagents over the audit prompts, same rule | |
 | 5 | `npm run etl -- prose --load --run r1` (answers → DB, nothing written; a taxon is stored only when every text has a valid draft and a valid audit) | loaded, pending, invalid |
 | 6 | Hand-read ten Ökologie paragraphs and retain the review evidence. The [checked Germany catalogue transfer](#-checked-production-transfer) preserves existing rich content and every `Interaction` row; publishing prose or interaction changes requires a separately reviewed content-update plan. | |
 
-`--run` defaults to the region's slug (`mainz-bingen`). A taxon whose `inputHash` (sha1 of both sheets in both languages) equals the stored one is skipped; a changed fact or edge makes it pending again. `content --region <name>` (not `--force`) runs the step at its end for the taxa it filled (prompts only, with the region's default run). `--purge [--region <name>]` sets `prose` back to null; the run folders stay.
+`--run` defaults to the region's slug (`mainz-bingen`). A taxon whose `inputHash` (sha1 of both sheets in both languages) equals the stored one is skipped; a changed fact or edge makes it pending again. `content --region <name>` (not `--force`) runs the step at its end for the taxa it filled (prompts only, with the region's default run). `--purge [--region <name>]` clears the selected stored prose scope; the run folders stay. Use only an explicitly reviewed local content scope; historical batch sizes and prices are not current model configuration.
 
 ## 🚀 Checked production transfer
 
 Production is Neon Postgres behind Vercel ([deployment guide](../../docs/DEPLOY.md)).
+Germany #14 shipped using the [12 September native replacement plan](../../docs/operations/2026-09-12-germany-native-replacement.md),
+after direct production importer attempts did not commit. The implemented importer/planner/audits
+built the frozen candidate locally and remain supported. The native replacement's one-time
+pre-alpha data-loss waiver is consumed; it authorizes no future replacement. The
+[release record](../../docs/records/2026-09-11-germany-release.md) retains attempts and readback evidence.
 Generate and validate every regional/catalogue/content artifact in **local Postgres first**.
 Use the [checked Germany import and recovery runbook](../../docs/operations/germany-checked-import.md)
 for target identity mapping, preservation-first galleries, write-gated atomic activation and guarded recovery.
