@@ -333,12 +333,12 @@ The resulting local worktrees are:
 | --- | --- |
 | `../atlas` | Clean, usable root main checkout |
 | `../atlas-worktrees/cleanup111-reconciliation` | Clean local reconciliation review record |
-| `../atlas-worktrees/issue108-species-hydration` | Existing local server; provenance tree also retains ETL cache |
+| `../atlas-worktrees/issue108-species-hydration` | Existing local server |
 | `../atlas-worktrees/issue21` | Valuable source ETL cache |
 | `../atlas-worktrees/issue21-http-review-fix` | Retained HTTP helper; full patch equivalence unproven |
 | `../atlas-worktrees/issue21-provenance-review` | Existing local server; provenance tree also retains ETL cache |
 | `../atlas-worktrees/issue93-species-groups-audit` | Separate active #93 session; now owns #120 and #121 branches/PRs |
-| `../atlas-worktrees/preview-germany-applied-main-20260911` | Existing local server; provenance tree also retains ETL cache |
+| `../atlas-worktrees/preview-germany-applied-main-20260911` | Existing local server |
 
 The concurrently created `task/121-species-groups-browse-contract` is retained alongside
 `task/120-species-groups-audit`; both belong to the other #93 session. Its single worktree
@@ -350,7 +350,8 @@ increase from the initial reading. This is a filesystem delta during concurrent 
 not an isolated APFS reclaim claim. Private `verification-evidence/` retains 269 files
 (49,090,905 bytes) of this session’s local logs/screenshots; all copied hashes match originals.
 Its manifest is separate from the 38,581-file root snapshot. `repository-final.bundle` additionally
-pins every inventoried worktree head, including stale detached registrations, through recovery refs.
+pins both initial and final inventoried worktree heads, including stale detached registrations,
+through recovery refs; it was refreshed after final inventory review.
 
 The five disposable local verification databases are retained for reproducibility:
 `dex_check_cleanup112`, `dex_check_cleanup112_browser`, `dex_check_cleanup113_20260912`,
