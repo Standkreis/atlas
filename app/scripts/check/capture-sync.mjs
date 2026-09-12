@@ -42,6 +42,8 @@ try {
     // Simulate a lost acknowledgement by restoring the identical durable row and reloading.
     await evaluate(`(async () => { const db=await new Promise(resolve=>{const r=indexedDB.open('dex-outbox');r.onsuccess=()=>resolve(r.result)}); await new Promise(resolve=>{const tx=db.transaction('outbox','readwrite');tx.objectStore('outbox').put(${JSON.stringify(queued)},${JSON.stringify(queued.id)});tx.oncomplete=resolve});db.close() })()`)
     await send('Page.navigate', { url: `${base}/${locale}/journal` })
+    await wait(`${rowsExpression}.then(rows => !rows.some(r => r.id === ${JSON.stringify(queued.id)}))`, 'replayed row acknowledged and removed from durable outbox')
+    assert.equal((await db.query('SELECT count(*)::int n FROM "Sighting" WHERE "identityId"=$1', [owner])).rows[0].n, 1, 'replayed create still stores exactly one sighting')
     await wait(`${q('[data-testid=row][data-kind=sighting]')} && !${q('[data-testid=row][data-kind=sighting]')}.hasAttribute('data-queued')`, 'retried sighting shown from server diary')
     assert.ok(await evaluate(`document.body.textContent.includes(${JSON.stringify(region.name)})`), 'diary renders captured place')
     await click('[data-testid=row][data-kind=sighting] a')
