@@ -1,18 +1,25 @@
 # 🚢 Germany Atlas release verification
 
 Owner: Sven Reiser. Execution record for [#29](https://github.com/Standkreis/atlas/issues/29)
-and [Epic #14](https://github.com/Standkreis/atlas/issues/14), 11 September 2026.
+and [Epic #14](https://github.com/Standkreis/atlas/issues/14), 11–12 September 2026.
 
-**Draft: production catalogue activation and acceptance remain pending.** The verified local
-outcomes below are not a claim that production data has changed. This record stays in a draft PR
-until the actual transfer and deployed journeys satisfy the release criteria.
+**Native catalogue replacement committed and independently verified on 12 September; final live
+acceptance remains pending.** Production is reopened with the complete Germany catalogue. This
+record stays in a draft PR until the deployed journeys and deliberate release review finish.
 
 ## 📌 Reviewed release
 
-First-attempt code: `85c4a473ee65e9418eb5fb12d132ab0a9551ba77`, clean isolated checkout.
+Current checked application code: `8d6e464c47d68ed45689600b4968e75f5bfe0d74`, with
+[successful main CI](https://github.com/Standkreis/atlas/actions/runs/34688143839), 599 unit and
+103 integration tests, full static export and production-server build. The documentation-only
+native-plan merge `45239c589699e57570f6bcdb7517d83ac8eddd47` deployed as
+`dpl_3p48PTWHN3Va4atABhT1xCo2PKr3`, build `mtycvusa`; its application tree is byte-identical.
+Actual native execution and readback are recorded below.
+
+Historical first-attempt code: `85c4a473ee65e9418eb5fb12d132ab0a9551ba77`, clean isolated checkout.
 Its [main CI](https://github.com/Standkreis/atlas/actions/runs/34630602949) passed.
-Vercel Production deployment `dpl_2P7jqAbMYa2NQrkP4QbGymUbgcyE` is ready at that commit;
-public health returned build `mtx9ezd9`. Deployment readiness does not activate the catalogue.
+Vercel Production deployment `dpl_2P7jqAbMYa2NQrkP4QbGymUbgcyE` was ready at that commit;
+public health then returned build `mtx9ezd9`. This is historical deployment evidence.
 
 - Frozen catalogue `b59b97f4-6fdd-4900-a263-be2c05d78bbf`, registry `de-krg-2024-12-31`.
 - **6,874 taxa including six accepted hybrids; 362 regions composed from 400 Kreis units.**
@@ -102,7 +109,7 @@ One private harness input used invalid `tiles:[]` after the core inverse asserti
 is retained. The corrected read-only continuation completed study/worker checks in the same live
 tabs. This is aggregate evidence, not an uninterrupted harness pass or a hidden application failure.
 
-## 🚧 Production execution — pending
+## 🔁 Production execution history and final native replacement
 
 Read-only preflight verified all sixteen checked migrations, the three new FK indexes, the installed
 Neon Launch plan, no custom environments, no project bypass/deploy hooks, and an empty disabled
@@ -402,12 +409,81 @@ The final 87,757,467-byte native archive is pinned in that plan; empty restore p
 and restricted-role old-state replacement passed in 7.69 seconds. All 34 table fingerprints and
 schema/security comparisons passed. The local source has 1,085,601 stored rows, not a species
 denominator. A second verified persistent copy retains 18 payloads with private permissions.
-Native production replacement and the final production journeys remain pending.
+The native production replacement succeeded as recorded next; final production journeys remain
+pending acceptance.
 
-The actual fresh native fence/drain, exact-bound replacement, independent all-34-table/schema/security
-readback, reopening and deployed browser/media/audio/offline/analytics smoke evidence must replace this pending
-section before #29 closes. Personal before-images, credentials, raw receipts and browser profiles
-remain owner-only outside Git. Epic #14 additionally needs its dedicated ADR close-out review.
+### ✅ Native production replacement — 12 September
+
+Operation `germany-29-native-replacement-20260912-01` followed the merged native plan. Fresh HTTP
+fence verification at **11:59:50.025 UTC** retained the exact sole Production/Preview deny rule;
+the complete 1,830-second drain ended **12:30:20.025 UTC**. Fresh recheck found no post-fence
+serverless invocations; direct activity showed no other database clients or admissions. The intended
+Neon target remained available on the owner-upgraded Launch plan. No new paid service was used.
+
+The 435,123,856-byte bounded native SQL ran once, from **12:31:39.470 to 12:53:16.602 UTC**:
+**21 minutes 37.132 seconds**. PostgreSQL reported all **34 COPY completions / 1,085,601 rows**
+and COMMIT; process exit zero, no ERROR/FATAL output, no watchdog cancellation, retry or inverse.
+This row total includes internal catalogue/evidence tables and is not a species denominator.
+
+| Evidence | SHA-256 |
+| --- | --- |
+| Exact execution config | `8605d7efe524f09373981f7eedb661ca3591b14ab2c7e1bc4a916d9035d61543` |
+| Fresh production preflight | `ffbe0b587904ce49ec5e4a58a60314d7fd2eeb3b70f592ed112071fa04a289bb` |
+| Native process result | `8d1f84829deb17fd63ccda67c1d0f039466e04a83ed3a9f2c6f6656afb8ebeba` |
+| Native log | `1cb4e683eda3b91d9680ae2bb1164de6d2bed4b3a1857ce32d07d74b1bbc4ac5` |
+| Independent Production-after snapshot | `8fdcb4d50af3f47fb576c9e850fc010fb33f8b437fee4e4d9a6222f943ae4be4` |
+| Exact source/Production post-validation | `27dde4a2775f0117653c758d4d53c8ae4712eb2597ebb4fef322323c5aa237d0` |
+| Verified WAF restoration | `704c151c167eb2feef118f76cf73bed7c634545eebe5d31d999a3d4b0af04a52` |
+| Reopened public/Preview health | `1e6877463d49b663f94c4a9bfecca64e7d8a6fdba7d878a833e792a7af7d443e` |
+
+Independent read-only readback completed **12:55:33.465 UTC**. Every one of the 34 table
+fingerprints equals the frozen audited candidate, including the complete source/provenance/gallery
+receipts; no image URL re-audit or upstream API collection was performed. Exact candidate schema,
+all sixteen migration rows/checksums, valid indexes/constraints and expected compacted physical
+ordinals match. Production BEFORE→AFTER public namespace ownership/ACL, grants, extensions/members
+and security metadata are unchanged. A fresh inspection confirmed an open gate, zero admissions
+and no other clients.
+
+Actual stored state: **362 canonical German regions / 400 source Kreis units / 402 query units,
+6,874 German taxa, 214,321 memberships, 151,680 lookalikes, 6,874 gallery receipts**. Exact equality
+to the independently audited native source also proves its **36,338 eligible references, 313 retained
+hidden references and 1,241 retained eligible leads**, with the maximum twelve rule unchanged.
+Global storage contains 27,467 taxa and 36,881 Assets; these are not German catalogue denominators.
+Identity (92), Sighting (29) and Study (11) fingerprints additionally equal actual Production-before.
+The owner permitted later personal changes to be discarded, but those three tables in fact survived
+exactly. All backup-derived rich content and media references in the audited candidate survived.
+
+Only the exact temporary WAF rule was removed; the explicit disabled-state PATCH and checked draft
+were published. **Version5** was verified disabled with zero rules/IPs/bypasses and no draft at
+**12:57:00.433 UTC**. The native-operation maintenance interval was **58 minutes 23.718 seconds**.
+By **12:57:26.762 UTC**, public Production and authenticated current/old Preview health returned
+200/`ok:true`; Production reported `mtycvusa`. The existing historical authenticated Production
+rule proof was retained honestly, with fresh project/rule/protection/bypass checks as required by
+the native plan. No fresh owner observation was invented for the docs-only deployment URL.
+
+The final native-commit checkpoint retains 30 payload files / 590,402 bytes plus a 15,636-byte
+manifest in private persistent storage. All source/destination sizes and SHA-256 values match;
+files/directories are 0600/0700 and fsynced. Manifest SHA-256:
+`99287256b1a258d65154c5de76c986708094522ac65dd8cd6d5b461aad0cd56d`.
+It explicitly records committed/readback/reopened state, not completed browser acceptance.
+
+### 🧪 Live acceptance — pending
+
+The first reopened-production media run completed all sixteen 0/1/2/12-image gallery cells
+and actual retained bird-audio playback, but correctly **failed** its final assertion on two
+uncaught React hydration errors. Report SHA-256:
+`8367104511af14884a945bb41c5726f1d3e2f4f54c07590d3d7521e378b4351f`.
+An independent diagnostic reproduced React #418 with zero blocked or failed network requests;
+the captured fiber points to the species page's initial loading `Empty` component. Delayed
+exception delivery means the initial desktop/twelve-image attribution is not reliable.
+The exact hydration trigger remains under local investigation; no acceptance waiver, speculative
+analytics explanation, production rollback or repeat data transfer follows from this result.
+[Bug #108](https://github.com/Standkreis/atlas/issues/108) owns the focused correction and regression.
+
+Production media, onboarding/Profile/search/progress, explicit regional pack/offline and analytics
+journeys are the remaining release gate. Personal before-images, credentials, raw receipts and
+browser profiles remain owner-only outside Git. Epic #14 additionally needs its dedicated ADR
+close-out review. Transfer success alone does not close #29.
 
 ## 🔗 Completed issue/PR delivery trace
 
