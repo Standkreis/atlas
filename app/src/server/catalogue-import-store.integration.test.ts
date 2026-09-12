@@ -17,6 +17,7 @@ import {
   cataloguePostgresTimestamp,
   catalogueTargetPlanFingerprint,
   catalogueProtectionScope,
+  catalogueTargetRowsFingerprint,
   type CatalogueProtectionScope,
   type CatalogueTargetPlan,
   type CatalogueTargetRow,
@@ -25,7 +26,7 @@ import {
 } from '../../etl/catalogue-import-plan'
 import type { ValidatedCatalogueReleaseImport, ValidatedImportEvidence } from '../../etl/catalogue-import-validation'
 import { validateReleaseSpotReport, type ReleaseSpotContract } from '../../etl/catalogue-release-spots'
-import { CATALOGUE_WRITE_BATCH, CATALOGUE_KEY_BATCH } from '../../etl/catalogue-import-batches'
+import { catalogueJsonBatches, CATALOGUE_WRITE_BATCH, CATALOGUE_KEY_BATCH } from '../../etl/catalogue-import-batches'
 import { withCatalogueTelemetry, type CatalogueTelemetryEvent } from '../../etl/catalogue-import-telemetry'
 
 const sourceEvidence: ValidatedImportEvidence = { files: [], tables: [], decodedFingerprint: '1'.repeat(64) }
@@ -132,6 +133,35 @@ afterEach(async () => {
 afterAll(async () => { await db.$disconnect() })
 
 describe('checked catalogue import store', () => {
+  it('preserves database ordering for full-key Unicode collation ties across a real byte boundary', async () => {
+    const prefix = `${randomUUID()}-${'k'.repeat(1_970)}`
+    const equivalentIds = [`${prefix}é`, `${prefix}e\u0301`]
+    const fillerIds = Array.from({ length: 2_200 }, () => `${randomUUID()}-${'k'.repeat(1_970)}`)
+    const selectedIds = new Set([...equivalentIds, ...fillerIds])
+    selectedIds.forEach((id) => ids.add(id))
+    await db.region.createMany({ data: [...selectedIds].map((id) => ({ id, name: 'Unicode scope', higher: 'Fixture' })) })
+    const snapshot = await snapshotCatalogueTarget(db)
+    const rows = table(snapshot, 'Region').filter((row) => selectedIds.has(row.id as string))
+    const orderedPair = rows.filter((row) => equivalentIds.includes(row.id as string))
+    expect(orderedPair).toHaveLength(2)
+    expect((orderedPair[0]!.id as string).localeCompare(orderedPair[1]!.id as string)).toBe(0)
+    // Reverse the collating pair across separate batches, regardless of this DB's collation.
+    const keys = [orderedPair[1]!.id, ...fillerIds, orderedPair[0]!.id].map((id) => ({ id: id as string }))
+    const batches = [...catalogueJsonBatches(keys, CATALOGUE_KEY_BATCH)]
+    expect(batches.length).toBeGreaterThan(1)
+    const indexed = new Map(rows.map((row, index) => [row.id, { row, index }]))
+    const formerBatchOrder = batches.flatMap(({ payload }) => (JSON.parse(payload) as { id: string }[])
+      .map(({ id }) => indexed.get(id)!).sort((left, right) => left.index - right.index).map(({ row }) => row))
+    expect(catalogueTargetRowsFingerprint('Region', formerBatchOrder)).not.toBe(catalogueTargetRowsFingerprint('Region', rows))
+    const protectedScope = catalogueProtectionScope('Region', rows, { kind: 'keys', keys })
+    const targetPlan = plan(snapshot, [], [], undefined, [protectedScope]), applyReceipt = receipt(targetPlan)
+    const baseline = catalogueTargetSnapshotFingerprint(snapshot)
+    await applyCatalogueTargetPlan(db, { validated, plan: targetPlan, receipt: applyReceipt })
+    await recoverCatalogueTarget(db, { receipt: applyReceipt })
+    expect(catalogueTargetSnapshotFingerprint(await snapshotCatalogueTarget(db))).toBe(baseline)
+    expect(await readCatalogueCutoverState(db)).toMatchObject({ state: 'open', activeWrites: 0 })
+  })
+
   it('bounds Unicode writes and keyed reads, preserves exact snapshots through failed and successful apply/inverse', async () => {
     const f = await fixture()
     // Long, valid text primary keys make the real 4 MiB read boundary observable with few rows.

@@ -1,5 +1,5 @@
 /** Checked target snapshot, atomic catalogue apply, and guarded recovery for issue #63. */
-import { contentDigest } from './catalogue-gallery-transfer'
+import { canonicalContent, contentDigest } from './catalogue-gallery-transfer'
 import { catalogueImportDigest } from './catalogue-import-json'
 import { catalogueJsonBatches, CATALOGUE_WRITE_BATCH, CATALOGUE_KEY_BATCH, CATALOGUE_INBOUND_BATCH } from './catalogue-import-batches'
 import { cataloguePhase, catalogueRequest } from './catalogue-import-telemetry'
@@ -253,8 +253,11 @@ async function scopeRows(db: Pick<Tx, '$queryRawUnsafe'>, scope: CatalogueProtec
   }
   const keys = scope.selector.keys as readonly Record<string, unknown>[]
   if (!keys.length) return []
-  if (contract.keys.some((key) => !scope.columns.includes(key))) {
+  const canonicalKeys = keys.map(canonicalContent).sort((left, right) => left.localeCompare(right))
+  const tiedKeys = canonicalKeys.some((key, index) => index > 0 && key.localeCompare(canonicalKeys[index - 1]!) === 0)
+  if (contract.keys.some((key) => !scope.columns.includes(key)) || tiedKeys) {
     // Projected fingerprints can have tied/missing canonical keys and preserve SQL input order.
+    // Even complete, distinct keys can tie under localeCompare (e.g. Unicode normalization).
     // A sequence of independently sorted keyed batches cannot preserve the database's global
     // collation. Read this uncommon projection once in database order and select exact keys
     // locally. No key parameter crosses the boundary; no projected row is omitted or re-sorted.
@@ -265,7 +268,7 @@ async function scopeRows(db: Pick<Tx, '$queryRawUnsafe'>, scope: CatalogueProtec
     return rows.filter((entry) => selected.has(keyText(entry.key))).map(({ row }) => row)
   }
   const join = contract.keys.map((key) => `t.${quote(key)} = k.${quote(key)}`).join(' AND ')
-  // Full-key scope fingerprints canonicalize complete keys, independent of batch order.
+  // Complete keys without collation ties canonicalize independently of batch order.
   const found: CatalogueTargetRow[] = []
   for (const batch of catalogueJsonBatches(keys, CATALOGUE_KEY_BATCH)) {
     const rows = await catalogueRequest('scope-read', scope.table as keyof typeof TABLES, batch, () =>
