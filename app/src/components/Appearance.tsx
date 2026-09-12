@@ -5,16 +5,14 @@ import { useEffect, useSyncExternalStore } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 import { usePathname, useRouter } from '@/i18n/navigation'
 import { routing, type Locale } from '@/i18n/routing'
+import { LOCALE_KEY, THEME_KEY } from '@/domain/appearance'
+
+export { LOCALE_KEY, THEME_KEY } from '@/domain/appearance'
 
 // Darstellung: theme and language, local to the device (localStorage), never synced. Default: follow the system.
 // The owner overruled doubt 34 on 2026-09-05: the system stays the default, the choice belongs in Einstellungen.
-export const THEME_KEY = 'dex_theme'
-export const LOCALE_KEY = 'dex_locale'
 export type Theme = 'system' | 'light' | 'dark'
 const themes: Theme[] = ['system', 'light', 'dark']
-
-// Runs before paint in <head>: resolves the stored choice to data-theme so there is no flash. Kept in sync below.
-export const themeScript = `(function(){try{var t=localStorage.getItem('${THEME_KEY}');if(t==='light'||t==='dark'){document.documentElement.dataset.theme=t}}catch(e){}})()`
 
 const listeners = new Set<() => void>()
 const notify = () => listeners.forEach((l) => l())
