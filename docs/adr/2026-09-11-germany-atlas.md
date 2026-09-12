@@ -2,9 +2,10 @@
 
 Owner: Sven Reiser. Consolidated 11 September 2026 for [Epic #14](https://github.com/Standkreis/atlas/issues/14).
 
-**Close-out draft: production acceptance PENDING.** This distils agreed product and operational
-decisions; it does not certify production activation. Keep the close-out PR draft until
-[#29](https://github.com/Standkreis/atlas/issues/29) supplies the final evidence below.
+**Close-out draft: final production acceptance PENDING.** This distils agreed product and operational
+decisions and records the verified native catalogue activation; it does not certify the remaining
+deployed browser journeys or close the Epic. Keep the close-out PR draft until
+[#29](https://github.com/Standkreis/atlas/issues/29) supplies the remaining evidence below.
 
 ## 🎯 Decision and supersession
 
@@ -141,8 +142,21 @@ prepares the complete reviewed candidate locally from the fresh production backu
 rehearsed native PG18 schema/data restore of only application objects. Existing backup rich content
 and media references are retained in that candidate; later personal changes may be discarded.
 Provider objects and external media bytes are not replaced. Source/licensing quality and all
-production acceptance remain mandatory. Native execution and its final evidence are still pending;
-this draft does not claim success.
+production acceptance remain mandatory.
+
+The native production replacement completed under operation
+`germany-29-native-replacement-20260912-01`. PostgreSQL reported 34 COPY completions / 1,085,601
+rows and COMMIT; the process exited zero. Independent readback proved all 34 application-table
+fingerprints exactly equal the frozen audited candidate, with the expected compacted physical
+ordinals, all sixteen migration rows/checksums, valid indexes/constraints and unchanged Production
+BEFORE→AFTER namespace ownership/ACL, grants, extensions/members and security metadata. Post-validation
+SHA-256 is `27dde4a2775f0117653c758d4d53c8ae4712eb2597ebb4fef322323c5aa237d0`.
+The temporary HTTP fence was removed into verified disabled configuration version 5 with zero
+rules/IPs/bypasses and no draft; public Production and authenticated current/old Preview health then
+returned 200/`ok:true`. The [draft #29 release record][release-record] at reviewed head
+`08558722a137269b46ab0e4c93bd3fb8379fe3fe` binds the complete evidence and verified 42-issue delivery
+trace. Final browser acceptance remains open because [#108](https://github.com/Standkreis/atlas/issues/108)
+owns the reproduced hydration failure; this evidence does not close #29 or Epic #14.
 
 The [approved migration plan](../operations/2026-09-11-germany-production-migration-plan.md),
 [HTTP fence procedure](../operations/germany-production-http-fence.md) and
@@ -157,33 +171,35 @@ are authorized. Source evidence and recovery files stay private; publish aggrega
 ## 🚧 Final production acceptance — PENDING
 
 The rows follow all twelve [Epic acceptance criteria](https://github.com/Standkreis/atlas/issues/14)
-in their original order. Code/source/local evidence supports review; every final acceptance entry
-remains **PENDING** until root records the specified production proof and adopts this ADR.
-Candidate and rehearsal counts below are not actual production row counts.
+in their original order. Actual native readback now fulfils the production-data requirements recorded
+in rows 1–5; their deployed user-journey checks remain explicit. Overall acceptance, criterion 11 and
+ADR adoption remain **PENDING** until the remaining production browser proof passes. Source-only and
+rehearsal counts remain labelled; the native-operation counts are actual Production readback.
 The [production03 fence proof](https://github.com/Standkreis/atlas/issues/29#issuecomment-5645363304)
-is historical: that attempt rolled back and old service reopened. Keep final native execution details in the
-[#29 release record](https://github.com/Standkreis/atlas/pull/101).
+is historical: that attempt rolled back and old service reopened. The reviewed native execution details
+are in the [draft #29 release record][release-record].
 
-| # | Epic criterion | Delivered or prepared evidence | Final acceptance still PENDING |
+| # | Epic criterion | Delivered or prepared evidence | Remaining final acceptance |
 | --- | --- | --- | --- |
-| 1 | Every intended German Kreisregion is available with a reviewed plausible set. | [Index audit][index-evidence]: all 362 intended regions ready, 214,321 memberships. The [merged native plan][native-plan] binds the replacement candidate to that reviewed scope; the [transfer rehearsal][transfer-evidence] remains historical checked-import evidence. | Bind the active production registry/catalogue; independently compare all intended region keys, sets and summaries with the reviewed artifact, and confirm selection availability. |
-| 2 | Südwestpfalz is one composite region containing Pirmasens and Zweibrücken. | [Index audit][index-evidence]: the three constituents combine before cuts, yielding 625 taxa; [search PR40](https://github.com/Standkreis/atlas/pull/40) delivers constituent lookup. | Confirm one active canonical Südwestpfalz region with the reviewed constituents/set; deployed searches for Pirmasens and Zweibrücken resolve to it. |
-| 3 | Kyoto/Schagen leave selection; legacy German data is regenerated canonically. | [Migration plan PR84](https://github.com/Standkreis/atlas/pull/84), checked target mapping and [exact local apply/inverse audits][transfer-evidence]; the [merged native plan][native-plan] supersedes that importer route for production execution under the owner waiver. | Verify Kyoto/Schagen are unselectable and legacy German selections resolve canonically. Compare actual restored data with the audited native candidate, including its rich content/media references; later personal changes are explicitly disposable under the 12 September refinement. |
-| 4 | Every indexed species has minimum identity, a zero-to-12 gallery or honest fallback, and valid per-image provenance. | [Content audit][content-evidence]: 6,874 identities, complete name/gallery work and 424 completed zero-image searches; the reviewed native candidate retains all 6,874 gallery receipts plus eligible/hidden overlays and backup leads. The earlier [target audit][transfer-evidence] remains checked-import evidence. | Audit every active target identity and receipt-bound gallery/provenance projection; record actual counts, fallback coverage and maximum 12, plus fresh release-time samples and deployed rendering. |
-| 5 | Galleries are populated once per unique German taxon, not per regional membership. | [Enrichment PR44](https://github.com/Standkreis/atlas/pull/44) and [content audit][content-evidence]: 6,874 global gallery checkpoints for the regional union. | Match active union identities to global work/gallery receipts; prove repeated regional memberships reuse each taxon's gallery without duplicate population or changed ordering. |
+| 1 | Every intended German Kreisregion is available with a reviewed plausible set. | **Production data fulfilled.** Exact source→Production fingerprints prove the active reviewed catalogue has all 362 canonical German regions and 214,321 memberships; 400 source Kreis units and 402 query units retain their distinct roles. [Index audit][index-evidence] and [native readback][release-record]. | Confirm representative deployed region selection and summaries in the final browser journey. |
+| 2 | Südwestpfalz is one composite region containing Pirmasens and Zweibrücken. | **Production data fulfilled.** Exact source→Production equality includes the reviewed single canonical Südwestpfalz region and its three-constituent, 625-taxon set. [Index audit][index-evidence]; [search PR40](https://github.com/Standkreis/atlas/pull/40). | Confirm deployed searches for Pirmasens and Zweibrücken both resolve to that one region. |
+| 3 | Kyoto/Schagen leave selection; legacy German data is regenerated canonically. | **Production data fulfilled.** All 34 restored table fingerprints equal the audited native candidate, including canonical region data and its retained backup-derived rich content/media references. The owner waiver applies only to later target changes. [Native plan][native-plan] and [native readback][release-record]. | Confirm in the deployed picker that Kyoto/Schagen are unavailable and legacy German selections resolve canonically. |
+| 4 | Every indexed species has minimum identity, a zero-to-12 gallery or honest fallback, and valid per-image provenance. | **Production data fulfilled.** Exact source→Production equality proves 6,874 German taxa and 6,874 receipt-bound galleries: 36,338 eligible references, 313 retained hidden references, 1,241 retained eligible leads, maximum 12, and the audited 424 honest zero-image galleries. [Content audit][content-evidence] and [native readback][release-record]. | Complete reliable deployed gallery/fallback/provenance rendering after #108, retaining the fresh release samples as availability evidence rather than a rights or identity re-audit. |
+| 5 | Galleries are populated once per unique German taxon, not per regional membership. | **Production data fulfilled.** Production has exactly 6,874 global gallery receipts for 6,874 union taxa while 214,321 regional memberships reuse them; all relevant fingerprints and ordering equal the audited source. [Enrichment PR44](https://github.com/Standkreis/atlas/pull/44) and [native readback][release-record]. | Confirm representative deployed reuse/navigation after #108; no further data-population proof is outstanding. |
 | 6 | Single-image surfaces use position zero; species galleries are accessible. | [Gallery PR51](https://github.com/Standkreis/atlas/pull/51) and [browser evidence][browser-evidence]: 0/1/2/12 images, EN/DE, phone/desktop, touch/keyboard, active attribution and broken non-lead isolation. | Combine the independent production runtime lead-set audit with representative deployed gallery rendering/navigation/attribution and the retained full local accessibility/cross-consumer matrix. Record those scopes separately; confirm the audited runtime and tested consumer code match the release. |
 | 7 | Onboarding starts with a welcome, not a long region list. | [Onboarding PR46](https://github.com/Standkreis/atlas/pull/46) and [EN/DE browser journeys][browser-evidence]. | With a fresh owned browser identity, verify the deployed welcome appears first and leads into explicit region discovery at phone/desktop widths. |
 | 8 | Region search and location-based selection work in onboarding and Profile. | [Picker PR43](https://github.com/Standkreis/atlas/pull/43), [Profile PR54](https://github.com/Standkreis/atlas/pull/54) and [full-catalogue browser journeys][browser-evidence]. | Combine representative deployed search/selection/switching and the five reviewed public synthetic-location resolution checks with retained local granted/denied/unavailable-location journeys for both entry points. Synthetic coordinates prove resolution, not a new device-permission journey; bind the tested shared picker to the release. |
 | 9 | Germany-wide discovered, studied, region and sighting progress is available. | [Progress PR42](https://github.com/Standkreis/atlas/pull/42), [Profile PR48](https://github.com/Standkreis/atlas/pull/48) and [browser assertions][browser-evidence] distinguish location-independent discovery/study from geographic wild-only territory. | Verify all four deployed totals against expected owned-fixture or existing-row calculations and the active union/BKG land scope; retain local edge-case evidence and record actual production smoke coverage. |
 | 10 | Offline packs are explicit per selected region and cache one lead per included taxon. | [Browser/pack evidence][browser-evidence]: 147 unique leads for 149 Sonneberg taxa versus 979 gallery references; explicit download, cancellation/failure/resume, eviction and offline reload pass. | Record deployed explicit pack download, bytes/counts, one-lead coverage and offline reload/reconnect, including private-cache/localStorage sentinels and the deliberately empty owned outbox. Link the retained actual checked-CLI two-tab legacy→Germany→inverse/worker rehearsal for populated pending-photo/outbox preservation; do not claim that scenario reran in production. |
-| 11 | Applicable application, integration, browser, build, migration, transfer and production smoke checks pass. | [Final #104 gates][transfer-evidence] retain historical importer validation: 599 unit/103 integration tests, both full-data builds, normal/shaped checked plan/apply/inverse and exact 31-table/gallery/personal audits. [Browser evidence][browser-evidence] retains its stated scope; the [merged native plan][native-plan] defines the replacement-specific gates. | Record final release SHA/CI/deployment/build, native schema/data archive and bounded SQL pins, non-superuser restore rehearsal, exact 34-table/schema/migration production readback, gate/fence reopening and maintenance duration; finish production health/UI/media/audio/offline/analytics smoke with observed requests/bytes and uncertainties. |
-| 12 | Lasting decisions are distilled into the product spec or a superseding ADR before Epic closure. | This ADR, stable-spec supersession, glossary and roadmap updates are prepared in [draft PR100](https://github.com/Standkreis/atlas/pull/100); adoption is not yet complete. | Link final #29 evidence into every row, independently recheck all criteria and child outcomes, run document checks, then review/adopt the close-out. Preserve #53 as cancelled and #67/#93 as separate follow-ups; reconcile completion only after verified merges. |
+| 11 | Applicable application, integration, browser, build, migration, transfer and production smoke checks pass. | [Final #104 gates][transfer-evidence] retain historical importer validation: 599 unit/103 integration tests, both full-data builds, normal/shaped checked plan/apply/inverse and exact 31-table/gallery/personal audits. Native operation/readback, schema/security preservation, gate/fence reopening and public/authenticated health are now verified in the [release record][release-record]. | **PENDING:** fix and verify #108, then finish the production media, onboarding/Profile/search/progress, explicit regional pack/offline and analytics journeys with observed counts/bytes and uncertainties. |
+| 12 | Lasting decisions are distilled into the product spec or a superseding ADR before Epic closure. | This ADR, stable-spec supersession, glossary and roadmap updates are prepared in [draft PR100](https://github.com/Standkreis/atlas/pull/100); adoption is not yet complete. The [draft release record][release-record] has an independently verified 42-issue delivery trace and keeps #53 cancelled. | Update the release record with passing final journeys, independently recheck all criteria and child outcomes, run document checks, then review/adopt the close-out. Preserve #67/#93 as separate follow-ups; reconcile completion only after verified merges. |
 
 [index-evidence]: ../records/2026-09-09-germany-index-audit.md
 [content-evidence]: ../reviews/2026-09-10-germany-content-release.md
 [browser-evidence]: https://github.com/Standkreis/atlas/issues/86#issuecomment-5638556302
 [transfer-evidence]: https://github.com/Standkreis/atlas/issues/104#issuecomment-5645284769
 [native-plan]: https://github.com/Standkreis/atlas/pull/107
+[release-record]: https://github.com/Standkreis/atlas/pull/101
 
 Countries beyond Germany, global progress, marine-region design, full rich-content coverage,
 permanent image mirroring, perceptual deduplication and public region creation remain deferred.
