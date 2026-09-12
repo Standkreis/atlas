@@ -392,25 +392,32 @@ to verified disabled restoration was approximately **65 minutes9 seconds**.
 
 After three importer deadline failures, Sven explicitly reiterated that pre-alpha production data
 may be removed/replaced even if not restorable and asked to stop preservation-oriented retries.
-[#106](https://github.com/Standkreis/atlas/issues/106) now owns the separately reviewed native PG18
-snapshot replacement plan and clean local rehearsal. The source remains the fresh backup plus a
+[#106](https://github.com/Standkreis/atlas/issues/106) delivered the separately reviewed
+[native PG18 replacement plan](../operations/2026-09-12-germany-native-replacement.md) and clean local
+rehearsal through [PR #107](https://github.com/Standkreis/atlas/pull/107), merged at
+`45239c589699e57570f6bcdb7517d83ac8eddd47`. The source remains the fresh backup plus a
 checked **local** import, retaining its existing rich content/audio references; later personal
 changes may be discarded. This is not a licence, scientific-quality or catalogue-membership waiver.
+The final 87,757,467-byte native archive is pinned in that plan; empty restore passed in 8 seconds
+and restricted-role old-state replacement passed in 7.69 seconds. All 34 table fingerprints and
+schema/security comparisons passed. The local source has 1,085,601 stored rows, not a species
+denominator. A second verified persistent copy retains 18 payloads with private permissions.
 Native production replacement and the final production journeys remain pending.
 
-The actual fence/drain, fresh backup/restore, exact-bound production plan/apply, independent audit,
-reopening and deployed browser/media/audio/offline/analytics smoke evidence must replace this pending
+The actual fresh native fence/drain, exact-bound replacement, independent all-34-table/schema/security
+readback, reopening and deployed browser/media/audio/offline/analytics smoke evidence must replace this pending
 section before #29 closes. Personal before-images, credentials, raw receipts and browser profiles
 remain owner-only outside Git. Epic #14 additionally needs its dedicated ADR close-out review.
 
 ## 🔗 Completed issue/PR delivery trace
 
-The following 41 scoped issues are completed with their associated PRs merged. This is not a
+The following 42 scoped issues are completed with their associated PRs merged. This is not a
 substitute for #29's production acceptance or Epic #14's outcome review, which remain pending.
 Issue #53 was cancelled, not delivered. Separate follow-up epics are outside this release.
 
 | Issue | Merged PR |
 | --- | --- |
+| [#106](https://github.com/Standkreis/atlas/issues/106) | [#107](https://github.com/Standkreis/atlas/pull/107) |
 | [#15](https://github.com/Standkreis/atlas/issues/15) | [#30](https://github.com/Standkreis/atlas/pull/30) |
 | [#16](https://github.com/Standkreis/atlas/issues/16) | [#31](https://github.com/Standkreis/atlas/pull/31) |
 | [#17](https://github.com/Standkreis/atlas/issues/17) | [#32](https://github.com/Standkreis/atlas/pull/32) |
