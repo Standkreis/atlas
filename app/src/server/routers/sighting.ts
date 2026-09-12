@@ -72,7 +72,8 @@ export const sightingRouter = router({
 
   /**
    * Save one sighting (spec §🎨 4). `evidence` follows the photo; `place` is the Gemeinde of the exact point, else the
-   * region's name; the exact point is stored as is (doubt 17). Returns `first`: this row is the taxon's earliest wild
+   * captured fallback label; a retired label stays historical text, and absent context stays null.
+   * The exact point is stored as is (doubt 17). Returns `first`: this row is the taxon's earliest wild
    * sighting, so the grid fills a cell; otherwise the grid shows the quiet toast (doubt 12).
    * `id` is the client's (handoff 0009 Track B): the outbox mints it, so a flush retried after a lost answer finds the
    * row it already made and returns it instead of a second one. Someone else's id is a conflict, never a read.
@@ -86,6 +87,9 @@ export const sightingRouter = router({
         lat: z.number().min(-90).max(90).optional(),
         lng: z.number().min(-180).max(180).optional(),
         note: z.string().trim().max(500).optional(),
+        // A historical display label, never a region binding or evidence of coordinates.
+        // Existing outbox rows already carry it; older clients without it remain unknown.
+        place: z.string().trim().max(500).nullable().optional(),
         wildness: z.enum(['wild', 'captive', 'cultivated']),
         photoId: z.string().uuid().optional(),
         /** The species is the scan's answer, taken with "Das ist es" (handoff 0016 B4): `evidence` becomes `idAssisted`. */
@@ -102,15 +106,14 @@ export const sightingRouter = router({
           if (existing && existing.identityId !== id) throw new TRPCError({ code: 'CONFLICT', message: 'id taken' })
           if (existing) return existing
         }
-        const [taxon, filter, photo] = await Promise.all([
+        const [taxon, photo] = await Promise.all([
           tx.taxon.findUnique({ where: { id: input.taxonId }, select: { id: true } }),
-          tx.filter.findUnique({ where: { identityId: id }, select: { region: { select: { name: true } } } }),
           input.photoId ? tx.asset.findFirst({ where: { id: input.photoId, ownerId: id, sightingId: null, avatarOf: null, origin: 'user' }, select: { id: true } }) : null,
         ])
         if (!taxon) throw new TRPCError({ code: 'NOT_FOUND', message: 'unknown taxon' })
         if (input.photoId && !photo) throw new TRPCError({ code: 'NOT_FOUND', message: 'unknown photo' })
         const hasPoint = input.lat !== undefined && input.lng !== undefined
-        const place = (hasPoint ? await gemeinde(input.lat!, input.lng!) : null) ?? filter?.region?.name ?? null
+        const place = (hasPoint ? await gemeinde(input.lat!, input.lng!) : null) ?? (input.place || null)
         const created = await tx.sighting.create({
           data: {
             ...(input.id ? { id: input.id } : {}),

@@ -281,7 +281,7 @@ async function send(row: Row): Promise<unknown> {
     }
     if (p.photoRow && !photoId) throw new HttpError(410, 'photo gone')
     assertActive(row)
-    return client.sighting.create.mutate({ id: row.id, taxonId: p.taxonId, at: new Date(p.at), lat: p.lat, lng: p.lng, note: p.note, wildness: p.wildness, photoId, idAssisted: p.idAssisted && !!photoId ? true : undefined }, { signal: controller.signal })
+    return client.sighting.create.mutate({ id: row.id, taxonId: p.taxonId, at: new Date(p.at), place: p.place, lat: p.lat, lng: p.lng, note: p.note, wildness: p.wildness, photoId, idAssisted: p.idAssisted && !!photoId ? true : undefined }, { signal: controller.signal })
   }
   if (row.kind === 'study') return client.study.mark.mutate({ taxonId: row.payload.taxonId }, { signal: controller.signal })
   if (row.kind === 'scan') {
