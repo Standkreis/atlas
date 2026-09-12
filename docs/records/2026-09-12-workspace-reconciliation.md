@@ -302,6 +302,69 @@ Legacy cleanup removed **33 present worktrees**, pruned **28 missing registratio
 of physical reclaim. Filesystem available space rose from 19,419,424 KiB to 66,284,340 KiB at the
 post-worktree-removal reading, a measured increase of 44.69 GiB; this includes concurrent activity.
 
-Final current-session worktree, branch and verification readbacks will be recorded before this
-issue is delivered. Attribution: Codex primary agent; independently implemented cleanup fixes
-by `sighting_sync`, `plant_wildness`, and `etl_ci`. The #93 session is independently owned.
+## Final session inventory (2026-09-12T16:16:07.300347+00:00)
+
+All seven worktrees created by this cleanup session are accounted for below. Removed session
+worktrees passed fresh clean-tree/process-cwd checks, exact merged-PR head and merge reachability
+verification. Their remote branches were deleted with expected-head protection and read back.
+
+| Issue / PR | Session worktree under `../atlas-worktrees/` | Head / merge | Disposition |
+| --- | --- | --- | --- |
+| #112 / [PR #122](https://github.com/Standkreis/atlas/pull/122) | `cleanup112-capture-place` | `b359a2801490` / `8ce5b3acbac8` | Removed; local and remote branches removed |
+| #113 / [PR #124](https://github.com/Standkreis/atlas/pull/124) | `cleanup113-plant-wildness` | `c56a16424442` / `47b19cea7341` | Removed; local and remote branches removed |
+| #114 / [PR #129](https://github.com/Standkreis/atlas/pull/129) | `cleanup114-progress-sync` | `23e2e7f1b3d1` / `b51bfcb70576` | Removed; local and remote branches removed |
+| #115 / [PR #125](https://github.com/Standkreis/atlas/pull/125) | `cleanup115-regional-guard` | `9e78b9516c4e` / `d1606a6dfa59` | Removed; local and remote branches removed |
+| #116 / [PR #119](https://github.com/Standkreis/atlas/pull/119) | `cleanup116-workflow-scope` | `5133f6a6f890` / `f0c74601a347` | Removed; local and remote branches removed |
+| #117 / [PR #123](https://github.com/Standkreis/atlas/pull/123) | `cleanup117-operations` | `3c9a469e6ed4` / `c8966900a577` | Removed; local and remote branches removed |
+| #111 / [PR #126](https://github.com/Standkreis/atlas/pull/126) | `cleanup111-reconciliation` | This record’s PR head | Keep clean local review worktree and branch; delete its remote branch after checked merge |
+
+This brings actual removals to **39 present worktrees** (33 legacy + six session),
+**28 stale registrations**, **66 local branches** (60 legacy + six session), and
+**53 remote branches before #126 closes** (47 legacy + six session).
+After #126 merges, its own expected-head remote deletion brings that total to **54**;
+the final delivery readback records that last action.
+
+At this inventory read there are **8 present worktrees**, **11 local branches** and
+**6 live remote branches**. All registrations exist; root is clean on current main.
+The finalizer removes only #126’s remote branch, leaving 5 live remote branches.
+The resulting local worktrees are:
+
+| Retained worktree | Reason |
+| --- | --- |
+| `../atlas` | Clean, usable root main checkout |
+| `../atlas-worktrees/cleanup111-reconciliation` | Clean local reconciliation review record |
+| `../atlas-worktrees/issue108-species-hydration` | Existing local server; provenance tree also retains ETL cache |
+| `../atlas-worktrees/issue21` | Valuable source ETL cache |
+| `../atlas-worktrees/issue21-http-review-fix` | Retained HTTP helper; full patch equivalence unproven |
+| `../atlas-worktrees/issue21-provenance-review` | Existing local server; provenance tree also retains ETL cache |
+| `../atlas-worktrees/issue93-species-groups-audit` | Separate active #93 session; now owns #120 and #121 branches/PRs |
+| `../atlas-worktrees/preview-germany-applied-main-20260911` | Existing local server; provenance tree also retains ETL cache |
+
+The concurrently created `task/121-species-groups-browse-contract` is retained alongside
+`task/120-species-groups-audit`; both belong to the other #93 session. Its single worktree
+changed branches during cleanup. Neither branch/PR was reviewed, merged or removed by cleanup.
+The root recovery, two prose and two cancelled experiment branches remain unchanged.
+
+Final measured filesystem availability is **73,522,028 KiB**, a **51.60 GiB**
+increase from the initial reading. This is a filesystem delta during concurrent agent work,
+not an isolated APFS reclaim claim. Private `verification-evidence/` retains 269 files
+(49,090,905 bytes) of this session’s local logs/screenshots; all copied hashes match originals.
+Its manifest is separate from the 38,581-file root snapshot. `repository-final.bundle` additionally
+pins every inventoried worktree head, including stale detached registrations, through recovery refs.
+
+The five disposable local verification databases are retained for reproducibility:
+`dex_check_cleanup112`, `dex_check_cleanup112_browser`, `dex_check_cleanup113_20260912`,
+`dex_check_cleanup115`, and `dex_check_cleanup115_staging` on local Postgres. No production
+data was transformed and no enrichment or production model key was used.
+
+Final combined application verification for the separately delivered runtime issues passed on
+#114’s checked head: **625 unit tests**, **109 local Postgres integration tests**, both builds,
+and the full production-browser suite (EN/DE capture-place, plant wildness and mounted Profile
+sync, analytics privacy, offline worker/cache and identity isolation). #111 itself is documentation
+and operational cleanup only: harness structure/link checks and all **36 harness tests** pass.
+Production verification is separately recorded by exact-main deployment, alias and read-only
+HTTP/health checks; local mutation regressions are not represented as production data operations.
+
+There are no unresolved cleanup blockers. Retained ambiguous/active artifacts are intentional,
+with disposition stated above. Attribution: Codex primary agent; implementation/reviews by
+`sighting_sync`, `plant_wildness`, and `etl_ci`. The #93 session is independently owned.
