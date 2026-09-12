@@ -5,7 +5,7 @@
 //                             resumable staged Germany catalogue → deduplicated national taxon union
 //   names --catalogue <completed-id> [--region <key|name|uuid>] [--keys k1,k2] [--limit n] [--concurrency n] [--json]
 //                             bounded Wikidata common-name enrichment over the completed catalogue union
-//   refresh [--days 30]       re-run the region job for regions older than 30 days
+//   refresh [--days 30]       legacy-only refresh; region/refresh reject active catalogues
 //   content [--region <name>] [--purge <key>] [--limit n] [--force]
 //                             fill Taxon content (names, intro, facts, assets, interactions) once per taxon; --force refetches only the GloBI edges of filled taxa (0028)
 //   prose --region <name> [--driver files|api] [--run <name>]
@@ -39,6 +39,10 @@ async function main() {
       console.log(`registry ${r.registryId}: ${r.regions} regions · ${r.sourceUnits} Kreis units · ${r.aliases} aliases · ${r.queryUnits} query units · ${r.created ? 'created' : 'verified'}`)
       break
     }
+    case 'help':
+    case '--help':
+      console.log('region <prepared name | canonical key | gadmGid> and refresh [--days 30] directly publish legacy regional sets only in databases without an active German catalogue. Queued-region repair in sweep has the same guard. Even foreign legacy regions share Taxon rows and are rejected when a German catalogue is active.\nFor a catalogue refresh, use germany --registry <version-id> --run <new-key> to stage locally, then reviewed audits and local activation. Production transfer needs separate authorization; the 12 September replacement waiver is not reusable. See etl/README.md and docs/DEPLOY.md.')
+      break
     case 'region': {
       const { runRegion } = await import('./region')
       const query = positional[0]
@@ -149,7 +153,7 @@ async function main() {
       break
     }
     default:
-      console.log('usage: npm run etl -- registry --mapping <reviewed-local-json> | germany --registry <version-id> --run <key> [--concurrency 1] [--reuse-cache] [--json] | names --catalogue <completed-id> [--region <key|name|uuid>] [--keys k1,k2] [--limit n] [--concurrency n] [--json] | region <prepared name | canonical key | gadmGid> [--month m] | refresh [--days 30] | content [--region <name>] [--purge <gbifKey>] [--limit n] [--force [--keys k1,k2]] | facts [--region <name>] [--purge] [--force] [--limit n] | sounds [--region <name>] [--limit n] | prose --region <name> [--driver files|api] [--run <name>] | prose --load --run <name> | prose --purge [--region <name>] | sweep')
+      console.log('usage: npm run etl -- --help | registry --mapping <reviewed-local-json> | germany --registry <version-id> --run <key> [--concurrency 1] [--reuse-cache] [--json] | names --catalogue <completed-id> [--region <key|name|uuid>] [--keys k1,k2] [--limit n] [--concurrency n] [--json] | region <prepared name | canonical key | gadmGid> [--month m] | refresh [--days 30] | content [--region <name>] [--purge <gbifKey>] [--limit n] [--force [--keys k1,k2]] | facts [--region <name>] [--purge] [--force] [--limit n] | sounds [--region <name>] [--limit n] | prose --region <name> [--driver files|api] [--run <name>] | prose --load --run <name> | prose --purge [--region <name>] | sweep')
       process.exitCode = 1
   }
 }

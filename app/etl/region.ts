@@ -1,6 +1,7 @@
 // The region job (spec §🗃️ A–C, Germany contract §Query and aggregation): resolve one
 // application region, fetch every constituent query unit, fold synonyms to accepted species,
 // aggregate, then apply the floor/cut and atomically replace its derived regional rows.
+import type { Prisma } from '../src/generated/prisma/client'
 import type { Tile } from '../src/generated/prisma/enums'
 import { resolveAcceptedSpecies, type AcceptedTaxonomyResult, type SpeciesLookup, type TaxonomyRejection } from './accepted-taxonomy'
 import { aggregateCompositeCounts, cutCompositeTile, type QueryUnitCounts } from './composite-aggregation'
@@ -9,6 +10,23 @@ import { pool, requests, withFreshCache } from './fetch'
 import { gbifFacet, gbifSpecies, occurrenceBase, resolveRegion, type Facet, type Gadm, type Species } from './gbif'
 import { normalizeRegionAlias } from './registry-import'
 import { isNow, monthShares, tileOf, words } from './rules'
+
+// Direct jobs also update shared Taxon identities/prose, so even a legacy foreign region
+// can affect the active German catalogue. Version-explicit calculation/staging is separate.
+async function activeCatalogue(client: Pick<Prisma.TransactionClient, 'catalogueVersion'> = db) {
+  return client.catalogueVersion.findFirst({ where: { countryCode: 'DE', status: 'active' }, select: { id: true } })
+}
+
+async function assertDirectPublicationAllowed(client: Pick<Prisma.TransactionClient, 'catalogueVersion'> = db) {
+  const active = await activeCatalogue(client)
+  if (active) throw new Error(`direct regional publication is blocked by active catalogue ${active.id}; use germany --registry <version-id> --run <new-key>, reviewed audits and local activation; production transfer requires separate authorization`)
+}
+
+// Match local catalogue activation's lock, and recheck after acquiring it. Never hold a
+// transaction over provider requests: a catalogue activated during calculation wins.
+async function lockCatalogueActivation(tx: Prisma.TransactionClient) {
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'catalogue-activation:DE'}, 0))::text`
+}
 
 const MONTH_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const
 
@@ -252,10 +270,14 @@ async function resolveTarget(query: string, resolveLegacy: RegionJobDependencies
   const stored = await storedRegionTarget(query)
   if (stored) return stored
   const gadm = await resolveLegacy(query)
-  const region = await db.region.upsert({
-    where: { gadmGid: gadm.gadmGid },
-    create: { gadmGid: gadm.gadmGid, name: gadm.name, higher: gadm.higher, status: 'queued' },
-    update: { name: gadm.name, higher: gadm.higher },
+  const region = await db.$transaction(async (tx) => {
+    await lockCatalogueActivation(tx)
+    await assertDirectPublicationAllowed(tx)
+    return tx.region.upsert({
+      where: { gadmGid: gadm.gadmGid },
+      create: { gadmGid: gadm.gadmGid, name: gadm.name, higher: gadm.higher, status: 'queued' },
+      update: { name: gadm.name, higher: gadm.higher },
+    })
   })
   return {
     regionId: region.id,
@@ -351,12 +373,13 @@ async function aggregateRegion(
   return { counts: aggregateCompositeCounts(units), rejectedTaxa: taxonomy.rejected, taxonomyResolutions }
 }
 
-/** Fetch and replace one legacy or versioned German region. */
+/** Fetch and directly replace a region only in a database without an active German catalogue. */
 export async function runRegion(
   query: string,
   log: (message: string) => void = console.log,
   overrides: Partial<RegionJobDependencies> = {},
 ): Promise<RegionResult> {
+  await assertDirectPublicationAllowed()
   const dependencies = regionDependencies(overrides)
   const target = await resolveTarget(query, dependencies.resolveLegacy)
   return executeRegion(target, log, dependencies)
@@ -376,13 +399,14 @@ export async function calculateRegistryRegion(
   return calculateRegion(target, log, regionDependencies(overrides))
 }
 
-/** Version-explicit entry point for the nationwide orchestrator in issue #18. */
+/** Legacy direct publisher with a pinned registry; nationwide staging uses calculateRegistryRegion. */
 export async function runRegistryRegion(
   registryVersionId: string,
   regionKey: string,
   log: (message: string) => void = console.log,
   overrides: Partial<RegionJobDependencies> = {},
 ): Promise<RegionResult> {
+  await assertDirectPublicationAllowed()
   const target = await explicitRegistryTarget(registryVersionId, regionKey)
   return executeRegion(target, log, regionDependencies(overrides))
 }
@@ -393,7 +417,11 @@ async function executeRegion(
   dependencies: RegionJobDependencies,
 ): Promise<RegionResult> {
   const started = Date.now()
-  await db.region.update({ where: { id: target.regionId }, data: { status: 'queued', error: null } })
+  await db.$transaction(async (tx) => {
+    await lockCatalogueActivation(tx)
+    await assertDirectPublicationAllowed(tx)
+    await tx.region.update({ where: { id: target.regionId }, data: { status: 'queued', error: null } })
+  })
   try {
     const calculation = await calculateRegion(target, log, dependencies)
     await publishRegionCalculation(calculation)
@@ -415,7 +443,13 @@ async function executeRegion(
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    await db.region.update({ where: { id: target.regionId }, data: { status: 'failed', error: message.slice(0, 1000) } })
+    await db.$transaction(async (tx) => {
+      await lockCatalogueActivation(tx)
+      // Preserve activation's ready state if it completed while this job was calculating.
+      if (!await activeCatalogue(tx)) {
+        await tx.region.update({ where: { id: target.regionId }, data: { status: 'failed', error: message.slice(0, 1000) } })
+      }
+    })
     throw error
   }
 }
@@ -494,6 +528,8 @@ async function calculateRegion(
 async function publishRegionCalculation(calculation: RegistryRegionCalculation) {
   const regionId = calculation.target.regionId
   await db.$transaction(async (tx) => {
+    await lockCatalogueActivation(tx)
+    await assertDirectPublicationAllowed(tx)
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`region-set:${regionId}`}, 0))::text`
     for (const taxon of calculation.taxa) {
       const { gbifKey, ...data } = taxon
@@ -532,8 +568,9 @@ async function publishRegionCalculation(calculation: RegistryRegionCalculation) 
   }, { maxWait: 10_000, timeout: 120_000 })
 }
 
-/** Re-run the legacy single-query job for every eligible region older than `days`. #18 owns nationwide orchestration. */
+/** Legacy-only bulk refresh; rejects an active catalogue even when no stale regions match. */
 export async function refresh(days = 30, log: (message: string) => void = console.log) {
+  await assertDirectPublicationAllowed()
   const stale = await db.region.findMany({
     where: {
       status: { not: 'unprepared' },
