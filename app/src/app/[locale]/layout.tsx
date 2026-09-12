@@ -10,8 +10,8 @@ import { IdentityBoot } from '@/components/IdentityBoot'
 import { QueueFlusher } from '@/components/QueueFlusher'
 import { RegionReplay } from '@/components/RegionSheet'
 import { TRPCReactProvider } from '@/trpc/client'
-import Script from 'next/script'
-import { ThemeBoot, themeScript } from '@/components/Appearance'
+import { ThemeBoot } from '@/components/Appearance'
+import { themeScript } from '@/domain/appearance'
 import { atlasMetadata } from '@/brand/metadata'
 import { titillium } from '@/styles/fonts'
 import '../globals.css'
@@ -46,8 +46,9 @@ export default async function LocaleLayout({ children, params }: LayoutProps<'/[
   return (
     <html lang={locale} className={titillium.variable} suppressHydrationWarning>
       <head>
-        {/* Darstellung: applies a stored light/dark choice before paint; the default follows the system. */}
-        <Script id="dex-theme" strategy="beforeInteractive">{themeScript}</Script>
+        {/* Parse-time theme bootstrap stays server-owned: a client reference here can suspend head
+            hydration and leave its cursor in <head> when the page's <body> begins hydrating. */}
+        <script id="dex-theme" dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="font-sans">
         <NextIntlClientProvider>
