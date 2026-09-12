@@ -8,6 +8,7 @@ import collections
 import csv
 import hashlib
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -141,12 +142,15 @@ def main():
     assert out['reviewedGalleryVisibility']['eligible'] == 36338
     regional_path = args.output.with_suffix('.regions.csv')
     with regional_path.open('w', newline='') as f:
-        writer = csv.writer(f)
+        writer = csv.writer(f, lineterminator="\n")
         writer.writerow(['key','name','higher','total',*tile_keys,*memberships,'plantLifeform'])
         for r in regional:
             writer.writerow([r['key'],r['name'],r['higher'],r['total'],*r['tiles'].values(),*r['candidates'].values(),r['plantLifeform']])
     out['allRegionsArtifact'] = {'file':regional_path.name,'rows':len(regional),'sha256':hashlib.sha256(regional_path.read_bytes()).hexdigest()}
-    args.output.write_text(json.dumps(out,sort_keys=True,ensure_ascii=False,indent=2)+'\n')
+    encoded = json.dumps(out,sort_keys=True,ensure_ascii=False,indent=2)
+    # Keep scalar measurement rows together so the evidence diff is reviewable.
+    encoded = re.sub(r'\{[^{}\[\]]*\}', lambda m: json.dumps(json.loads(m.group()),ensure_ascii=False,sort_keys=True), encoded)
+    args.output.write_text(encoded+'\n')
     print(json.dumps({'output':str(args.output),'sha256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'national':out['national'],'candidates':out['candidateCounts'],'gallery':out['reviewedGalleryVisibility'],'representatives':[(r['key'],r['name'],r['total']) for r in out['representativeRegions']]}))
 
 if __name__ == '__main__':
