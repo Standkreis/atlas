@@ -51,6 +51,8 @@ try {
     assert.equal(exported.sightings.length, 1)
     assert.equal(exported.sightings[0].place, region.name)
     assert.equal(exported.sightings[0].lat, null)
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
+    await evaluate('document.querySelector("[data-testid=place]").scrollIntoView({block: "center"})')
     await sleep(200)
     if (process.env.BROWSER_EVIDENCE_DIR) {
       mkdirSync(process.env.BROWSER_EVIDENCE_DIR, { recursive: true })
