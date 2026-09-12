@@ -12,7 +12,7 @@ assert.ok(owner && ['localhost', '127.0.0.1'].includes(url.hostname) && /^\/dex_
 const db = new pg.Client({ connectionString: url.href }); await db.connect()
 try {
   const { rows: [region] } = await db.query(`SELECT id,name FROM "Region" WHERE name='Mainz-Bingen'`)
-  const { rows: taxa } = await db.query(`SELECT t.id,t."gbifKey",t."sciName",t.tile FROM "Taxon" t JOIN "Plausibility" p ON p."taxonId"=t.id WHERE p."regionId"=$1 ORDER BY t.id LIMIT 2`, [region.id])
+  const { rows: taxa } = await db.query(`SELECT t.id,t."gbifKey",t."sciName",t.tile FROM "Taxon" t JOIN "Plausibility" p ON p."taxonId"=t.id WHERE p."regionId"=$1 AND t.tile='bird' ORDER BY t.id LIMIT 2`, [region.id])
   await db.query(`INSERT INTO "Filter" (id,"identityId","regionId","regionIds",tiles,"nowOnly","updatedAt") VALUES ($1,$2,$3,ARRAY[$3]::text[],ARRAY['bird']::"Tile"[],false,NOW())`, [randomUUID(), owner, region.id])
   const rows = taxa.map((taxon, i) => ({ id: randomUUID(), identityId: owner, createdAt: Date.now() + i, attempts: 0, lastError: null, kind: i ? 'study' : 'sighting', payload: { taxonId: taxon.id, taxon: { ...taxon, names: {}, lead: null }, at: new Date().toISOString(), wildness: 'wild', place: region.name, first: true } }))
   await browserJourney(base, async ({ send, evaluate, wait, listeners, requests }) => {
@@ -51,6 +51,7 @@ try {
     const study = await take(); await send('Fetch.continueRequest', { requestId: study.requestId })
     timing.push({ event: 'study-released', at: new Date().toISOString() })
     await wait(`${q('[data-testid=germany-studied] dd')}?.textContent === '1'`, 'study refreshes without navigation', 8000)
+    await wait(`${q('[data-testid=region-card]')}?.dataset.seen === '1' && ${q('[data-testid=region-card]')}?.dataset.studied === '1'`, 'regional progress continues to refresh alongside national totals')
     assert.equal(await evaluate('window.__profileSentinel === document.querySelector("[data-testid=germany-progress]")'), true, 'same Profile card remains mounted')
     assert.equal(await evaluate(`${q('[data-testid=germany-denominator]')}.textContent`), denominator)
     assert.equal(await count('sightings'), territory, 'place alone manufactures no territory evidence')
