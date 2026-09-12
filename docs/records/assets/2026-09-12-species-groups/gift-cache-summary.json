@@ -1,0 +1,346 @@
+{
+  "scope": "Retained public GIFT cache only; zero provider requests. Name candidate joins are exploratory and are NOT source-qualified identity resolutions or biological memberships.",
+  "catalogueTaxa": 6874,
+  "cataloguePlants": 2069,
+  "inventory": [
+    {
+      "name": "species",
+      "url": "https://gift.uni-goettingen.de/api/extended/index.php?query=species",
+      "cacheFile": "2feea79c27d4d9dec8e297427242467a60cda1b0.json",
+      "bytes": 12394109,
+      "sha256": "482b979ee66bbe0f9ae3d2a115dc09d54219ca364951d771ca2b0bdf25adc3fb",
+      "rows": 100000,
+      "fields": [
+        "genus_ID",
+        "work_ID",
+        "work_author",
+        "work_genus",
+        "work_species"
+      ],
+      "nullOrEmptyFields": {
+        "genus_ID": 0,
+        "work_ID": 0,
+        "work_author": 2625,
+        "work_genus": 0,
+        "work_species": 0
+      },
+      "distinctWorkIds": 100000,
+      "duplicateWorkIds": 0,
+      "numericWorkIdMin": 1,
+      "numericWorkIdMax": 116203,
+      "filesystemMtimeUtcNotProviderDate": "2026-09-06T22:42:24.666334+00:00"
+    },
+    {
+      "name": "floweringStart",
+      "url": "https://gift.uni-goettingen.de/api/extended/index.php?query=traits&traitid=3.7.1&limit=1000000",
+      "cacheFile": "7834e76650cc581013a9523e1f36657c2118720a.json",
+      "bytes": 1914489,
+      "sha256": "8976837f85ad3c9b4581c5c69e3c48c881422187c3621c5f10f58bc29ce338a6",
+      "rows": 19582,
+      "fields": [
+        "agreement",
+        "coeff_var",
+        "n",
+        "references",
+        "trait_value",
+        "work_ID"
+      ],
+      "nullOrEmptyFields": {
+        "agreement": 0,
+        "coeff_var": 19582,
+        "n": 0,
+        "references": 0,
+        "trait_value": 0,
+        "work_ID": 0
+      },
+      "distinctWorkIds": 19582,
+      "duplicateWorkIds": 0,
+      "numericWorkIdMin": 1,
+      "numericWorkIdMax": 471382,
+      "filesystemMtimeUtcNotProviderDate": "2026-09-06T22:42:26.137516+00:00"
+    },
+    {
+      "name": "floweringEnd",
+      "url": "https://gift.uni-goettingen.de/api/extended/index.php?query=traits&traitid=3.7.2&limit=1000000",
+      "cacheFile": "cc422d65ae28952768b05aa4149be6ceb90a93d4.json",
+      "bytes": 1888530,
+      "sha256": "d75ba871e3757a6454ba65895949acf880e0fc05a4258eb7e04003e826461166",
+      "rows": 19351,
+      "fields": [
+        "agreement",
+        "coeff_var",
+        "n",
+        "references",
+        "trait_value",
+        "work_ID"
+      ],
+      "nullOrEmptyFields": {
+        "agreement": 0,
+        "coeff_var": 19351,
+        "n": 0,
+        "references": 0,
+        "trait_value": 0,
+        "work_ID": 0
+      },
+      "distinctWorkIds": 19351,
+      "duplicateWorkIds": 0,
+      "numericWorkIdMin": 1,
+      "numericWorkIdMax": 471382,
+      "filesystemMtimeUtcNotProviderDate": "2026-09-06T22:42:26.708798+00:00"
+    },
+    {
+      "name": "height",
+      "url": "https://gift.uni-goettingen.de/api/extended/index.php?query=traits&traitid=1.6.2&limit=1000000",
+      "cacheFile": "7e8cc293371eef477235186a57a80405de67d1ec.json",
+      "bytes": 7089891,
+      "sha256": "c04a1edd4327b384b44de4978634660f60946297b9beeefb77649f73bc82118e",
+      "rows": 70367,
+      "fields": [
+        "agreement",
+        "coeff_var",
+        "n",
+        "references",
+        "trait_value",
+        "work_ID"
+      ],
+      "nullOrEmptyFields": {
+        "agreement": 70367,
+        "coeff_var": 55584,
+        "n": 0,
+        "references": 0,
+        "trait_value": 0,
+        "work_ID": 0
+      },
+      "distinctWorkIds": 70367,
+      "duplicateWorkIds": 0,
+      "numericWorkIdMin": 1,
+      "numericWorkIdMax": 471382,
+      "filesystemMtimeUtcNotProviderDate": "2026-09-06T22:42:30.656476+00:00"
+    },
+    {
+      "name": "pollination",
+      "url": "https://gift.uni-goettingen.de/api/extended/index.php?query=traits&traitid=3.6.2&limit=1000000",
+      "cacheFile": "947f1f6b21bd3338b13474259dce96cb2c4ff003.json",
+      "bytes": 592423,
+      "sha256": "66cfa0398c3222131e642f083e567651efc1719e04b15a18c1462911988e6b75",
+      "rows": 5938,
+      "fields": [
+        "agreement",
+        "coeff_var",
+        "n",
+        "references",
+        "trait_value",
+        "work_ID"
+      ],
+      "nullOrEmptyFields": {
+        "agreement": 0,
+        "coeff_var": 5938,
+        "n": 0,
+        "references": 0,
+        "trait_value": 0,
+        "work_ID": 0
+      },
+      "distinctWorkIds": 5938,
+      "duplicateWorkIds": 0,
+      "numericWorkIdMin": 13,
+      "numericWorkIdMax": 471358,
+      "filesystemMtimeUtcNotProviderDate": "2026-09-06T22:42:30.907690+00:00"
+    },
+    {
+      "name": "lifeform",
+      "url": "https://gift.uni-goettingen.de/api/extended/index.php?query=traits&traitid=2.3.1&limit=1000000",
+      "cacheFile": "01249aa6fdab8e95ef7f3a44e4b01c74a38a091a.json",
+      "bytes": 9692689,
+      "sha256": "f970158f6f0e56768fc323df619b165047858fcf620c24ae68b473698f8fdfbc",
+      "rows": 89688,
+      "fields": [
+        "agreement",
+        "coeff_var",
+        "n",
+        "references",
+        "trait_value",
+        "work_ID"
+      ],
+      "nullOrEmptyFields": {
+        "agreement": 0,
+        "coeff_var": 89688,
+        "n": 0,
+        "references": 0,
+        "trait_value": 0,
+        "work_ID": 0
+      },
+      "distinctWorkIds": 89688,
+      "duplicateWorkIds": 0,
+      "numericWorkIdMin": 16,
+      "numericWorkIdMax": 502891,
+      "filesystemMtimeUtcNotProviderDate": "2026-09-06T22:42:35.159384+00:00"
+    }
+  ],
+  "speciesIndex": {
+    "rawNameCollisionKeys": 0,
+    "firstTwoTokensCollisionKeys": 16,
+    "firstTwoTokensDistinctNameCollisionKeys": 16,
+    "firstWorkId": 1,
+    "lastWorkId": 116203,
+    "workIdsMonotonicallyAscending": true
+  },
+  "lifeform": {
+    "rows": 89688,
+    "values": {
+      "therophyte": 6357,
+      "phanerophyte": 33802,
+      "hemicryptophyte": 19733,
+      "chamaephyte": 10557,
+      "cryptophyte": 19239
+    },
+    "agreement": {
+      "below1": 3581,
+      "1": 86107
+    },
+    "agreementMin": 0.25,
+    "missingReferenceRows": 0,
+    "distinctReferenceIds": 94,
+    "nMin": 1,
+    "nMax": 42,
+    "workIdsAbsentFromRetainedSpeciesIndex": 54340
+  },
+  "exactTrimmedScientificName": {
+    "counts": {
+      "noSpeciesCandidate": 347,
+      "withSpeciesCandidate": 1722,
+      "singleSpeciesCandidate": 1722,
+      "withAnyLifeformCandidate": 1631,
+      "firstSpeciesCandidateHasLifeform": 1631
+    },
+    "firstSpeciesCandidateLifeform": {
+      "rows": 1631,
+      "values": {
+        "cryptophyte": 292,
+        "hemicryptophyte": 688,
+        "phanerophyte": 199,
+        "chamaephyte": 100,
+        "therophyte": 352
+      },
+      "agreement": {
+        "below1": 534,
+        "1": 1097
+      },
+      "agreementMin": 0.333,
+      "missingReferenceRows": 0,
+      "distinctReferenceIds": 83,
+      "nMin": 1,
+      "nMax": 42
+    },
+    "collisionCandidates": [],
+    "allCandidateLifeformRows": 1631
+  },
+  "currentEtlFirstTwoTokens": {
+    "counts": {
+      "noSpeciesCandidate": 343,
+      "withSpeciesCandidate": 1726,
+      "singleSpeciesCandidate": 1726,
+      "withAnyLifeformCandidate": 1635,
+      "firstSpeciesCandidateHasLifeform": 1635
+    },
+    "firstSpeciesCandidateLifeform": {
+      "rows": 1635,
+      "values": {
+        "cryptophyte": 293,
+        "hemicryptophyte": 690,
+        "phanerophyte": 200,
+        "chamaephyte": 100,
+        "therophyte": 352
+      },
+      "agreement": {
+        "below1": 535,
+        "1": 1100
+      },
+      "agreementMin": 0.333,
+      "missingReferenceRows": 0,
+      "distinctReferenceIds": 83,
+      "nMin": 1,
+      "nMax": 42
+    },
+    "collisionCandidates": [],
+    "allCandidateLifeformRows": 1635,
+    "additionalCandidatesVersusFullName": [
+      {
+        "acceptedGbifKey": 9812709,
+        "catalogueScientificName": "Viola reichenbachiana x riviniana",
+        "candidateGiftWorkId": 46944,
+        "candidateGiftScientificName": "Viola reichenbachiana",
+        "catalogueRank": "species"
+      },
+      {
+        "acceptedGbifKey": 9877678,
+        "catalogueScientificName": "Populus deltoides x nigra",
+        "candidateGiftWorkId": 35891,
+        "candidateGiftScientificName": "Populus deltoides",
+        "catalogueRank": "species"
+      },
+      {
+        "acceptedGbifKey": 10243708,
+        "catalogueScientificName": "Orchis militaris x purpurea",
+        "candidateGiftWorkId": 31159,
+        "candidateGiftScientificName": "Orchis militaris",
+        "catalogueRank": "species"
+      },
+      {
+        "acceptedGbifKey": 10650260,
+        "catalogueScientificName": "Polypodium interjectum \u00d7 vulgare",
+        "candidateGiftWorkId": 35614,
+        "candidateGiftScientificName": "Polypodium interjectum",
+        "catalogueRank": "species"
+      }
+    ],
+    "giftWorkIdsReachedByMultipleCatalogueTaxa": [
+      {
+        "candidateGiftWorkId": "31159",
+        "catalogueTaxa": [
+          {
+            "gbifKey": 2809968,
+            "sciName": "Orchis militaris",
+            "rank": "species"
+          },
+          {
+            "gbifKey": 10243708,
+            "sciName": "Orchis militaris x purpurea",
+            "rank": "species"
+          }
+        ]
+      },
+      {
+        "candidateGiftWorkId": "46944",
+        "catalogueTaxa": [
+          {
+            "gbifKey": 5663962,
+            "sciName": "Viola reichenbachiana",
+            "rank": "species"
+          },
+          {
+            "gbifKey": 9812709,
+            "sciName": "Viola reichenbachiana x riviniana",
+            "rank": "species"
+          }
+        ]
+      }
+    ]
+  },
+  "shippedLifeformFacts": {
+    "taxa": 496,
+    "sources": {
+      "GIFT (Weigelt et al.)": 496
+    },
+    "factsWithWorkIdOrReferenceId": 0,
+    "comparisonWithRetainedUnverifiedNameCandidates": {
+      "sameValueViaUnverifiedNameCandidate": 496
+    }
+  },
+  "limits": [
+    "Species endpoint retained exactly 100000 rows despite code comment claiming approximately 380000: full index completion is not established.",
+    "Species response has GIFT work_ID/genus_ID but no GBIF/COL accepted identity crosswalk or dataset version. Exact spelling and first-two-token matches are only candidates.",
+    "Trait responses retain agreement, n and reference ID lists; ETL currently discards those when emitting Fact {value,source,url}.",
+    "No explicit licence, dataset release/version, HTTP retrieval timestamp or reference bibliography is embedded in these six raw response arrays. Filesystem mtime is not provider provenance.",
+    "Life-form traits are Raunkiaer classes, not a verified woody/herbaceous/graminoid browse mapping."
+  ]
+}
