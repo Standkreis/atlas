@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { runGermany } from '../../etl/nationwide'
 import { importRegionRegistry } from '../../etl/registry-import'
 import { parseRegionQueryMapping } from '../../etl/registry-mapping'
 import { parseRegionRegistry, type RegionRegistry } from '../../etl/registry/registry'
-import { runRegion, runRegistryRegion } from '../../etl/region'
+import { calculateRegistryRegion, refresh, runRegion, runRegistryRegion } from '../../etl/region'
 import type { Facet, Species } from '../../etl/gbif'
 import { db } from './db'
 
@@ -20,6 +21,7 @@ const RAW_SYNONYM_A = 990_017_101
 const RAW_SYNONYM_B = 990_017_102
 const RAW_MONTH_ONLY = 990_017_103
 const RAW_INVALID = 990_017_199
+const GUARD_RUN = 'issue-115-active-guard'
 const TAXON_KEYS = [ACCEPTED_SHARED, ACCEPTED_DOMINANT, ACCEPTED_BOUNDARY, ACCEPTED_SINGLETON]
 
 const aliases = (...values: string[]) => [...new Set(values)].sort()
@@ -149,7 +151,47 @@ const facet = vi.fn(async (_field: string, params: Record<string, string | numbe
 const species = vi.fn(async (key: number) => speciesRecords.get(key) ?? null)
 const stats = () => ({ perHost: {}, hits: 0, misses: 0, retries: 0, tooMany: 0 })
 
+async function removeGuardCatalogue() {
+  const candidate = await db.catalogueVersion.findUnique({ where: { countryCode_runKey: { countryCode: 'DE', runKey: `${GUARD_RUN}-staged` } } })
+  if (candidate) {
+    await db.catalogueLookalike.deleteMany({ where: { regionBuild: { catalogueVersionId: candidate.id } } })
+    await db.cataloguePlausibility.deleteMany({ where: { regionBuild: { catalogueVersionId: candidate.id } } })
+    await db.catalogueTaxon.deleteMany({ where: { catalogueVersionId: candidate.id } })
+    await db.catalogueTaxonomyResolution.deleteMany({ where: { catalogueVersionId: candidate.id } })
+    await db.catalogueRegionBuild.deleteMany({ where: { catalogueVersionId: candidate.id } })
+    await db.catalogueVersion.delete({ where: { id: candidate.id } })
+  }
+  const catalogue = await db.catalogueVersion.findUnique({ where: { countryCode_runKey: { countryCode: 'DE', runKey: GUARD_RUN } } })
+  if (!catalogue) return
+  await db.catalogueTaxon.deleteMany({ where: { catalogueVersionId: catalogue.id } })
+  await db.catalogueVersion.delete({ where: { id: catalogue.id } })
+}
+
+async function activateGuardCatalogue() {
+  const taxa = await db.plausibility.findMany({ where: { region: { canonicalKey: { in: [COMPOSITE_KEY, SINGLETON_KEY] } } }, select: { taxonId: true } })
+  return db.catalogueVersion.create({ data: {
+    countryCode: 'DE', runKey: GUARD_RUN, registryVersionId: REGISTRY_ID,
+    inputFingerprint: 'guard-input', sourceFingerprint: 'guard-source', unionFingerprint: 'guard-union',
+    plausibleRulesVersion: 1, tileMappingVersion: 1, observationWindowVersion: 1,
+    yearFrom: 2016, yearTo: 2026, occurrencePredicates: {}, expectedRegions: 2, completedRegions: 2,
+    unionTaxa: new Set(taxa.map(row => row.taxonId)).size, generatedAt: new Date('2097-01-01'), responseFingerprint: 'guard-response',
+    status: 'active', auditedAt: new Date('2097-01-01'), activatedAt: new Date('2097-01-01'),
+    taxa: { create: [...new Set(taxa.map(row => row.taxonId))].map(taxonId => ({ taxonId })) },
+  } })
+}
+
+async function guardSnapshot() {
+  return {
+    regions: await db.region.findMany({ where: { canonicalKey: { in: [COMPOSITE_KEY, SINGLETON_KEY] } }, orderBy: { id: 'asc' } }),
+    membership: await db.plausibility.findMany({ where: { region: { canonicalKey: { in: [COMPOSITE_KEY, SINGLETON_KEY] } } }, orderBy: { id: 'asc' } }),
+    lookalikes: await db.lookalike.findMany({ where: { region: { canonicalKey: { in: [COMPOSITE_KEY, SINGLETON_KEY] } } }, orderBy: [{ regionId: 'asc' }, { taxonId: 'asc' }, { siblingId: 'asc' }] }),
+    taxa: await db.taxon.findMany({ where: { gbifKey: { in: TAXON_KEYS } }, orderBy: { gbifKey: 'asc' } }),
+    catalogue: await db.catalogueVersion.findUnique({ where: { countryCode_runKey: { countryCode: 'DE', runKey: GUARD_RUN } }, include: { taxa: { orderBy: { taxonId: 'asc' } } } }),
+  }
+}
+
 async function removeFixture() {
+  await removeGuardCatalogue()
   await db.regionQueryUnit.deleteMany({ where: { registryVersionId: REGISTRY_ID } })
   await db.regionRegistryAlias.deleteMany({ where: { registryEntry: { registryVersionId: REGISTRY_ID } } })
   await db.regionSourceUnit.deleteMany({ where: { registryVersionId: REGISTRY_ID } })
@@ -270,4 +312,81 @@ describe('composite region ETL', () => {
     await runRegistryRegion(REGISTRY_ID, COMPOSITE_KEY, () => undefined, { facet, species, requestStats: stats })
     expect((await db.region.findUniqueOrThrow({ where: { id: region.id } })).status).toBe('ready')
   })
+
+  it('rejects direct active-catalogue refreshes before changed source membership or shared taxon writes', async () => {
+    await activateGuardCatalogue()
+    const before = await guardSnapshot()
+    const changedFacet = vi.fn(async (): Promise<Facet> => ({ total: 100, counts: [count(ACCEPTED_BOUNDARY, 100)] }))
+    const changedSpecies = vi.fn(async (key: number) => accepted(key, 'Changed provider name', 'Changedus'))
+    const resolveLegacy = vi.fn(async () => ({ gadmGid: 'JPN.guard_115', name: 'Guard legacy', higher: 'Japan', level: 2 }))
+    const dependencies = { facet: changedFacet, species: changedSpecies, resolveLegacy, requestStats: stats }
+    try {
+      await expect(runRegion(COMPOSITE_KEY, () => undefined, dependencies)).rejects.toThrow('active catalogue')
+      await expect(runRegistryRegion(REGISTRY_ID, COMPOSITE_KEY, () => undefined, dependencies)).rejects.toThrow('active catalogue')
+      await expect(runRegion('Unstored legacy guard region', () => undefined, dependencies)).rejects.toThrow('active catalogue')
+      await expect(refresh(0, () => undefined)).rejects.toThrow('active catalogue')
+      expect(changedFacet).not.toHaveBeenCalled()
+      expect(changedSpecies).not.toHaveBeenCalled()
+      expect(resolveLegacy).not.toHaveBeenCalled()
+      expect(await guardSnapshot()).toEqual(before)
+      expect(await db.region.findUnique({ where: { gadmGid: 'JPN.guard_115' } })).toBeNull()
+
+      // The version-explicit calculation used by nationwide staging remains read-only.
+      const staged = await calculateRegistryRegion(REGISTRY_ID, COMPOSITE_KEY, () => undefined, dependencies)
+      expect(staged.plausibility.map(row => row.gbifKey)).toEqual([ACCEPTED_BOUNDARY])
+      expect(staged.taxa[0].sciName).toBe('Changed provider name')
+      expect(await guardSnapshot()).toEqual(before)
+
+      // Explicit nationwide staging can build a different union while active membership stays frozen.
+      const candidate = await runGermany({
+        registryVersionId: REGISTRY_ID, runKey: `${GUARD_RUN}-staged`, log: () => undefined,
+        regionDependencies: {
+          facet: async () => ({ total: 100, counts: [count(ACCEPTED_SINGLETON, 100)] }),
+          taxonomy: async keys => ({
+            resolved: new Map(keys.map(key => [key, { sourceKey: key, acceptedKey: key, species: speciesRecords.get(key)! }])),
+            rejected: [],
+          }),
+        },
+      })
+      expect(candidate.report).toMatchObject({ catalogue: { status: 'complete' }, national: { uniqueTaxa: 1 } })
+      expect(await db.cataloguePlausibility.count({ where: { regionBuild: { catalogueVersionId: candidate.catalogueId } } })).toBe(2)
+      const afterStaging = await guardSnapshot()
+      // Staging deliberately upserts shared identities (and their timestamps), unlike calculation.
+      expect(afterStaging.taxa.map(({ updatedAt: _updatedAt, ...taxon }) => taxon)).toEqual(before.taxa.map(({ updatedAt: _updatedAt, ...taxon }) => taxon))
+      expect({ ...afterStaging, taxa: [] }).toEqual({ ...before, taxa: [] })
+    } finally { await removeGuardCatalogue() }
+  })
+
+
+  it('preserves a catalogue activated while a legacy job is fetching changed membership', async () => {
+    let activated: Promise<Awaited<ReturnType<typeof guardSnapshot>>> | undefined
+    const activatingFacet = vi.fn(async (): Promise<Facet> => {
+      activated ??= (async () => {
+        await activateGuardCatalogue()
+        // Activation owns the published ready state; the losing job must not mark it failed.
+        await db.region.updateMany({ where: { canonicalKey: COMPOSITE_KEY }, data: { status: 'ready', error: null } })
+        return guardSnapshot()
+      })()
+      await activated
+      return { total: 100, counts: [count(ACCEPTED_BOUNDARY, 100)] }
+    })
+    try {
+      await expect(runRegion(COMPOSITE_KEY, () => undefined, { facet: activatingFacet, species, requestStats: stats })).rejects.toThrow('active catalogue')
+      expect(activatingFacet).toHaveBeenCalled()
+      expect(activated).toBeDefined()
+      expect(await guardSnapshot()).toEqual(await activated)
+    } finally { await removeGuardCatalogue() }
+  })
+
+  it('retains supported direct legacy publication when no catalogue is active', async () => {
+    const resolveLegacy = vi.fn(async () => ({ gadmGid: 'JPN.guard_115', name: 'Guard legacy', higher: 'Japan', level: 2 }))
+    const legacyFacet = vi.fn(async (): Promise<Facet> => ({ total: 100, counts: [count(ACCEPTED_SHARED, 100)] }))
+    try {
+      const result = await runRegion('Unstored legacy guard region', () => undefined, { facet: legacyFacet, species, resolveLegacy, requestStats: stats })
+      expect(result).toMatchObject({ set: 1, registryVersion: null, gadmGid: 'JPN.guard_115' })
+      expect(resolveLegacy).toHaveBeenCalledOnce()
+      expect(await db.plausibility.count({ where: { regionId: result.regionId } })).toBe(1)
+    } finally { await db.region.deleteMany({ where: { gadmGid: 'JPN.guard_115' } }) }
+  })
+
 })
