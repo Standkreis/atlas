@@ -151,7 +151,7 @@ Every asset carries its licence and attribution in the database. If free-forever
 
 ## 🗃️ ETL
 
-> Decided in [record 0002](../records/0002-etl-the-plausible-set.md) E11. The probe in [`scripts/etl-probe/`](../../scripts/etl-probe/README.md) ran the whole pipeline in miniature (`matrix.mjs`) and produced the first fixture.
+> Decided in [record 0002](../records/0002-etl-the-plausible-set.md) E11. The [historical `scripts/etl-probe/`](https://github.com/Standkreis/atlas/blob/7804982e487b25d826eefb762f8b62e1905b6847/scripts/etl-probe/README.md) ran the whole pipeline in miniature (`matrix.mjs`) and produced the first fixture. The link is commit-pinned because the probe was subsequently removed.
 
 **Tables written:** `region` · `taxon` · `plausibility` · `asset` · `text` (intro, language, source) · `interaction` · `lookalike`.
 
