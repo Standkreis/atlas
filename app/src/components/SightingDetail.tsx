@@ -18,8 +18,7 @@ import { rememberSpeciesOrigin } from './SpeciesOrigin'
 import { expectedIdentity } from './ClientIdentity'
 import { radioKeys } from './ChoiceKeyboard'
 import { Sheet, useSheetClose } from './Sheet'
-
-type Wildness = 'wild' | 'captive' | 'cultivated'
+import { sightingWildnessChoices, type Wildness } from '@/domain/wildness'
 
 /** A Date as the value of `<input aria-label={t('when')} type="datetime-local">` in local time. */
 const toLocalInput = (d: Date) => { const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}` }
@@ -101,7 +100,7 @@ export function SightingDetail({ id, mode, origin, onGone }: { id: string; mode:
   const image = own ?? (row.reference ? { url: row.reference.url, info: row.reference } : null)
   const title = name(row.taxon)
   const chip = row.first ? { text: tj('newlySeen'), cls: 'bg-moss-soft text-moss-deep' } : row.wildness !== 'wild' ? { text: tj(row.wildness), cls: 'bg-tile text-ink-soft' } : null
-  const options: Wildness[] = row.wildness === 'cultivated' ? ['wild', 'captive', 'cultivated'] : ['wild', 'captive']
+  const options = sightingWildnessChoices(row.taxon.tile, row.wildness)
   const shownAt = edit.at ? new Date(edit.at) : row.at
   const meta: ReactNode[] = [
     <button key="when" type="button" onClick={() => setEditWhen((v) => !v)} aria-expanded={editWhen} className="underline decoration-ink-faint decoration-dotted underline-offset-4" data-testid="when">
