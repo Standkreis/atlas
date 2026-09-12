@@ -336,8 +336,37 @@ The bound 28-file operator kit and fourteen-file fence proof are hash-verified a
 private persistent recovery storage. Fence archive manifest SHA-256:
 `dc75cde02248e04e63b2e4729d8e7167087b57303dc873c33389509731a6e558`.
 [Third-window proof](https://github.com/Standkreis/atlas/issues/29#issuecomment-5645363304)
-records the execution boundary. Fresh backup/restore, plan/apply and independent production
-acceptance remain pending; this maintenance activation does not claim catalogue delivery.
+records the execution boundary. This maintenance activation does not claim catalogue delivery.
+
+### Fresh attempt03 checkpoint and apply start
+
+After the full drain, the fresh custom-format backup completed at **11:07:46.079 UTC**
+(9,569,714 bytes; SHA-256 `cf88588605d076df775b10eb03923fbe24e44a79dcacf4ce0a7efee0cf4b41a7`).
+Its new local PG18 restore matched all 34 live table counts and digests at **11:08:05.488 UTC**.
+The fresh snapshot contains 92 identities; compared with attempt02, only an ordinary additional
+identity and the recorded aborted-gate metadata changed. Gallery, taxonomy and reusable-content
+scope remain unchanged. All fresh protected before-images are included; no database wipe is used.
+
+The checked read-only plan completed successfully in 184.740 seconds. It contains **873,556
+mutations**, 16 protected scopes and a 634,051,078-byte recovery receipt. The exact summary remains
+362 regions, 6,874 taxa, 36,338 eligible images, 1,241 reused and 35,097 inserted Assets, 1,554 retained
+existing references, 313 hidden references and 6,874 gallery receipts.
+
+| Attempt03 binding | SHA-256 / fingerprint |
+| --- | --- |
+| Configuration | `43de99252ea09621360d6d6a56b215957c27186e297bbb53ed1331082c7edb11` |
+| Plan | `506fbd572a7640b7108dc5aca7574d0721586e23264cdc18f12fd71d423677ee` |
+| Receipt file | `530e06d0a6c61c900ba82ac7a1fcba110bf9cc24243fde79515be4deef9569cf` |
+| Fresh baseline | `90030d96eda4e792b76e06abb9c7f540c07c5702f2d277f9535ac5f7e034ce56` |
+| Persistent recovery archive manifest | `b4540e7db85596f7b3403a25795458af34d9cda0c0ed676229d9d427172f60e6` |
+
+All nine original and archived recovery files were hash-verified and fsynced at **11:12:50.755 UTC**.
+An independent complete 31-table comparison proved the receipt baseline still matched live production
+at **11:13:55.775 UTC**. Final maintenance/runtime checks at **11:15 UTC** found no post-fence function
+invocations, active database work or unexplained clients, and an open gate with zero admissions.
+The approved checked apply started at **11:19:50 UTC** under a read-only size/gate monitor.
+[Execution update](https://github.com/Standkreis/atlas/issues/29#issuecomment-5645563763).
+Apply completion, independent committed-state audit, reopening and production journeys remain pending.
 
 The actual fence/drain, fresh backup/restore, exact-bound production plan/apply, independent audit,
 reopening and deployed browser/media/audio/offline/analytics smoke evidence must replace this pending
