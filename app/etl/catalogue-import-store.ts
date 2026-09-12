@@ -1,6 +1,8 @@
 /** Checked target snapshot, atomic catalogue apply, and guarded recovery for issue #63. */
-import { contentDigest } from './catalogue-gallery-transfer'
+import { canonicalContent, contentDigest } from './catalogue-gallery-transfer'
 import { catalogueImportDigest } from './catalogue-import-json'
+import { catalogueJsonBatches, CATALOGUE_WRITE_BATCH, CATALOGUE_KEY_BATCH, CATALOGUE_INBOUND_BATCH } from './catalogue-import-batches'
+import { cataloguePhase, catalogueRequest } from './catalogue-import-telemetry'
 import {
   CATALOGUE_APPLY_ORDER,
   CATALOGUE_TARGET_SNAPSHOT_TABLES,
@@ -72,7 +74,6 @@ const TABLES = {
 
 const WRITE_TABLES = new Set<string>(Object.keys(CATALOGUE_TARGET_PRIMARY_KEYS))
 const SHA256 = /^[a-f\d]{64}$/
-const BATCH_SIZE = 1_000
 // The aggregate deadline includes every bounded statement, network round trip and local
 // before/after-image check. A nationwide remote import can exceed two minutes without any
 // individual statement approaching its separate 120-second limit. Keep this importer-only,
@@ -118,18 +119,19 @@ function deepFreeze<T>(value: T, seen = new Set<object>()): T {
 async function readAllRows(db: Pick<Tx, '$queryRawUnsafe'>, table: string): Promise<CatalogueTargetRow[]> {
   const contract = tableContract(table)
   const order = contract.keys.map((key) => `t.${quote(key)}`).join(', ')
-  const result = await db.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(`SELECT to_jsonb(t) AS row FROM ${quote(table)} t ORDER BY ${order}`)
+  const result = await catalogueRequest('snapshot-read', table as keyof typeof TABLES, { rows: 0, bytes: 0 }, () =>
+    db.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(`SELECT to_jsonb(t) AS row FROM ${quote(table)} t ORDER BY ${order}`))
   return result.map(({ row }) => row)
 }
 
 /** One repeatable target snapshot; to_jsonb keeps database timestamp/date values as exact strings. */
 export async function snapshotCatalogueTarget(db: Db): Promise<TargetCatalogueSnapshot> {
-  return db.$transaction(async (tx) => {
+  return cataloguePhase('target-snapshot', () => db.$transaction(async (tx) => {
     await boundCatalogueTransaction(tx)
     const tables = new Map<string, readonly CatalogueTargetRow[]>()
     for (const table of CATALOGUE_TARGET_TABLES) tables.set(table, deepFreeze(await readAllRows(tx, table)))
     return Object.freeze({ tables: readonlyMap(tables) }) as TargetCatalogueSnapshot
-  }, { isolationLevel: 'RepeatableRead', ...CATALOGUE_TRANSACTION_OPTIONS })
+  }, { isolationLevel: 'RepeatableRead', ...CATALOGUE_TRANSACTION_OPTIONS }))
 }
 
 export function catalogueTargetSnapshotFingerprint(snapshot: TargetCatalogueSnapshot) {
@@ -209,7 +211,14 @@ async function readKeyedRows(db: Pick<Tx, '$queryRawUnsafe'>, table: string, key
   const join = contract.keys.map((key) => `t.${quote(key)} = k.${quote(key)}`).join(' AND ')
   const order = contract.keys.map((key) => `t.${quote(key)}`).join(', ')
   const sql = `SELECT to_jsonb(t) AS row FROM ${quote(table)} t JOIN jsonb_populate_recordset(NULL::${quote(table)}, $1::jsonb) k ON ${join} ORDER BY ${order}`
-  return db.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(sql, JSON.stringify(keys)).then((rows) => rows.map(({ row }) => row))
+  // Consumers index full rows by exact primary key; they do not depend on cross-batch SQL order.
+  const found: CatalogueTargetRow[] = []
+  for (const batch of catalogueJsonBatches(keys, CATALOGUE_KEY_BATCH)) {
+    const rows = await catalogueRequest('keyed-read', table as keyof typeof TABLES, batch, () =>
+      db.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(sql, batch.payload))
+    for (const { row } of rows) found.push(row)
+  }
+  return found
 }
 
 async function currentMutationRows(db: Pick<Tx, '$queryRawUnsafe'>, mutations: readonly PlannedCatalogueRowMutation[]) {
@@ -238,14 +247,35 @@ async function scopeRows(db: Pick<Tx, '$queryRawUnsafe'>, scope: CatalogueProtec
     : `'{}'::jsonb`
   const order = contract.keys.map((key) => `t.${quote(key)}`).join(', ')
   if (scope.selector.kind === 'all') {
-    const rows = await db.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(`SELECT ${projected} AS row FROM ${quote(scope.table)} t ORDER BY ${order}`)
+    const rows = await catalogueRequest('scope-read', scope.table as keyof typeof TABLES, { rows: 0, bytes: 0 }, () =>
+      db.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(`SELECT ${projected} AS row FROM ${quote(scope.table)} t ORDER BY ${order}`))
     return rows.map(({ row }) => row)
   }
   const keys = scope.selector.keys as readonly Record<string, unknown>[]
   if (!keys.length) return []
+  const canonicalKeys = keys.map(canonicalContent).sort((left, right) => left.localeCompare(right))
+  const tiedKeys = canonicalKeys.some((key, index) => index > 0 && key.localeCompare(canonicalKeys[index - 1]!) === 0)
+  if (contract.keys.some((key) => !scope.columns.includes(key)) || tiedKeys) {
+    // Projected fingerprints can have tied/missing canonical keys and preserve SQL input order.
+    // Even complete, distinct keys can tie under localeCompare (e.g. Unicode normalization).
+    // A sequence of independently sorted keyed batches cannot preserve the database's global
+    // collation. Read this uncommon projection once in database order and select exact keys
+    // locally. No key parameter crosses the boundary; no projected row is omitted or re-sorted.
+    const selected = new Set(keys.map(keyText))
+    const key = `jsonb_build_object(${contract.keys.flatMap((column) => [`'${column}'`, `to_jsonb(t)->'${column}'`]).join(', ')})`
+    const rows = await catalogueRequest('scope-read', scope.table as keyof typeof TABLES, { rows: 0, bytes: 0 }, () =>
+      db.$queryRawUnsafe<{ row: CatalogueTargetRow; key: Record<string, unknown> }[]>(`SELECT ${projected} AS row, ${key} AS key FROM ${quote(scope.table)} t ORDER BY ${order}`))
+    return rows.filter((entry) => selected.has(keyText(entry.key))).map(({ row }) => row)
+  }
   const join = contract.keys.map((key) => `t.${quote(key)} = k.${quote(key)}`).join(' AND ')
-  const rows = await db.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(`SELECT ${projected} AS row FROM ${quote(scope.table)} t JOIN jsonb_populate_recordset(NULL::${quote(scope.table)}, $1::jsonb) k ON ${join} ORDER BY ${order}`, JSON.stringify(keys))
-  return rows.map(({ row }) => row)
+  // Complete keys without collation ties canonicalize independently of batch order.
+  const found: CatalogueTargetRow[] = []
+  for (const batch of catalogueJsonBatches(keys, CATALOGUE_KEY_BATCH)) {
+    const rows = await catalogueRequest('scope-read', scope.table as keyof typeof TABLES, batch, () =>
+      db.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(`SELECT ${projected} AS row FROM ${quote(scope.table)} t JOIN jsonb_populate_recordset(NULL::${quote(scope.table)}, $1::jsonb) k ON ${join} ORDER BY ${order}`, batch.payload))
+    for (const { row } of rows) found.push(row)
+  }
+  return found
 }
 
 async function assertProtectedScopes(db: Pick<Tx, '$queryRawUnsafe'>, scopes: readonly CatalogueProtectionScope[]) {
@@ -310,12 +340,6 @@ async function currentTargetFingerprint(db: Pick<Tx, '$queryRawUnsafe'>) {
   return catalogueTargetSnapshotFingerprint(snapshot)
 }
 
-function chunks<T>(rows: readonly T[]) {
-  const batches: T[][] = []
-  for (let index = 0; index < rows.length; index += BATCH_SIZE) batches.push(rows.slice(index, index + BATCH_SIZE))
-  return batches
-}
-
 async function upsertRows(tx: Tx, table: string, rows: readonly CatalogueTargetRow[]) {
   if (!rows.length) return
   const contract = writeContract(table)
@@ -327,7 +351,9 @@ async function upsertRows(tx: Tx, table: string, rows: readonly CatalogueTargetR
     ? `DO UPDATE SET ${updates.map((column) => `${quote(column)} = EXCLUDED.${quote(column)}`).join(', ')}`
     : 'DO NOTHING'
   const sql = `INSERT INTO ${quote(table)} (${columns}) SELECT ${selected} FROM jsonb_populate_recordset(NULL::${quote(table)}, $1::jsonb) r ON CONFLICT (${conflict}) ${action}`
-  for (const batch of chunks(rows)) await tx.$executeRawUnsafe(sql, JSON.stringify(batch))
+  for (const batch of catalogueJsonBatches(rows, CATALOGUE_WRITE_BATCH)) {
+    await catalogueRequest('upsert', table as keyof typeof TABLES, batch, () => tx.$executeRawUnsafe(sql, batch.payload))
+  }
 }
 
 async function deleteRows(tx: Tx, table: string, keys: readonly Record<string, unknown>[]) {
@@ -335,7 +361,9 @@ async function deleteRows(tx: Tx, table: string, keys: readonly Record<string, u
   const contract = writeContract(table)
   const match = contract.keys.map((key) => `t.${quote(key)} = k.${quote(key)}`).join(' AND ')
   const sql = `DELETE FROM ${quote(table)} t USING jsonb_populate_recordset(NULL::${quote(table)}, $1::jsonb) k WHERE ${match}`
-  for (const batch of chunks(keys)) await tx.$executeRawUnsafe(sql, JSON.stringify(batch))
+  for (const batch of catalogueJsonBatches(keys, CATALOGUE_WRITE_BATCH)) {
+    await catalogueRequest('delete', table as keyof typeof TABLES, batch, () => tx.$executeRawUnsafe(sql, batch.payload))
+  }
 }
 
 function matching(mutations: readonly PlannedCatalogueRowMutation[], phase: 'materialize' | 'publish', table: CatalogueTargetTable) {
@@ -490,42 +518,48 @@ export async function applyCatalogueTargetPlan(db: Db, options: {
   receipt: CatalogueApplyReceipt
   faultInjection?: CatalogueStoreFaultInjection
 }) {
-  validatePlan(options.plan)
-  assertReceipt(options.receipt, options.plan)
-  await assertCurrentReleaseEvidence(options.validated)
+  await cataloguePhase('receipt-validation', () => {
+    validatePlan(options.plan)
+    assertReceipt(options.receipt, options.plan)
+  })
+  await cataloguePhase('release-validation', () => assertCurrentReleaseEvidence(options.validated))
   if (options.receipt.sourceEvidenceFingerprint !== contentDigest(options.validated.evidence) ||
     contentDigest(options.receipt.sourceEvidence) !== contentDigest(options.validated.evidence)) throw new Error('catalogue receipt source evidence drifted')
-  await db.$transaction((tx) => closeCatalogueGate(tx, {
+  await cataloguePhase('gate-close', () => db.$transaction((tx) => closeCatalogueGate(tx, {
     operationId: options.receipt.operationId,
     targetCatalogueId: options.receipt.catalogueVersionId,
-  }))
-  const drain = await catalogueWriteDrain(db)
+  })))
+  const drain = await cataloguePhase('drain', () => catalogueWriteDrain(db))
   if (drain.count) throw new Error(`catalogue write drain is not empty (${drain.count})`)
   // The drain may be operator-paced; re-hash the six frozen inputs at the actual transaction edge.
-  await assertCurrentReleaseEvidence(options.validated)
+  await cataloguePhase('release-validation', () => assertCurrentReleaseEvidence(options.validated))
 
-  const committedFingerprint = await db.$transaction(async (tx) => {
+  const committedFingerprint = await cataloguePhase('apply-transaction', () => db.$transaction(async (tx) => {
     await boundCatalogueTransaction(tx)
-    await requireDrainedCatalogueMaintenance(tx, {
+    await cataloguePhase('maintenance-lock', () => requireDrainedCatalogueMaintenance(tx, {
       operationId: options.receipt.operationId,
       targetCatalogueId: options.receipt.catalogueVersionId,
+    }))
+    await cataloguePhase('table-locks', () => lockTargetTables(tx))
+    await cataloguePhase('before-snapshot', () => assertTargetSnapshot(tx, options.receipt.targetSnapshotFingerprint))
+    await cataloguePhase('protected-scopes', () => assertProtectedScopes(tx, options.receipt.protectedScopes))
+    await cataloguePhase('before-images', async () => {
+      const before = await currentMutationRows(tx, options.receipt.mutations)
+      assertSequentialBeforeImages(options.receipt.mutations, before)
     })
-    await lockTargetTables(tx)
-    await assertTargetSnapshot(tx, options.receipt.targetSnapshotFingerprint)
-    await assertProtectedScopes(tx, options.receipt.protectedScopes)
-    const before = await currentMutationRows(tx, options.receipt.mutations)
-    assertSequentialBeforeImages(options.receipt.mutations, before)
-    await applyMutations(tx, options.receipt.mutations)
+    await cataloguePhase('writes', () => applyMutations(tx, options.receipt.mutations))
     await options.faultInjection?.afterWrites?.(tx)
-    const after = await currentMutationRows(tx, finalImages(options.receipt.mutations))
-    assertMutationImages(finalImages(options.receipt.mutations), after, 'after')
-    await assertProtectedScopes(tx, options.receipt.protectedScopes)
-    return currentTargetFingerprint(tx)
-  }, { isolationLevel: 'Serializable', ...CATALOGUE_TRANSACTION_OPTIONS })
+    await cataloguePhase('after-images', async () => {
+      const after = await currentMutationRows(tx, finalImages(options.receipt.mutations))
+      assertMutationImages(finalImages(options.receipt.mutations), after, 'after')
+    })
+    await cataloguePhase('protected-scopes', () => assertProtectedScopes(tx, options.receipt.protectedScopes))
+    return cataloguePhase('committed-snapshot', () => currentTargetFingerprint(tx))
+  }, { isolationLevel: 'Serializable', ...CATALOGUE_TRANSACTION_OPTIONS }))
 
   await options.faultInjection?.afterCommit?.()
-  await verifyApplied(db, options.receipt, committedFingerprint)
-  await db.$transaction((tx) => openCatalogueGate(tx, { operationId: options.receipt.operationId }))
+  await cataloguePhase('post-commit-verification', () => verifyApplied(db, options.receipt, committedFingerprint))
+  await cataloguePhase('gate-open', () => db.$transaction((tx) => openCatalogueGate(tx, { operationId: options.receipt.operationId })))
   return options.receipt
 }
 
@@ -632,21 +666,20 @@ async function scanInboundRows(
   const join = reference.sourceColumns.map((column, index) => `s.${quote(column)} = t.${quote(reference.targetColumns[index]!)}`).join(' AND ')
   const order = source.keys.map((key) => `s.${quote(key)}`).join(', ')
   const sourceKey = `jsonb_build_object(${source.keys.flatMap((key) => [`'${key}'`, `to_jsonb(s.${quote(key)})`]).join(', ')})`
-  for (const targetBatch of chunks(targets)) {
-    const batch = targetBatch.map((row) => Object.fromEntries(reference.targetColumns.map((column) => [column, row[column]])))
-    const payload = JSON.stringify(batch)
-    const rows = await tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
+  const keys = targets.map((row) => Object.fromEntries(reference.targetColumns.map((column) => [column, row[column]])))
+  for (const batch of catalogueJsonBatches(keys, CATALOGUE_INBOUND_BATCH)) {
+    const rows = await catalogueRequest('inbound-read', reference.sourceTable, batch, () => tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
       `SELECT ${sourceKey} AS row FROM ${quote(reference.sourceTable)} s JOIN jsonb_populate_recordset(NULL::${quote(reference.targetTable)}, $1::jsonb) t ON ${join} ORDER BY ${order}`,
-      payload,
-    )
+      batch.payload,
+    ))
     observe?.(Object.freeze({
       targetTable: reference.targetTable,
       sourceTable: reference.sourceTable,
       label: reference.label ?? reference.sourceColumns.join('+'),
       targetColumns: Object.freeze([...reference.targetColumns]),
       sourceKeyColumns: Object.freeze([...source.keys]),
-      targetRows: batch.length,
-      targetJsonBytes: Buffer.byteLength(payload),
+      targetRows: batch.rows,
+      targetJsonBytes: batch.bytes,
       sourceRows: rows.length,
     }))
     for (const { row } of rows) inspect(row)
@@ -664,18 +697,20 @@ async function assertNoNewInboundReferences(tx: Tx, index: CatalogueRecoveryInde
   }
 
   const regionIds = (index.insertedByTable.get('Region') ?? []).flatMap((row) => typeof row.id === 'string' ? [row.id] : [])
-  for (const batch of chunks(regionIds)) {
-    const filters = await tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
-      `SELECT jsonb_build_object('id', f.id) AS row FROM "Filter" f WHERE f."regionIds" && $1::text[] ORDER BY f.id`, batch)
+  for (const batch of catalogueJsonBatches(regionIds, CATALOGUE_INBOUND_BATCH)) {
+    // Send the measured JSON parameter itself, not an independently encoded PG text array.
+    const regionArray = 'ARRAY(SELECT jsonb_array_elements_text($1::jsonb))'
+    const filters = await catalogueRequest('inbound-read', 'Filter', batch, () => tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
+      `SELECT jsonb_build_object('id', f.id) AS row FROM "Filter" f WHERE f."regionIds" && ${regionArray} ORDER BY f.id`, batch.payload))
     for (const { row } of filters) if (!index.ownedFinalKeys.has(`Filter:${keyText(currentKey('Filter', row))}`)) blockers.push(`Filter.regionIds:${keyText(currentKey('Filter', row))}`)
-    const prose = await tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
-      `SELECT jsonb_build_object('id', t.id) AS row FROM "Taxon" t WHERE t.prose->>'version' = '1' AND t.prose->'regions' ?| $1::text[] ORDER BY t.id`, batch)
+    const prose = await catalogueRequest('inbound-read', 'Taxon', batch, () => tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
+      `SELECT jsonb_build_object('id', t.id) AS row FROM "Taxon" t WHERE t.prose->>'version' = '1' AND t.prose->'regions' ?| ${regionArray} ORDER BY t.id`, batch.payload))
     for (const { row } of prose) if (!index.ownedFinalKeys.has(`Taxon:${keyText(currentKey('Taxon', row))}`)) blockers.push(`Taxon.prose.regions:${keyText(currentKey('Taxon', row))}`)
-    const scans = await tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
+    const scans = await catalogueRequest('inbound-read', 'ScanWork', batch, () => tx.$queryRawUnsafe<{ row: CatalogueTargetRow }[]>(
       `SELECT jsonb_build_object('key', s.key) AS row FROM "ScanWork" s WHERE EXISTS (
         SELECT 1 FROM jsonb_path_query(s.result, 'strict $.**.regionId') value
-        WHERE value #>> '{}' = ANY($1::text[])
-      ) ORDER BY s.key`, batch)
+        WHERE value #>> '{}' = ANY(${regionArray}::text[])
+      ) ORDER BY s.key`, batch.payload))
     for (const { row } of scans) blockers.push(`ScanWork.result.regionId:${keyText(currentKey('ScanWork', row))}`)
   }
   if (blockers.length) throw new Error(`catalogue recovery found newer inbound references: ${[...new Set(blockers)].slice(0, 20).join(', ')}`)
@@ -717,36 +752,40 @@ export async function recoverCatalogueTarget(db: Db, options: {
   receipt: CatalogueApplyReceipt
   faultInjection?: CatalogueStoreFaultInjection
 }) {
-  assertReceipt(options.receipt)
+  await cataloguePhase('receipt-validation', () => assertReceipt(options.receipt))
   const recovery = catalogueRecoveryIndex(options.receipt.mutations)
-  await db.$transaction((tx) => closeCatalogueGate(tx, {
+  await cataloguePhase('gate-close', () => db.$transaction((tx) => closeCatalogueGate(tx, {
     operationId: options.receipt.operationId,
     targetCatalogueId: options.receipt.catalogueVersionId,
-  }))
-  const drain = await catalogueWriteDrain(db)
+  })))
+  const drain = await cataloguePhase('drain', () => catalogueWriteDrain(db))
   if (drain.count) throw new Error(`catalogue write drain is not empty (${drain.count})`)
 
-  const committedFingerprint = await db.$transaction(async (tx) => {
+  const committedFingerprint = await cataloguePhase('recovery-transaction', () => db.$transaction(async (tx) => {
     await boundCatalogueTransaction(tx)
-    await requireDrainedCatalogueMaintenance(tx, {
+    await cataloguePhase('maintenance-lock', () => requireDrainedCatalogueMaintenance(tx, {
       operationId: options.receipt.operationId,
       targetCatalogueId: options.receipt.catalogueVersionId,
+    }))
+    await cataloguePhase('table-locks', () => lockTargetTables(tx))
+    await cataloguePhase('after-images', async () => {
+      const after = await currentMutationRows(tx, recovery.final)
+      assertMutationImages(recovery.final, after, 'after')
     })
-    await lockTargetTables(tx)
-    const after = await currentMutationRows(tx, recovery.final)
-    assertMutationImages(recovery.final, after, 'after')
-    await assertProtectedScopes(tx, options.receipt.protectedScopes)
-    await assertNoNewInboundReferences(tx, recovery, options.faultInjection)
-    await recoverMutations(tx, options.receipt.mutations)
+    await cataloguePhase('protected-scopes', () => assertProtectedScopes(tx, options.receipt.protectedScopes))
+    await cataloguePhase('inbound-guards', () => assertNoNewInboundReferences(tx, recovery, options.faultInjection))
+    await cataloguePhase('inverse-writes', () => recoverMutations(tx, options.receipt.mutations))
     await options.faultInjection?.afterWrites?.(tx)
-    const before = await currentMutationRows(tx, recovery.initial)
-    assertMutationImages(recovery.initial, before, 'before')
-    await assertProtectedScopes(tx, options.receipt.protectedScopes)
-    return currentTargetFingerprint(tx)
-  }, { isolationLevel: 'Serializable', ...CATALOGUE_TRANSACTION_OPTIONS })
+    await cataloguePhase('before-images', async () => {
+      const before = await currentMutationRows(tx, recovery.initial)
+      assertMutationImages(recovery.initial, before, 'before')
+    })
+    await cataloguePhase('protected-scopes', () => assertProtectedScopes(tx, options.receipt.protectedScopes))
+    return cataloguePhase('committed-snapshot', () => currentTargetFingerprint(tx))
+  }, { isolationLevel: 'Serializable', ...CATALOGUE_TRANSACTION_OPTIONS }))
 
   await options.faultInjection?.afterCommit?.()
-  await verifyRecovered(db, options.receipt, committedFingerprint, recovery)
-  await db.$transaction((tx) => openCatalogueGate(tx, { operationId: options.receipt.operationId }))
+  await cataloguePhase('post-commit-verification', () => verifyRecovered(db, options.receipt, committedFingerprint, recovery))
+  await cataloguePhase('gate-open', () => db.$transaction((tx) => openCatalogueGate(tx, { operationId: options.receipt.operationId })))
   return options.receipt
 }

@@ -89,6 +89,56 @@ source, gallery, licence, preservation, cost or migration scope, and is not prod
 
 ## Operator commands
 
+### 12 September measured batch bounds — #104
+
+The retained attempt-02 receipt contains 873,556 mutations. Streaming measurement of its exact
+forward DML parameters gives 464,998,463 UTF-8 JSON bytes in 888 old 1,000-row requests; the
+largest request was 15,825,541 bytes. The largest individual after-image is 33,347 bytes.
+The reviewed **10,000-row / 4,194,304-byte** write bounds produce 168 requests and
+464,997,743 JSON bytes, with a maximum request of 4,194,288 bytes. A 1 MiB alternative
+required 462 requests. These measurements support reducing round trips; they do not prove
+production throughput or deadline headroom.
+
+Upserts and deletes use these bounds in both apply and inverse. Keyed image/protected-scope
+reads use **100,000 keys / 4,194,304 bytes**: the receipt's current 21 unbounded image-read
+requests (largest 22,985,745 bytes) become 31 bounded requests per full image pass. A
+10,000-key cap would require 103. Recovery inbound joins retain their reviewed **1,000-key**
+bound and additionally enforce 4 MiB. Non-FK region-reference guards use the same bounded
+JSON parameter and reconstruct the PostgreSQL text array in SQL.
+
+All caps count the actual UTF-8 JSON parameter, including array brackets, commas, escaping
+and multibyte text. Rows keep their original sequence within the fixed table/phase order;
+active-version swaps retain their separate retire/activate requests. An individual value
+larger than 4 MiB fails closed rather than being skipped or sent over the bound. If this
+happens after transaction work begins, that transaction rolls back and maintenance remains
+closed pending the usual independent state verification. No cap or transaction budget has
+an operator override. Complete snapshots and full verification results remain complete;
+these are input-parameter bounds, not response pagination or a total-memory bound.
+For a protected keyed projection omitting any primary-key column, the store reads the fixed
+projection plus keys once in global database order and filters exact keys locally. This rare
+fallback sends no key payload and preserves order-sensitive projected fingerprints across
+collations; generated full-key scopes use the normal bounded keyed reads.
+
+Add `--telemetry counts` to plan, apply or recover for newline-delimited JSON diagnostics
+on stdout alongside the unchanged command result. Telemetry has `kind: catalogue-import-telemetry`,
+`event: phase|batch`, fixed phase/table/operation names, elapsed milliseconds, success and
+numeric request/input-row/input-JSON-byte/output-row counts. It excludes row values,
+identifiers, credentials, SQL and error text. Sink failure does not alter transaction outcomes.
+Counts cover instrumented catalogue data requests; gate/transaction-control SQL is outside
+those counts and has separate phase timing. Bytes exclude returned data, SQL text and network
+protocol/TLS overhead. Parent phase totals include children: do not add them together.
+`apply-transaction` and `recovery-transaction` include commit, while `post-commit-verification`
+is separately timed; the `command` phase also includes source validation, planning and files.
+Phase success describes that phase only, never an independent committed-state audit.
+
+The 600,000 ms aggregate, 120,000 ms statement, and 30,000 ms lock/acquisition bounds remain
+unchanged. Before another production attempt, #104 must record fresh full-size plan/apply/inverse
+rehearsals on normal and explicitly measured latency/throughput-shaped local connections,
+including actual transaction headroom, exact 31-table recovery and gallery/personal-content
+audits. A failed or marginal profile requires review; do not infer production safety from the
+request reduction, a local-only elapsed time or a blind timeout increase. #29 owns any subsequent
+production execution with fresh checked bindings.
+
 Run from the clean checked release worktree's `app/` directory. Securely configure `DATABASE_URL`
 in the process environment; the command does not load `.env` files and must never receive a
 credential URL as an argument. Confirm the actual target hostname, port and database. Routing

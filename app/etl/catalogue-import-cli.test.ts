@@ -113,6 +113,23 @@ function runtime(overrides: Partial<CatalogueImportCliRuntime> = {}) {
 }
 
 describe('catalogue import operational CLI', () => {
+  it('enables counts telemetry only explicitly and preserves command bindings and output', async () => {
+    const flags = ['plan', '--config', '/config.json', '--receipt', '/private/receipt.jsonl', '--plan-record', '/plan-record.json']
+    const env = { DATABASE_URL: 'postgresql://dex:dex@127.0.0.1:5434/dex_check_cutover' }
+    const plain = runtime(), measured = runtime()
+    const normal = await runCatalogueImportCli(flags, { runtime: plain.value, env })
+    const observed = await runCatalogueImportCli([...flags, '--telemetry', 'counts'], { runtime: measured.value, env })
+    expect(observed).toEqual(normal)
+    expect(measured.events).toEqual(plain.events)
+    const output = vi.mocked(measured.value.stdout).mock.calls.map(([line]) => JSON.parse(line))
+    const diagnostic = output.filter((event) => event.kind === 'catalogue-import-telemetry')
+    expect(diagnostic.map((event) => event.phase)).toEqual(['source-validation', 'release-validation', 'planning', 'receipt-validation', 'command'])
+    expect(output.filter((event) => event.kind !== 'catalogue-import-telemetry')).toEqual(vi.mocked(plain.value.stdout).mock.calls.map(([line]) => JSON.parse(line)))
+    expect(JSON.stringify(diagnostic)).not.toMatch(/germany-v7|catalogue-v7|registry-v1|postgresql|frozen|private/)
+    await expect(runCatalogueImportCli([...flags, '--telemetry', 'verbose'], { runtime: measured.value, env })).rejects.toThrow('--telemetry requires counts')
+    await expect(runCatalogueImportCli([...flags, '--telemetry', 'counts', '--telemetry', 'counts'], { runtime: measured.value, env })).rejects.toThrow('duplicate')
+  })
+
   it('uses strict configs and distinct read/write execution-manifest contracts', () => {
     expect(parseCatalogueImportExecutionConfig(config)).toEqual(config)
     expect(() => parseCatalogueImportExecutionConfig({ ...config, databaseUrl: 'postgresql://secret' })).toThrow()
